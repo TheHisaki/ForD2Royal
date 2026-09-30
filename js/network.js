@@ -56,13 +56,22 @@ class NetworkManager {
         const cos = window.FOR2D_COSMETICS;
         const skin = cos?.equipped?.id || 'recrue';
         const pickaxe = cos?.equippedOf('pickaxe')?.id || 'pioche-defaut';
+        const backpack = cos?.equippedOf('backpack')?.id || null;
         const colors = cos?.equipped?.game || null;
-        return { skin, pickaxeSkin: pickaxe, colors };
+        return { skin, pickaxeSkin: pickaxe, backpack, colors };
     }
 
     init() {
         this.connect();
         this.checkUrlForRoomCode();
+
+        if (typeof window !== 'undefined' && window.FOR2D_COSMETICS) {
+            window.FOR2D_COSMETICS.onChange(() => {
+                if (this.isConnected() && this.roomCode) {
+                    this.sendPlayerStatus(window.lobbyManager?.localPlayerReady || false);
+                }
+            });
+        }
     }
 
     connect() {
@@ -152,6 +161,7 @@ class NetworkManager {
             mode: mode || 'duo',
             botFill: botFill !== false,
             skin: skinData.skin,
+            backpack: skinData.backpack,
             pickaxeSkin: skinData.pickaxeSkin,
             colors: skinData.colors
         };
@@ -171,6 +181,7 @@ class NetworkManager {
             id: this.getPlayerId(),
             name: this.getPlayerName(),
             skin: skinData.skin,
+            backpack: skinData.backpack,
             pickaxeSkin: skinData.pickaxeSkin,
             colors: skinData.colors
         };
@@ -184,6 +195,7 @@ class NetworkManager {
             this.send({ type: 'leave_room' });
             this.roomCode = null;
             this.isHost = false;
+            this.hostId = null;
             this.roomPlayers = [];
             this.slot = 1;
             this.updateRoomCodeUI('-');
@@ -192,6 +204,7 @@ class NetworkManager {
             if (window.lobbyManager) {
                 window.lobbyManager.resetTeammateSlots?.();
                 window.lobbyManager.addChatMessage?.('Tu as quitté la salle.');
+                window.lobbyManager.updateLeaderPermissions?.();
             }
         }
     }
@@ -203,6 +216,7 @@ class NetworkManager {
             ready: !!ready,
             name: this.getPlayerName(),
             skin: skinData.skin,
+            backpack: skinData.backpack,
             pickaxeSkin: skinData.pickaxeSkin,
             colors: skinData.colors
         });
@@ -243,11 +257,12 @@ class NetworkManager {
         switch (msg.type) {
             case 'room_created':
                 this.isHost = true;
+                this.hostId = this.getPlayerId();
                 this.roomCode = msg.roomCode;
                 this.slot = 1;
                 this.roomPlayers = msg.players || [];
                 this.updateRoomCodeUI(this.roomCode);
-                this.updateConnectionStatus(`Hôte actif (Salle ${this.roomCode})`, '#00ff88');
+                this.updateConnectionStatus(`Chef du groupe (Salle ${this.roomCode})`, '#00ff88');
 
                 this.copyCodeToClipboard(this.roomCode);
 
@@ -255,21 +270,24 @@ class NetworkManager {
                     window.lobbyManager.addChatMessage(`Partie créée ! Code : ${this.roomCode}`);
                     window.lobbyManager.addChatMessage('Partage ce code ou le lien d\'invitation avec tes amis !');
                     window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
+                    window.lobbyManager.updateLeaderPermissions?.();
                 }
                 break;
 
             case 'room_joined':
+                this.hostId = msg.hostId;
                 this.isHost = (msg.hostId === this.getPlayerId());
                 this.roomCode = msg.roomCode;
                 this.slot = msg.slot || 2;
                 this.roomPlayers = msg.players || [];
                 this.updateRoomCodeUI(this.roomCode);
-                this.updateConnectionStatus(`Connecté (Salle ${this.roomCode})`, '#00ff88');
+                this.updateConnectionStatus(this.isHost ? `Chef du groupe (Salle ${this.roomCode})` : `Membre du groupe (Salle ${this.roomCode})`, '#00ff88');
 
                 if (window.lobbyManager) {
                     window.lobbyManager.addChatMessage(`Connecté à la salle ${this.roomCode} !`);
                     if (msg.mode) window.lobbyManager.setGameModeSilently?.(msg.mode);
                     window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
+                    window.lobbyManager.updateLeaderPermissions?.();
                 }
                 break;
 
@@ -282,6 +300,7 @@ class NetworkManager {
                     if (window.lobbyManager) {
                         window.lobbyManager.addChatMessage(`${msg.player.name} a rejoint le groupe !`);
                         window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
+                        window.lobbyManager.updateLeaderPermissions?.();
                         window.SFX?.play?.('click');
                     }
                 }
@@ -304,21 +323,42 @@ class NetworkManager {
                 if (window.lobbyManager) {
                     window.lobbyManager.addChatMessage(`${msg.playerName || 'Un joueur'} a quitté le groupe.`);
                     window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
+                    window.lobbyManager.updateLeaderPermissions?.();
                 }
                 break;
 
             case 'new_host':
+                this.hostId = msg.hostId;
                 this.isHost = (msg.hostId === this.getPlayerId());
-                if (this.isHost && window.lobbyManager) {
-                    window.lobbyManager.addChatMessage('👑 Tu es maintenant le chef du groupe !');
-                    window.lobbyManager.showToast?.('Tu es maintenant le chef du groupe !');
+                this.roomPlayers.forEach(p => { p.isHost = (p.id === msg.hostId); });
+                if (window.lobbyManager) {
+                    if (this.isHost) {
+                        window.lobbyManager.addChatMessage('👑 Tu es maintenant le chef du groupe !');
+                        window.lobbyManager.showToast?.('Tu es maintenant le chef du groupe !');
+                    } else {
+                        const newLeader = this.roomPlayers.find(p => p.id === msg.hostId);
+                        if (newLeader) window.lobbyManager.addChatMessage(`👑 ${newLeader.name} est maintenant le chef du groupe.`);
+                    }
+                    window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
+                    window.lobbyManager.updateLeaderPermissions?.();
                 }
                 break;
 
             case 'room_config':
-                if (window.lobbyManager && msg.mode) {
-                    window.lobbyManager.setGameModeSilently?.(msg.mode);
-                    window.lobbyManager.addChatMessage(`Le mode a été changé pour : ${msg.mode.toUpperCase()}`);
+                if (window.lobbyManager) {
+                    if (msg.mode) window.lobbyManager.setGameModeSilently?.(msg.mode);
+                    if (typeof msg.botFill === 'boolean') {
+                        window.lobbyManager.botsEnabled = msg.botFill;
+                        window.lobbyManager.updateBotFillUI?.();
+                    }
+                    const fillText = msg.botFill !== false ? 'Avec bots' : 'Sans bots (Matchmaking en ligne)';
+                    window.lobbyManager.addChatMessage(`Configuration : Mode ${(msg.mode || 'duo').toUpperCase()} · ${fillText}`, 'Système');
+                }
+                break;
+
+            case 'matchmaking_status':
+                if (window.lobbyManager) {
+                    window.lobbyManager.handleMatchmakingStatus?.(msg);
                 }
                 break;
 
@@ -356,6 +396,11 @@ class NetworkManager {
     handleGameStart(msg) {
         console.log('[Network] Lancement de la partie multijoueur !', msg);
 
+        // Fermer l'overlay de matchmaking si ouvert
+        if (window.lobbyManager) {
+            window.lobbyManager.handleMatchmakingStatus?.({ state: 'idle' });
+        }
+
         // Sauvegarder la configuration de la partie dans le localStorage pour game.html
         const teamSize = msg.mode === 'duo' ? 2 : msg.mode === 'trio' ? 3 : msg.mode === 'section' ? 4 : 1;
         const config = {
@@ -368,6 +413,7 @@ class NetworkManager {
             seed: msg.seed,
             mySlot: this.slot,
             myPlayerId: this.getPlayerId(),
+            myTeam: msg.myTeam || 1,
             roomPlayers: msg.players || this.roomPlayers
         };
 

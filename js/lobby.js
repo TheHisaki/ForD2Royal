@@ -43,6 +43,7 @@ class LobbyManager {
         this.setupEventListeners();
         this.setupSounds();
         this.setupWelcomeModal();
+        this.updateBotFillUI();
         this.updateUI();
         this.startAnimations();
     }
@@ -227,6 +228,14 @@ class LobbyManager {
             btn.addEventListener('click', () => this.handleHostGame());
         });
 
+        // Annuler la recherche en file d'attente (matchmaking)
+        document.getElementById('mmCancelBtn')?.addEventListener('click', () => {
+            if (this.localPlayerReady) {
+                this.toggleReady();
+            }
+            this.handleMatchmakingStatus({ state: 'idle' });
+        });
+
         // Boutons mute
         const muteBtns = document.querySelectorAll('.mute-btn');
         muteBtns.forEach((btn, index) => {
@@ -247,10 +256,15 @@ class LobbyManager {
 
         this.updatePlayerStatus(0, this.localPlayerReady);
 
+        // Si on annule, fermer immédiatement l'overlay de matchmaking
+        if (!this.localPlayerReady) {
+            this.handleMatchmakingStatus({ state: 'idle' });
+        }
+
         // Notifier le réseau si connecté dans une salle
         if (window.networkManager && window.networkManager.isConnected() && window.networkManager.roomCode) {
             window.networkManager.sendPlayerStatus(this.localPlayerReady);
-            if (this.localPlayerReady && window.networkManager.isHost) {
+            if (this.localPlayerReady && window.networkManager.isHost && this.botsEnabled) {
                 const allReady = this.players.every(p => p.ready);
                 if (allReady) window.networkManager.startGame();
             }
@@ -334,22 +348,21 @@ class LobbyManager {
             });
         });
 
-        // Bots toggle (en cours de développement - toujours actif)
+        // Bouton interrupteur Bots (fonctionnel : Avec bots / Sans bots)
         const botsToggle = document.getElementById('modeBotsToggle');
         const botsRow = document.getElementById('modeOptBots');
-        const onBotsAttempt = (e) => {
+        const onBotsToggle = (e) => {
             e?.preventDefault?.();
             e?.stopPropagation?.();
-            this.showToast('Mode sans bots en cours de développement ! Actuellement, seul le jeu avec des bots est disponible. 🤖');
-            window.SFX?.play('click');
+            this.toggleBotTeammates();
         };
         if (botsToggle) {
             botsToggle.disabled = false;
-            botsToggle.addEventListener('click', onBotsAttempt);
+            botsToggle.addEventListener('click', onBotsToggle);
         }
         if (botsRow) {
             botsRow.style.cursor = 'pointer';
-            botsRow.addEventListener('click', onBotsAttempt);
+            botsRow.addEventListener('click', onBotsToggle);
         }
 
         // Confirm button
@@ -359,12 +372,90 @@ class LobbyManager {
         }
     }
 
+    getRealPartyPlayerCount() {
+        if (window.networkManager?.roomCode && Array.isArray(window.networkManager?.roomPlayers) && window.networkManager.roomPlayers.length > 0) {
+            return window.networkManager.roomPlayers.length;
+        }
+        return this.players.filter(p => !p.isBot).length || 1;
+    }
+
+    isCurrentPartyLeader() {
+        if (!window.networkManager?.roomCode) return true;
+        return Boolean(window.networkManager?.isHost);
+    }
+
+    updateLeaderPermissions() {
+        const inParty = Boolean(window.networkManager?.roomCode);
+        const isLeader = this.isCurrentPartyLeader();
+
+        const section = document.getElementById('gameModeSection') || document.querySelector('.game-mode-section');
+        const btn = document.getElementById('changeModeBtn') || document.querySelector('.change-mode-btn');
+
+        if (section) {
+            section.classList.toggle('is-disabled', inParty && !isLeader);
+            section.title = (inParty && !isLeader) ? 'Seul le chef du groupe peut changer le mode de jeu' : 'Cliquer pour changer de mode';
+        }
+        if (btn) {
+            if (inParty && !isLeader) {
+                btn.disabled = true;
+                btn.classList.add('is-disabled');
+                btn.textContent = '👑 Chef uniquement';
+                btn.title = 'Seul le chef du groupe peut changer le mode de jeu';
+            } else {
+                btn.disabled = false;
+                btn.classList.remove('is-disabled');
+                btn.textContent = 'Changer de mode';
+                btn.title = 'Changer le mode de jeu';
+            }
+        }
+
+        // Si le sélecteur est ouvert et qu'on n'est pas le chef, le fermer
+        if (inParty && !isLeader) {
+            const overlay = document.getElementById('modeSelector');
+            if (overlay && !overlay.hidden) {
+                this.closeModeSelector();
+            }
+        }
+    }
+
+    updateModeSelectorLockState() {
+        const overlay = document.getElementById('modeSelector');
+        if (!overlay) return;
+
+        const partyCount = this.getRealPartyPlayerCount();
+        const modeHierarchy = { solo: 1, duo: 2, trio: 3, section: 4 };
+
+        overlay.querySelectorAll('.mode-card').forEach(card => {
+            const mode = card.dataset.mode;
+            const cap = modeHierarchy[mode] || 1;
+            const isLocked = (cap < partyCount);
+
+            card.classList.toggle('is-locked', isLocked);
+            card.setAttribute('aria-disabled', String(isLocked));
+
+            const lockEl = card.querySelector('.mode-card-lock .lock-text');
+            if (lockEl) {
+                if (isLocked) {
+                    lockEl.textContent = `🔒 Min. ${partyCount} joueurs`;
+                }
+            }
+        });
+    }
+
     openModeSelector() {
+        if (!this.isCurrentPartyLeader()) {
+            this.showToast('Seul le chef du groupe peut changer le mode de jeu ! 👑');
+            window.SFX?.play('click');
+            return;
+        }
+
         const overlay = document.getElementById('modeSelector');
         if (!overlay) return;
         this._pendingMode = this.currentGameMode.toLowerCase();
         // Map ESCOUADE -> section for the selector
         if (this._pendingMode === 'escouade') this._pendingMode = 'section';
+
+        this.updateModeSelectorLockState();
 
         overlay.hidden = false;
         // Force reflow before animation
@@ -383,6 +474,15 @@ class LobbyManager {
     }
 
     selectMode(mode) {
+        const partyCount = this.getRealPartyPlayerCount();
+        const modeHierarchy = { solo: 1, duo: 2, trio: 3, section: 4 };
+        if (modeHierarchy[mode] && modeHierarchy[mode] < partyCount) {
+            const requiredName = partyCount === 2 ? 'Duo, Trio ou Section' : partyCount === 3 ? 'Trio ou Section' : 'Section';
+            this.showToast(`Impossible en groupe de ${partyCount} joueurs : choisissez ${requiredName}.`);
+            window.SFX?.play('click');
+            return;
+        }
+
         this._pendingMode = mode;
         const modeMap = { solo: 'SOLO', duo: 'DUO', trio: 'TRIO', section: 'ESCOUADE' };
         const teamSizes = { solo: 1, duo: 2, trio: 3, section: 4 };
@@ -410,8 +510,7 @@ class LobbyManager {
     }
 
     updateModeOptions(mode) {
-        // Bots are always enabled for all modes (real players coming soon)
-        this.botsEnabled = true;
+        this.updateBotFillUI();
     }
 
     updateModeFooter() {
@@ -426,22 +525,57 @@ class LobbyManager {
         nameEl.textContent = modeNames[this._pendingMode] || 'SOLO';
         const ts = teamSizes[this._pendingMode] || 1;
         const teamText = ts > 1 ? ` · Équipe de ${ts}` : '';
-        detailEl.textContent = `${modePlayers[this._pendingMode] || '1 joueur'}${teamText} · Avec bots`;
+        const botText = this.botsEnabled ? 'Avec bots' : 'Sans bots';
+        detailEl.textContent = `${modePlayers[this._pendingMode] || '1 joueur'}${teamText} · ${botText}`;
+    }
+
+    updateBotFillUI() {
+        const fillToggle = document.getElementById('botFillToggle');
+        if (fillToggle) {
+            fillToggle.setAttribute('aria-pressed', String(this.botsEnabled));
+            fillToggle.textContent = this.botsEnabled ? 'Activé' : 'Désactivé';
+            fillToggle.classList.toggle('is-disabled-fill', !this.botsEnabled);
+        }
+
+        const modeBotsToggle = document.getElementById('modeBotsToggle');
+        if (modeBotsToggle) {
+            modeBotsToggle.setAttribute('aria-checked', String(this.botsEnabled));
+        }
+
+        this.updateModeFooter();
     }
 
     toggleBotTeammates() {
-        // Le mode sans bots est en cours de développement : les bots restent activés
-        this.botsEnabled = true;
-        this.showToast('Mode multijoueur sans bots en cours de développement ! Seul le jeu avec bots est disponible pour l\'instant. 🤖');
-        window.SFX?.play('click');
+        if (!this.isCurrentPartyLeader()) {
+            this.showToast('Seul le chef du groupe peut changer les options de bots ! 👑');
+            window.SFX?.play('click');
+            return;
+        }
+
+        this.botsEnabled = !this.botsEnabled;
+        this.updateBotFillUI();
         this.syncBotTeammates();
         this.saveGameConfig();
         this.updateUI();
+        window.SFX?.play('click');
+
+        if (window.networkManager?.roomCode && this.isCurrentPartyLeader()) {
+            window.networkManager.sendRoomConfig(this.currentGameMode.toLowerCase(), this.botsEnabled);
+        }
+
+        const stateStr = this.botsEnabled ? 'activés (remplissage auto avec bots)' : 'désactivés (file d\'attente matchmaking)';
+        this.showToast(`Bots ${stateStr}`);
+        this.addChatMessage(`Bots : ${this.botsEnabled ? 'Activés' : 'Désactivés (Matchmaking en ligne)'}`, 'Système');
     }
 
     syncBotTeammates() {
         const local = this.players[0] || { id: 1, name: 'Joueur 1', ready: this.localPlayerReady, isLocal: true };
         local.ready = this.localPlayerReady;
+
+        // Si nous sommes dans une salle réseau avec plusieurs vrais joueurs, ne pas écraser les coéquipiers
+        if (window.networkManager?.roomCode && Array.isArray(window.networkManager.roomPlayers) && window.networkManager.roomPlayers.length > 1) {
+            return;
+        }
 
         if (this.botsEnabled && this.teamSize > 1) {
             const list = [local];
@@ -479,14 +613,18 @@ class LobbyManager {
         const teamSizes = { solo: 1, duo: 2, trio: 3, section: 4 };
         this.currentGameMode = modeMap[this._pendingMode] || 'SOLO';
         this.teamSize = teamSizes[this._pendingMode] || 1;
-        this.botsEnabled = true;
         window.SFX?.play('mode');
+
+        if (this.isCurrentPartyLeader() && window.networkManager?.roomCode) {
+            window.networkManager.sendRoomConfig(this._pendingMode, this.botsEnabled);
+        }
 
         this.syncBotTeammates();
         this.saveGameConfig();
+        this.updateBotFillUI();
         this.updateUI();
         const display = this.currentGameMode === 'ESCOUADE' ? 'SECTION' : this.currentGameMode;
-        this.addChatMessage(`Mode de jeu : ${display} (équipe de ${this.teamSize})`, 'Système');
+        this.addChatMessage(`Mode de jeu : ${display} (équipe de ${this.teamSize}) · ${this.botsEnabled ? 'Avec bots' : 'Sans bots'}`, 'Système');
         this.closeModeSelector();
     }
 
@@ -636,14 +774,26 @@ class LobbyManager {
                 name: p.name,
                 ready: !!p.ready,
                 isBot: false,
+                isHost: !!p.isHost,
                 skin: p.skin,
+                backpack: p.backpack || null,
                 colors: p.colors,
                 pickaxeSkin: p.pickaxeSkin
             });
         });
 
         this.players = newPlayers;
+        this.enforceMinModeForParty();
+        this.updateLeaderPermissions();
         this.updateUI();
+
+        // Si tout le monde est prêt et qu'on joue avec bots, lancer automatiquement
+        if (this.isCurrentPartyLeader() && this.botsEnabled && this.players.length > 1) {
+            const allReady = this.players.every(p => p.ready);
+            if (allReady) {
+                window.networkManager?.startGame();
+            }
+        }
 
         const partyActions = document.getElementById('partyActions');
         if (partyActions) {
@@ -651,9 +801,88 @@ class LobbyManager {
         }
     }
 
+    /* ===== GESTION DE LA FILE D'ATTENTE (MATCHMAKING SANS BOTS) ===== */
+    handleMatchmakingStatus(msg) {
+        const overlay = document.getElementById('matchmakingOverlay');
+        if (!overlay) return;
+
+        if (!msg || msg.state === 'idle') {
+            overlay.classList.remove('is-visible');
+            setTimeout(() => { overlay.hidden = true; }, 300);
+            return;
+        }
+
+        overlay.hidden = false;
+        requestAnimationFrame(() => overlay.classList.add('is-visible'));
+
+        const modeBadge = document.getElementById('mmModeBadge');
+        const title = document.getElementById('mmTitle');
+        const subtitle = document.getElementById('mmSubtitle');
+        const teamsWrap = document.getElementById('mmTeamsIndicator');
+        const teamsCount = document.getElementById('mmTeamsCount');
+        const countdownWrap = document.getElementById('mmCountdownWrap');
+        const countdownNumber = document.getElementById('mmCountdownNumber');
+
+        const modeLabel = (msg.mode || this.currentGameMode || 'DUO').toUpperCase();
+        if (modeBadge) modeBadge.textContent = `MODE ${modeLabel}`;
+
+        if (msg.state === 'searching') {
+            if (title) title.textContent = 'RECHERCHE D\'ADVERSAIRES';
+            if (subtitle) subtitle.textContent = 'Recherche d\'autres équipes en ligne...';
+            if (teamsWrap) teamsWrap.hidden = false;
+            if (teamsCount) teamsCount.textContent = `${msg.teamsCount || 1} / ${msg.teamsNeeded || 2}`;
+            if (countdownWrap) countdownWrap.hidden = true;
+        } else if (msg.state === 'countdown') {
+            if (title) title.textContent = 'ADVERSAIRES TROUVÉS !';
+            if (subtitle) subtitle.textContent = `${msg.teamsCount || 2} équipes prêtes dans la partie.`;
+            if (teamsWrap) teamsWrap.hidden = true;
+            if (countdownWrap) countdownWrap.hidden = false;
+            if (countdownNumber) {
+                countdownNumber.textContent = msg.secondsLeft;
+                countdownNumber.classList.add('tick');
+                setTimeout(() => countdownNumber.classList.remove('tick'), 250);
+            }
+            if (msg.secondsLeft <= 5 && msg.secondsLeft > 0) {
+                window.SFX?.play?.('click');
+            } else if (msg.secondsLeft === 30) {
+                window.SFX?.play?.('toast');
+            }
+        }
+    }
+
+    enforceMinModeForParty() {
+        const partyCount = this.getRealPartyPlayerCount();
+        const isLeader = this.isCurrentPartyLeader();
+        let targetMode = null;
+
+        if (partyCount >= 2 && this.currentGameMode === 'SOLO') {
+            targetMode = 'duo';
+        } else if (partyCount >= 3 && (this.currentGameMode === 'SOLO' || this.currentGameMode === 'DUO')) {
+            targetMode = 'trio';
+        } else if (partyCount >= 4 && this.currentGameMode !== 'ESCOUADE' && this.currentGameMode !== 'SECTION') {
+            targetMode = 'section';
+        }
+
+        if (targetMode) {
+            const modeMap = { solo: 'SOLO', duo: 'DUO', trio: 'TRIO', section: 'ESCOUADE' };
+            const modeName = modeMap[targetMode] || targetMode.toUpperCase();
+            this.setGameModeSilently(targetMode);
+
+            if (isLeader && window.networkManager?.roomCode) {
+                window.networkManager.sendRoomConfig(targetMode, this.botsEnabled);
+            }
+
+            const icons = { duo: '👥', trio: '👥‍👤', section: '🎖️' };
+            const display = modeName === 'ESCOUADE' ? 'SECTION' : modeName;
+            this.addChatMessage(`Groupe de ${partyCount} joueurs : Mode ${display} activé d'office ! ${icons[targetMode] || ''}`, 'Système');
+            this.showToast(`Mode ${display} activé d'office (${partyCount} joueurs dans le groupe)`);
+        }
+    }
+
     resetTeammateSlots() {
         this.players = [this.players[0]];
         this.syncBotTeammates();
+        this.updateLeaderPermissions();
         this.updateUI();
         const partyActions = document.getElementById('partyActions');
         if (partyActions) partyActions.classList.remove('is-active');
@@ -663,8 +892,8 @@ class LobbyManager {
         if (!mode) return;
         const upper = mode.toUpperCase();
         this.currentGameMode = upper === 'SECTION' ? 'ESCOUADE' : upper;
-        const display = document.getElementById('currentModeDisplay');
-        if (display) display.textContent = this.currentGameMode;
+        const display = document.getElementById('currentModeDisplay') || document.querySelector('.mode-display');
+        if (display) display.textContent = this.currentGameMode === 'ESCOUADE' ? 'SECTION' : this.currentGameMode;
         const modeSizes = { SOLO: 1, DUO: 2, TRIO: 3, ESCOUADE: 4 };
         this.teamSize = modeSizes[this.currentGameMode] || 2;
         this.saveGameConfig();
@@ -751,21 +980,30 @@ class LobbyManager {
         });
         
         // Afficher les joueurs présents
+        const inParty = Boolean(window.networkManager?.roomCode);
+        const hostId = window.networkManager?.hostId;
+
         this.players.forEach((player, index) => {
             if (slots[index]) {
                 const nameElement = slots[index].querySelector('.player-name');
                 const statusElement = slots[index].querySelector('.player-status');
                 const muteBtn = slots[index].querySelector('.mute-btn');
-                
-                if (nameElement) nameElement.textContent = player.name;
+
+                const isLeader = inParty
+                    ? (player.isHost || (hostId && player.id === hostId) || (index === 0 && window.networkManager?.isHost))
+                    : (index === 0);
+
+                if (nameElement) {
+                    nameElement.innerHTML = `${player.name}${isLeader ? ' <span class="party-leader-crown" title="Chef du groupe">👑</span>' : ''}`;
+                }
                 if (statusElement) {
                     statusElement.textContent = player.ready ? 'Prêt' : 'Pas prêt';
                     statusElement.className = player.ready ? 'player-status ready' : 'player-status not-ready';
                 }
                 if (muteBtn) muteBtn.style.display = player.isBot ? 'none' : '';
-                
+
                 slots[index].classList.remove('is-empty');
-                
+
                 if (player.ready) {
                     slots[index].querySelector('.player-platform')?.classList.add('active');
                 } else {
@@ -773,7 +1011,7 @@ class LobbyManager {
                 }
             }
         });
-        
+
         // Monter les skins des coéquipiers si nécessaire
         window.mountLobbySkins?.();
 
@@ -814,6 +1052,8 @@ class LobbyManager {
             const displayName = this.currentGameMode === 'ESCOUADE' ? 'SECTION' : this.currentGameMode;
             modeDisplay.textContent = displayName;
         }
+
+        this.updateLeaderPermissions();
     }
 
     startAnimations() {

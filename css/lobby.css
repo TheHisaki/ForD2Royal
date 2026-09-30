@@ -1145,9 +1145,63 @@
     background: rgba(255, 255, 255, 0.1);
     border: 1px solid rgba(255, 255, 255, 0.2);
     border-radius: var(--radius);
+    transition: all 0.2s ease;
 }
 
 .change-mode-btn:hover { background: rgba(255, 255, 255, 0.2); }
+
+/* Mode verrouillé pour les non-chefs de groupe */
+.game-mode-section.is-disabled {
+    opacity: 0.65;
+    cursor: not-allowed !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+    background: rgba(10, 18, 42, 0.85) !important;
+}
+
+.game-mode-section.is-disabled:hover {
+    transform: none !important;
+    border-color: rgba(255, 255, 255, 0.08) !important;
+}
+
+.game-mode-section.is-disabled .change-mode-btn {
+    background: rgba(30, 40, 65, 0.6) !important;
+    color: rgba(255, 255, 255, 0.45) !important;
+    border-color: rgba(255, 255, 255, 0.1) !important;
+    cursor: not-allowed !important;
+    pointer-events: none !important;
+}
+
+.leader-only-badge {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
+    margin-top: 8px;
+    font-size: 12px;
+    font-weight: 700;
+    color: #ffd700;
+    letter-spacing: 0.5px;
+    text-shadow: 0 0 8px rgba(255, 215, 0, 0.4);
+}
+
+.game-mode-section.is-disabled .leader-only-badge {
+    display: flex;
+}
+
+/* Couronne animée du chef de groupe */
+.party-leader-crown {
+    display: inline-block;
+    margin-left: 6px;
+    font-size: 1.15em;
+    filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.75));
+    vertical-align: middle;
+    animation: crownFloat 2s ease-in-out infinite alternate;
+}
+
+@keyframes crownFloat {
+    0% { transform: translateY(0) rotate(-3deg); }
+    100% { transform: translateY(-3px) rotate(3deg); }
+}
 
 .squad-fill-section { padding: 12px 16px; }
 
@@ -1614,4 +1668,219 @@
     .bg-bus { display: none; }
 
     .lobby-toast { top: 110px; }
+}
+
+/* ===================================================
+   FILE D'ATTENTE MULTIJOUEUR (MATCHMAKING SANS BOTS)
+   =================================================== */
+
+.mm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 1200;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(4, 10, 32, 0.82);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.3s cubic-bezier(0.16, 1, 0.3, 1), visibility 0.3s;
+    padding: 20px;
+}
+
+.mm-overlay.is-visible {
+    opacity: 1;
+    visibility: visible;
+}
+
+.mm-card {
+    position: relative;
+    width: 100%;
+    max-width: 520px;
+    background: linear-gradient(180deg, #101d46 0%, #080f28 100%);
+    border: 2px solid rgba(255, 215, 0, 0.35);
+    border-radius: 20px;
+    padding: 38px 28px 30px;
+    text-align: center;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.65), 0 0 40px rgba(255, 215, 0, 0.15);
+    transform: scale(0.92) translateY(12px);
+    transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+    color: #fff;
+    overflow: hidden;
+}
+
+.mm-overlay.is-visible .mm-card {
+    transform: scale(1) translateY(0);
+}
+
+/* Radar scan animation */
+.mm-radar {
+    position: relative;
+    width: 90px;
+    height: 90px;
+    margin: 0 auto 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.mm-radar-ring {
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    border: 2px solid rgba(0, 255, 136, 0.4);
+    animation: mmPulse 2.4s ease-out infinite;
+}
+
+.mm-radar-ring.ring-2 {
+    animation-delay: 0.8s;
+}
+
+.mm-radar-ring.ring-3 {
+    animation-delay: 1.6s;
+}
+
+.mm-radar-beam {
+    position: absolute;
+    inset: 4px;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, rgba(0, 255, 136, 0.4) 0deg, transparent 60deg, transparent 360deg);
+    animation: mmSpin 2s linear infinite;
+}
+
+.mm-radar-icon {
+    font-size: 32px;
+    z-index: 2;
+    filter: drop-shadow(0 0 10px rgba(0, 255, 136, 0.6));
+}
+
+@keyframes mmPulse {
+    0% { transform: scale(0.4); opacity: 1; }
+    100% { transform: scale(1.4); opacity: 0; }
+}
+
+@keyframes mmSpin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.mm-badge {
+    display: inline-block;
+    padding: 4px 14px;
+    background: rgba(255, 215, 0, 0.18);
+    border: 1px solid rgba(255, 215, 0, 0.4);
+    border-radius: 999px;
+    color: var(--accent-yellow);
+    font-family: var(--font-display);
+    font-size: 15px;
+    letter-spacing: 1.5px;
+    margin-bottom: 10px;
+}
+
+.mm-title {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 3.2vw, 36px);
+    letter-spacing: 2px;
+    color: #fff;
+    margin: 0 0 6px;
+    text-shadow: 0 2px 10px rgba(0, 0, 0, 0.5);
+}
+
+.mm-subtitle {
+    font-size: 15px;
+    color: rgba(255, 255, 255, 0.7);
+    margin: 0 0 22px;
+}
+
+.mm-status-box {
+    background: rgba(0, 0, 0, 0.35);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 20px;
+    margin-bottom: 24px;
+}
+
+.mm-teams-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+}
+
+.mm-teams-count {
+    font-family: var(--font-display);
+    font-size: 42px;
+    color: #00ff88;
+    line-height: 1;
+    text-shadow: 0 0 16px rgba(0, 255, 136, 0.45);
+}
+
+.mm-teams-label {
+    font-size: 14px;
+    color: rgba(255, 255, 255, 0.65);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+}
+
+/* Compte à rebours 30s */
+.mm-countdown-wrap {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+}
+
+.mm-countdown-label {
+    font-family: var(--font-display);
+    font-size: 17px;
+    color: var(--accent-yellow);
+    letter-spacing: 1.5px;
+}
+
+.mm-countdown-number {
+    font-family: var(--font-display);
+    font-size: clamp(64px, 8vw, 84px);
+    color: #fff;
+    line-height: 1;
+    text-shadow: 0 0 25px rgba(255, 215, 0, 0.6), 0 0 50px rgba(255, 100, 0, 0.3);
+    transition: transform 0.15s ease-out;
+}
+
+.mm-countdown-number.tick {
+    transform: scale(1.18);
+    color: var(--accent-yellow);
+}
+
+.mm-countdown-sub {
+    font-size: 13px;
+    color: rgba(255, 255, 255, 0.6);
+    margin-top: 4px;
+}
+
+.mm-cancel-btn {
+    width: 100%;
+    padding: 14px 20px;
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 1.5px;
+    color: #ff5252;
+    background: rgba(255, 82, 82, 0.12);
+    border: 2px solid rgba(255, 82, 82, 0.45);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.mm-cancel-btn:hover {
+    background: rgba(255, 82, 82, 0.25);
+    border-color: #ff5252;
+    color: #fff;
+    box-shadow: 0 0 20px rgba(255, 82, 82, 0.35);
+}
+
+.fill-toggle.is-disabled-fill {
+    background: rgba(255, 255, 255, 0.15) !important;
+    color: rgba(255, 255, 255, 0.75) !important;
 }

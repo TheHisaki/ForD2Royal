@@ -19,7 +19,7 @@ import { HEALS } from './weapons.js?v=7';
 import { drawPlayer, drawDying } from './draw.js?v=7';
 import { SFX } from '../sfx.js?v=7';
 import { Settings } from '../settings.js?v=7';
-import { Cosmetics } from '../cosmetics.js?v=7';
+import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=7';
 import { InventoryUI } from './inventory-ui.js?v=7';
 import { EndScreen, Spectator } from './end-screen.js?v=7';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=7';
@@ -96,20 +96,37 @@ function start() {
     // Multijoueur WebSocket : détection et initialisation des coéquipiers réels
     const isMultiplayer = Boolean(gameConfig.isMultiplayer && gameConfig.roomCode);
     const remotePlayersMap = new Map();
+    const myTeam = gameConfig.myTeam || 1;
+    player.team = myTeam;
+
     if (isMultiplayer && Array.isArray(gameConfig.roomPlayers)) {
         for (const rp of gameConfig.roomPlayers) {
             if (rp.id && rp.id !== gameConfig.myPlayerId) {
                 const mate = new Player(drop.ship.x, drop.ship.y);
                 mate.id = rp.id;
                 mate.name = rp.name || 'Coéquipier';
-                mate.team = 1;
+                mate.team = rp.team || 1;
                 mate.squadSlot = rp.slot || 2;
                 mate.isRemote = true;
                 mate.phase = 'ship';
-                if (rp.skin && rp.skin.game) {
-                    mate.colors = { ...mate.colors, ...rp.skin.game };
-                    mate.skinStyle = rp.skin.style || 'default';
+
+                const skinId = (typeof rp.skin === 'string' ? rp.skin : rp.skin?.id) || 'recrue';
+                const s = getSkin?.(skinId);
+                if (s?.game) {
+                    mate.colors = { ...mate.colors, ...s.game };
+                    mate.skinStyle = s.style || 'default';
                 }
+                if (rp.colors) {
+                    mate.colors = { ...mate.colors, ...rp.colors };
+                }
+                if (rp.backpack) {
+                    const bp = getItem?.(rp.backpack);
+                    if (bp?.color) mate.colors.pack = bp.color;
+                }
+                if (rp.pickaxeSkin) {
+                    mate.pickaxeSkin = rp.pickaxeSkin;
+                }
+
                 remotePlayersMap.set(rp.id, mate);
                 fighters.push(mate);
             }

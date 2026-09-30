@@ -278,9 +278,11 @@ export class BotManager {
         for (const f of fighters) if (f.id >= nextId) nextId = f.id + 1;
         const names = shuffle([...BOT_NAMES]);
 
-        const existingTeammates = fighters.filter(f => f.team === 1).length;
+        const myTeam = player ? (player.team || 1) : 1;
+        const existingTeammates = fighters.filter(f => f.team === myTeam).length;
         const teammateCount = Math.max(0, teamSize - existingTeammates);
-        let enemySquadId = 2;
+        const maxHumanTeam = Math.max(1, ...fighters.map(f => f.team || 1));
+        let enemySquadId = maxHumanTeam + 1;
         let enemySquadFill = 0;
         let currentSquadLand = null;
 
@@ -324,7 +326,7 @@ export class BotManager {
 
             // Attribution des équipes
             if (i < teammateCount) {
-                bot.team = 1; // Coéquipier du joueur !
+                bot.team = myTeam; // Coéquipier du joueur !
                 this.playerTeammates.push(bot);
             } else if (teamSize > 1) {
                 bot.team = enemySquadId;
@@ -341,7 +343,7 @@ export class BotManager {
 
             // Atterrissage groupé en escouade
             let land;
-            if (bot.team === 1) {
+            if (bot.team === myTeam) {
                 land = this.chooseLanding(enter, exit);
             } else if (teamSize > 1) {
                 if (!currentSquadLand) currentSquadLand = this.chooseLanding(enter, exit);

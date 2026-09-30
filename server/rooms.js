@@ -17,8 +17,21 @@ function generateRoomCode() {
 
 class RoomManager {
     constructor() {
-        this.rooms = new Map();           // roomCode -> Room
-        this.playerRooms = new Map();     // ws -> roomCode
+        this.rooms = new Map();             // roomCode -> Room
+        this.playerRooms = new Map();       // ws -> roomCode
+        this.matchmakingQueues = new Map(); // mode -> { rooms: Set<roomCode>, timer: interval, secondsLeft: number }
+    }
+
+    getQueue(mode) {
+        mode = (mode || 'duo').toLowerCase();
+        if (!this.matchmakingQueues.has(mode)) {
+            this.matchmakingQueues.set(mode, {
+                rooms: new Set(),
+                timer: null,
+                secondsLeft: 30
+            });
+        }
+        return this.matchmakingQueues.get(mode);
     }
 
     createRoom(ws, hostData) {
@@ -40,13 +53,15 @@ class RoomManager {
             state: 'lobby',
             seed: Math.floor(Math.random() * 1000000),
             createdAt: Date.now(),
-            players: new Map()
+            players: new Map(),
+            matchedRooms: null
         };
 
         const hostPlayer = {
             id: hostData.id,
             name: String(hostData.name || 'Hôte').slice(0, 16),
             skin: hostData.skin || 'recrue',
+            backpack: hostData.backpack || null,
             colors: hostData.colors || null,
             pickaxeSkin: hostData.pickaxeSkin || 'pioche-defaut',
             ready: false,
@@ -59,7 +74,7 @@ class RoomManager {
         this.playerRooms.set(ws, code);
         ws.playerId = hostPlayer.id;
 
-        console.log(`[Multiplayer] Salle créée: ${code} par ${hostPlayer.name} (${hostPlayer.id})`);
+        console.log(`[Multiplayer] Salle créée: ${code} par ${hostPlayer.name} (${hostPlayer.id}) [botFill: ${room.botFill}]`);
 
         this.send(ws, {
             type: 'room_created',
@@ -82,6 +97,28 @@ class RoomManager {
             return this.send(ws, { type: 'error', message: 'Code de salle introuvable.' });
         }
 
+        const candidateId = playerData.id || playerData.player?.id;
+
+        // Reconnexion d'un joueur existant (ex: passage à game.html ou refresh)
+        if (candidateId && room.players.has(candidateId)) {
+            const existingPlayer = room.players.get(candidateId);
+            existingPlayer.ws = ws;
+            this.playerRooms.set(ws, code);
+            ws.playerId = existingPlayer.id;
+            console.log(`[Multiplayer] ${existingPlayer.name} (${existingPlayer.id}) reconnecté à la salle ${code} (state: ${room.state})`);
+
+            this.send(ws, {
+                type: 'room_joined',
+                roomCode: code,
+                hostId: room.hostId,
+                mode: room.mode,
+                botFill: room.botFill,
+                slot: existingPlayer.slot,
+                players: this.serializePlayers(room)
+            });
+            return room;
+        }
+
         if (room.state !== 'lobby') {
             return this.send(ws, { type: 'error', message: 'Cette partie a déjà commencé.' });
         }
@@ -96,11 +133,12 @@ class RoomManager {
         while (usedSlots.has(freeSlot) && freeSlot <= 4) freeSlot++;
 
         const newPlayer = {
-            id: playerData.id || `p_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-            name: String(playerData.name || `Joueur ${freeSlot}`).slice(0, 16),
-            skin: playerData.skin || 'recrue',
-            colors: playerData.colors || null,
-            pickaxeSkin: playerData.pickaxeSkin || 'pioche-defaut',
+            id: candidateId || `p_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
+            name: String(playerData.name || playerData.player?.name || `Joueur ${freeSlot}`).slice(0, 16),
+            skin: playerData.skin || playerData.player?.skin || 'recrue',
+            backpack: playerData.backpack || playerData.player?.backpack || null,
+            colors: playerData.colors || playerData.player?.colors || null,
+            pickaxeSkin: playerData.pickaxeSkin || playerData.player?.pickaxeSkin || 'pioche-defaut',
             ready: false,
             slot: freeSlot,
             ws
@@ -111,6 +149,22 @@ class RoomManager {
         ws.playerId = newPlayer.id;
 
         console.log(`[Multiplayer] ${newPlayer.name} a rejoint la salle ${code} (slot ${freeSlot})`);
+
+        // Ajuster automatiquement le mode selon le nombre de joueurs présents
+        const count = room.players.size;
+        let modeChanged = false;
+        if (count >= 2 && (!room.mode || room.mode === 'solo')) {
+            room.mode = 'duo';
+            modeChanged = true;
+        }
+        if (count >= 3 && (room.mode === 'solo' || room.mode === 'duo')) {
+            room.mode = 'trio';
+            modeChanged = true;
+        }
+        if (count >= 4 && room.mode !== 'section') {
+            room.mode = 'section';
+            modeChanged = true;
+        }
 
         // Confirmer au joueur qu'il a rejoint
         this.send(ws, {
@@ -126,8 +180,20 @@ class RoomManager {
         // Notifier les autres joueurs
         this.broadcastToRoom(room, {
             type: 'player_joined',
-            player: this.serializePlayer(newPlayer)
+            player: this.serializePlayer(newPlayer, room)
         }, ws);
+
+        // Si le mode a été ajusté automatiquement, diffuser la nouvelle config
+        if (modeChanged) {
+            this.broadcastToRoom(room, {
+                type: 'room_config',
+                mode: room.mode,
+                botFill: room.botFill
+            });
+        }
+
+        // Vérifier si un changement de joueurs affecte l'état prêt
+        this.checkRoomReadyState(room);
 
         return room;
     }
@@ -144,13 +210,17 @@ class RoomManager {
         if (typeof data.ready === 'boolean') player.ready = data.ready;
         if (data.name) player.name = String(data.name).slice(0, 16);
         if (data.skin) player.skin = data.skin;
+        if (data.backpack !== undefined) player.backpack = data.backpack;
         if (data.colors) player.colors = data.colors;
         if (data.pickaxeSkin) player.pickaxeSkin = data.pickaxeSkin;
 
         this.broadcastToRoom(room, {
             type: 'player_updated',
-            player: this.serializePlayer(player)
+            player: this.serializePlayer(player, room)
         });
+
+        // Vérifier l'état de préparation de la salle (lancement direct ou matchmaking)
+        this.checkRoomReadyState(room);
     }
 
     updateConfig(ws, data) {
@@ -159,13 +229,226 @@ class RoomManager {
         const room = this.rooms.get(code);
         if (!room || room.hostId !== ws.playerId) return;
 
+        // Empêcher de choisir un mode avec moins de places que de joueurs réels dans le groupe
+        const modeHierarchy = { solo: 1, duo: 2, trio: 3, section: 4 };
+        if (data.mode && modeHierarchy[data.mode] && modeHierarchy[data.mode] < room.players.size) {
+            console.log(`[Multiplayer] Mode ${data.mode} rejeté : ${room.players.size} joueurs dans le groupe`);
+            return;
+        }
+
+        const oldMode = room.mode;
         if (data.mode) room.mode = data.mode;
         if (typeof data.botFill === 'boolean') room.botFill = data.botFill;
+
+        console.log(`[Multiplayer] Config salle ${code}: mode=${room.mode}, botFill=${room.botFill}`);
 
         this.broadcastToRoom(room, {
             type: 'room_config',
             mode: room.mode,
             botFill: room.botFill
+        });
+
+        // Si le mode a changé et qu'on était en file, retirer de l'ancienne file
+        if (oldMode !== room.mode) {
+            this.dequeueMatchmaking(room, oldMode);
+        }
+
+        this.checkRoomReadyState(room);
+    }
+
+    /* ===== LOGIQUE DE PRÉPARATION & LANCEMENT DU JEU ===== */
+
+    checkRoomReadyState(room) {
+        if (!room || room.state !== 'lobby') return;
+        const allReady = room.players.size > 0 && [...room.players.values()].every(p => p.ready);
+
+        if (allReady) {
+            if (room.botFill !== false) {
+                // AVEC BOTS : lancement direct avec le duo / équipe en ligne + bots pour le reste
+                console.log(`[Multiplayer] Tous prêts dans ${room.code} (Avec bots) : lancement immédiat !`);
+                this.startGameForRoom(room);
+            } else {
+                // SANS BOTS : mise en file d'attente matchmaking (nécessite >= 2 équipes)
+                console.log(`[Multiplayer] Tous prêts dans ${room.code} (Sans bots) : mise en file d'attente (${room.mode})`);
+                this.enqueueMatchmaking(room);
+            }
+        } else {
+            // Un joueur a annulé ou la salle n'est plus prête
+            this.dequeueMatchmaking(room);
+        }
+    }
+
+    enqueueMatchmaking(room) {
+        const queue = this.getQueue(room.mode);
+        queue.rooms.add(room.code);
+
+        const teamsCount = queue.rooms.size;
+        console.log(`[Matchmaking] File ${room.mode}: ${teamsCount} équipes en attente`);
+
+        if (teamsCount < 2) {
+            // 1 seule équipe : recherche d'adversaires
+            this.broadcastToRoom(room, {
+                type: 'matchmaking_status',
+                state: 'searching',
+                teamsCount,
+                teamsNeeded: 2,
+                mode: room.mode
+            });
+        } else {
+            // Au moins 2 équipes : lancer le compte à rebours de 30 secondes !
+            if (!queue.timer) {
+                queue.secondsLeft = 30;
+                console.log(`[Matchmaking] >= 2 équipes en ${room.mode} ! Début du chrono de 30 secondes.`);
+
+                this.broadcastToQueue(queue, {
+                    type: 'matchmaking_status',
+                    state: 'countdown',
+                    secondsLeft: queue.secondsLeft,
+                    teamsCount: queue.rooms.size,
+                    mode: room.mode
+                });
+
+                queue.timer = setInterval(() => {
+                    queue.secondsLeft--;
+
+                    this.broadcastToQueue(queue, {
+                        type: 'matchmaking_status',
+                        state: 'countdown',
+                        secondsLeft: queue.secondsLeft,
+                        teamsCount: queue.rooms.size,
+                        mode: room.mode
+                    });
+
+                    if (queue.secondsLeft <= 0) {
+                        clearInterval(queue.timer);
+                        queue.timer = null;
+                        this.launchMatchmakingGame(room.mode);
+                    }
+                }, 1000);
+            } else {
+                // Compte à rebours déjà en cours : informer la nouvelle équipe
+                this.broadcastToRoom(room, {
+                    type: 'matchmaking_status',
+                    state: 'countdown',
+                    secondsLeft: queue.secondsLeft,
+                    teamsCount: queue.rooms.size,
+                    mode: room.mode
+                });
+            }
+        }
+    }
+
+    dequeueMatchmaking(room, specificMode = null) {
+        const mode = specificMode || room.mode;
+        const queue = this.getQueue(mode);
+        if (!queue.rooms.has(room.code)) return;
+
+        queue.rooms.delete(room.code);
+        this.broadcastToRoom(room, {
+            type: 'matchmaking_status',
+            state: 'idle',
+            mode
+        });
+
+        console.log(`[Matchmaking] Salle ${room.code} retirée de la file ${mode}. Restant: ${queue.rooms.size}`);
+
+        if (queue.rooms.size < 2 && queue.timer) {
+            clearInterval(queue.timer);
+            queue.timer = null;
+            queue.secondsLeft = 30;
+            console.log(`[Matchmaking] Chrono annulé pour ${mode} (moins de 2 équipes).`);
+
+            this.broadcastToQueue(queue, {
+                type: 'matchmaking_status',
+                state: 'searching',
+                teamsCount: queue.rooms.size,
+                teamsNeeded: 2,
+                mode
+            });
+        }
+    }
+
+    broadcastToQueue(queue, data) {
+        for (const code of queue.rooms) {
+            const r = this.rooms.get(code);
+            if (r) this.broadcastToRoom(r, data);
+        }
+    }
+
+    launchMatchmakingGame(mode) {
+        const queue = this.getQueue(mode);
+        const roomCodes = [...queue.rooms];
+        queue.rooms.clear();
+        if (queue.timer) {
+            clearInterval(queue.timer);
+            queue.timer = null;
+        }
+
+        const validRooms = roomCodes.map(code => this.rooms.get(code)).filter(r => r && r.state === 'lobby');
+        if (validRooms.length === 0) return;
+
+        const sharedSeed = Math.floor(Math.random() * 1000000);
+        console.log(`[Matchmaking] Lancement match ${mode} pour ${validRooms.length} équipes (seed: ${sharedSeed})`);
+
+        // Rassembler tous les joueurs réels et leur assigner une équipe par salle
+        const allMatchPlayers = [];
+        validRooms.forEach((r, teamIdx) => {
+            const teamId = teamIdx + 1;
+            for (const p of r.players.values()) {
+                allMatchPlayers.push({
+                    id: p.id,
+                    name: p.name,
+                    skin: p.skin,
+                    backpack: p.backpack,
+                    colors: p.colors,
+                    pickaxeSkin: p.pickaxeSkin,
+                    ready: p.ready,
+                    slot: p.slot,
+                    team: teamId,
+                    isHost: (p.id === r.hostId)
+                });
+            }
+        });
+
+        // Relier les salles pour que les messages en cours de partie soient partagés
+        validRooms.forEach((r, teamIdx) => {
+            r.state = 'game';
+            r.seed = sharedSeed;
+            r.matchedRooms = validRooms;
+
+            this.broadcastToRoom(r, {
+                type: 'game_start',
+                roomCode: r.code,
+                seed: sharedSeed,
+                mode: r.mode,
+                botFill: false,
+                myTeam: teamIdx + 1,
+                players: allMatchPlayers
+            });
+        });
+    }
+
+    startGameForRoom(room) {
+        if (!room || room.state !== 'lobby') return;
+        this.dequeueMatchmaking(room);
+        room.state = 'game';
+        room.seed = Math.floor(Math.random() * 1000000);
+
+        console.log(`[Multiplayer] Lancement de la partie pour la salle ${room.code} (seed: ${room.seed})`);
+
+        const players = this.serializePlayers(room).map(p => ({
+            ...p,
+            team: 1 // Tous dans la même équipe
+        }));
+
+        this.broadcastToRoom(room, {
+            type: 'game_start',
+            roomCode: room.code,
+            seed: room.seed,
+            mode: room.mode,
+            botFill: room.botFill !== false,
+            myTeam: 1,
+            players
         });
     }
 
@@ -194,19 +477,7 @@ class RoomManager {
         const room = this.rooms.get(code);
         if (!room || room.hostId !== ws.playerId) return;
 
-        room.state = 'game';
-        room.seed = Math.floor(Math.random() * 1000000);
-
-        console.log(`[Multiplayer] Lancement de la partie pour la salle ${code} (seed: ${room.seed})`);
-
-        this.broadcastToRoom(room, {
-            type: 'game_start',
-            roomCode: code,
-            seed: room.seed,
-            mode: room.mode,
-            botFill: room.botFill,
-            players: this.serializePlayers(room)
-        });
+        this.startGameForRoom(room);
     }
 
     relayGameMessage(ws, data) {
@@ -218,8 +489,14 @@ class RoomManager {
         // Attacher l'id du joueur émetteur s'il n'est pas déjà précisé
         if (!data.id && ws.playerId) data.id = ws.playerId;
 
-        // Relayer l'état ou l'action de jeu à tous les autres participants
-        this.broadcastToRoom(room, data, ws);
+        // Relayer aux joueurs de la salle et des salles matchées (si matchmaking multi-équipes)
+        if (room.matchedRooms && room.matchedRooms.length > 1) {
+            for (const r of room.matchedRooms) {
+                this.broadcastToRoom(r, data, ws);
+            }
+        } else {
+            this.broadcastToRoom(room, data, ws);
+        }
     }
 
     leaveCurrentRoom(ws) {
@@ -238,6 +515,7 @@ class RoomManager {
 
         if (room.players.size === 0) {
             console.log(`[Multiplayer] Salle ${code} fermée (vide)`);
+            this.dequeueMatchmaking(room);
             this.rooms.delete(code);
             return;
         }
@@ -260,22 +538,27 @@ class RoomManager {
             playerId,
             playerName: player ? player.name : 'Un joueur'
         });
+
+        this.checkRoomReadyState(room);
     }
 
-    serializePlayer(p) {
+    serializePlayer(p, room = null) {
         return {
             id: p.id,
             name: p.name,
             skin: p.skin,
+            backpack: p.backpack || null,
             colors: p.colors,
             pickaxeSkin: p.pickaxeSkin,
             ready: p.ready,
-            slot: p.slot
+            slot: p.slot,
+            team: p.team || 1,
+            isHost: room ? (p.id === room.hostId) : false
         };
     }
 
     serializePlayers(room) {
-        return [...room.players.values()].map(p => this.serializePlayer(p));
+        return [...room.players.values()].map(p => this.serializePlayer(p, room));
     }
 
     send(ws, data) {

@@ -225,14 +225,15 @@
 
             <!-- Panneau droit : mode, prêt, réseau -->
             <aside class="right-panel">
-                <section class="card game-mode-section">
+                <section class="card game-mode-section" id="gameModeSection">
                     <div class="mode-art" aria-hidden="true">
                         <span class="mode-art-island"><span class="hud-ico" data-icon="island"></span></span>
                     </div>
                     <div class="mode-body">
                         <div class="mode-label">Battle Royale</div>
-                        <div class="mode-display">SOLO</div>
-                        <button class="change-mode-btn">Changer de mode</button>
+                        <div class="mode-display" id="currentModeDisplay">SOLO</div>
+                        <button class="change-mode-btn" id="changeModeBtn">Changer de mode</button>
+                        <div class="leader-only-badge" id="modeLeaderBadge">👑 Réservé au chef</div>
                     </div>
                 </section>
 
@@ -586,6 +587,7 @@
                         <p class="mode-card-desc">Seul contre tous. Sois le dernier debout sur l'île.</p>
                         <span class="mode-card-players">1 joueur</span>
                     </div>
+                    <div class="mode-card-lock"><span class="lock-text">🔒 Min. 2 joueurs</span></div>
                 </div>
 
                 <!-- DUO -->
@@ -598,6 +600,7 @@
                         <p class="mode-card-desc">En équipe de 2. Couvre ton partenaire.</p>
                         <span class="mode-card-players">2 joueurs</span>
                     </div>
+                    <div class="mode-card-lock"><span class="lock-text">🔒 Min. 3 joueurs</span></div>
                 </div>
 
                 <!-- TRIO -->
@@ -610,6 +613,7 @@
                         <p class="mode-card-desc">Escouade de 3. Coordination et stratégie.</p>
                         <span class="mode-card-players">3 joueurs</span>
                     </div>
+                    <div class="mode-card-lock"><span class="lock-text">🔒 Min. 4 joueurs</span></div>
                 </div>
 
                 <!-- SECTION (Escouade / Squad) -->
@@ -622,6 +626,7 @@
                         <p class="mode-card-desc">Escouade complète de 4. Force maximale.</p>
                         <span class="mode-card-players">4 joueurs</span>
                     </div>
+                    <div class="mode-card-lock"><span class="lock-text">🔒 Verrouillé</span></div>
                 </div>
             </div>
 
@@ -630,9 +635,9 @@
                 <div class="mode-option-row" id="modeOptBots">
                     <div class="mode-option-text">
                         <span class="mode-option-label">🤖 Jouer avec des bots</span>
-                        <span class="mode-option-desc">La partie est remplie de bots IA. Le mode sans bots (vrais joueurs) arrive bientôt !</span>
+                        <span class="mode-option-desc">Active ou désactive les bots. Sans bots : recherche d'au moins 2 équipes avant le lancement.</span>
                     </div>
-                    <button type="button" class="mode-toggle" id="modeBotsToggle" role="switch" aria-checked="true" aria-label="Bots activés" disabled></button>
+                    <button type="button" class="mode-toggle" id="modeBotsToggle" role="switch" aria-checked="true" aria-label="Jouer avec des bots"></button>
                 </div>
             </div>
 
@@ -724,6 +729,41 @@
             </form>
 
             <p class="ps-legal" id="psLegal">Les achats en argent réel ne sont pas encore disponibles : aucun paiement ne sera demandé.</p>
+        </div>
+    </div>
+
+    <!-- ===== MODALE DE FILE D'ATTENTE (MATCHMAKING SANS BOTS) ===== -->
+    <div id="matchmakingOverlay" class="mm-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="mmTitle">
+        <div class="mm-card">
+            <div class="mm-radar" aria-hidden="true">
+                <div class="mm-radar-ring ring-1"></div>
+                <div class="mm-radar-ring ring-2"></div>
+                <div class="mm-radar-ring ring-3"></div>
+                <div class="mm-radar-beam"></div>
+                <div class="mm-radar-icon">🌐</div>
+            </div>
+
+            <div class="mm-badge" id="mmModeBadge">MODE DUO</div>
+            <h2 class="mm-title" id="mmTitle">RECHERCHE D'ADVERSAIRES</h2>
+            <p class="mm-subtitle" id="mmSubtitle">Recherche d'autres équipes en ligne...</p>
+
+            <div class="mm-status-box">
+                <div class="mm-teams-indicator" id="mmTeamsIndicator">
+                    <span class="mm-teams-count" id="mmTeamsCount">1 / 2</span>
+                    <span class="mm-teams-label">équipes prêtes</span>
+                </div>
+
+                <!-- Minuteur de 30 secondes quand >= 2 équipes sont prêtes -->
+                <div class="mm-countdown-wrap" id="mmCountdownWrap" hidden>
+                    <div class="mm-countdown-label">LANCEMENT DE LA PARTIE DANS</div>
+                    <div class="mm-countdown-number" id="mmCountdownNumber">30</div>
+                    <div class="mm-countdown-sub">Remplissage des places restantes avec des bots</div>
+                </div>
+            </div>
+
+            <button type="button" class="mm-cancel-btn" id="mmCancelBtn">
+                <span>ANNULER LA RECHERCHE</span>
+            </button>
         </div>
     </div>
 

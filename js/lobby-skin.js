@@ -468,33 +468,68 @@ const MATE_LOOKS = [
 ];
 
 export function mountLobbySkins(root = document) {
+    const players = window.lobbyManager?.players || [];
     root.querySelectorAll('.player-slot').forEach((slot, i) => {
         const body = slot.querySelector('.character-body');
         if (!body) return;
+        const holder = slot.querySelector('.player-character') || body;
+
         if (i === 0) {
-            // Place 1 : le skin équipé dans le casier (couleurs posées sur le personnage)
+            // Place 1 : le skin équipé localement dans le casier (couleurs posées sur le personnage)
             const s = Cosmetics.equipped;
             const pc = packColor(Cosmetics.equippedOf('backpack'));
-            const key = `${s.id}|${pc || ''}`;
+            const key = `local_${s.id}|${pc || ''}`;
             if (body.dataset.skin === key) return;
-            const holder = slot.querySelector('.player-character') || body;
             applyLook(holder, s);
             if (pc) holder.style.setProperty('--pack', pc);
+            else holder.style.removeProperty('--pack');
             body.innerHTML = skinMarkup(s.id);
             body.dataset.skin = key;
             return;
         }
-        if (body.dataset.skin) return;
+
+        const p = players[i];
+        if (p && !p.isBot) {
+            // Vrai coéquipier connecté dans le salon : afficher son vrai skin et son vrai sac à dos en direct !
+            const skinId = (typeof p.skin === 'string' ? p.skin : p.skin?.id) || 'recrue';
+            const s = getSkin(skinId) || getSkin('recrue');
+            const pc = packColor(p.backpack);
+            const key = `rem_${p.id}_${s.id}|${pc || ''}`;
+            if (body.dataset.skin === key) return;
+
+            applyLook(holder, s);
+            if (p.colors) {
+                for (const [k, v] of VARS) {
+                    if (p.colors[k]) holder.style.setProperty(v, p.colors[k]);
+                }
+            }
+            if (pc) holder.style.setProperty('--pack', pc);
+            else holder.style.removeProperty('--pack');
+
+            body.innerHTML = skinMarkup(s.id);
+            body.dataset.skin = key;
+            return;
+        }
+
+        // Slot bot ou vide : style coéquipier par défaut
         const look = MATE_LOOKS[(i - 1) % MATE_LOOKS.length];
+        const key = `bot_${look.hair}_${look.goggles}`;
+        if (body.dataset.skin === key) return;
         body.innerHTML = svgOf('default', look.hair, look.goggles);
-        body.dataset.skin = look.hair;
+        body.dataset.skin = key;
     });
 }
 
 if (typeof window !== 'undefined') {
     window.FOR2D_SKINS = { markup: skinMarkup, render: renderSkinInto, renderItem: renderItemInto };
     window.mountLobbySkins = mountLobbySkins;
-    Cosmetics.onChange(() => mountLobbySkins());
+    Cosmetics.onChange(() => {
+        mountLobbySkins();
+        // Synchroniser instantanément avec les autres membres du groupe
+        if (window.networkManager?.isConnected() && window.networkManager?.roomCode) {
+            window.networkManager.sendPlayerStatus(window.lobbyManager?.localPlayerReady || false);
+        }
+    });
 }
 if (typeof document !== 'undefined') {
     if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => mountLobbySkins());
