@@ -1,0 +1,4 @@
+OK syntaxe renderer.js + main.js
+OK chunks pré-chargés autour du tueur : 30/30
+OK arrivée sur la cible : chunks visibles manquants = 0
+OK prefetch(null) arrête

@@ -1,0 +1,122 @@
+/* ==================================
+   STYLES PRINCIPAUX - FOR2D ROYAL
+   ================================== */
+
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    /* Palette style Fortnite */
+    --sky-top: #0b1d4a;
+    --sky-mid: #1f4fb8;
+    --sky-bottom: #3d8bff;
+    --panel: rgba(8, 20, 56, 0.78);
+    --panel-border: rgba(120, 180, 255, 0.25);
+    --accent-blue: #2d7bff;
+    --accent-cyan: #4fd8ff;
+    --accent-yellow: #ffe03d;
+    --accent-yellow-dark: #f5b800;
+    --accent-purple: #b05cff;
+    --text-primary: #ffffff;
+    --text-secondary: #a9c1e8;
+    --ready-green: #3dff8b;
+    --not-ready-red: #ff5470;
+
+    /* Polices */
+    --font-display: 'Bebas Neue', 'Impact', 'Arial Narrow Bold', 'Arial Black', sans-serif;
+    --font-body: 'Rubik', 'Segoe UI', Arial, sans-serif;
+
+    /* Divers */
+    --radius: 6px;
+    --skew: -8deg;
+    --shadow: 0 10px 30px rgba(0, 0, 0, 0.45);
+}
+
+html,
+body {
+    height: 100%;
+}
+
+body {
+    font-family: var(--font-body);
+    color: var(--text-primary);
+    background: var(--sky-top);
+    overflow: hidden;
+    -webkit-font-smoothing: antialiased;
+}
+
+/* Système d'écrans */
+.screen {
+    display: none;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+}
+
+.screen.active {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Boutons génériques */
+button {
+    font-family: var(--font-display);
+    cursor: pointer;
+    border: none;
+    color: inherit;
+    background: none;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    transition: transform 0.15s ease, filter 0.15s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+button:hover {
+    filter: brightness(1.12);
+}
+
+button:active {
+    transform: scale(0.97);
+}
+
+/* Focus clavier visible (accessibilité) */
+:focus-visible {
+    outline: 3px solid var(--accent-yellow);
+    outline-offset: 2px;
+}
+
+input {
+    font-family: var(--font-body);
+}
+
+/* Animations */
+@keyframes fadeIn {
+    from { opacity: 0; transform: translateY(16px); }
+    to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pulse {
+    0%, 100% { transform: scale(1); }
+    50%      { transform: scale(1.04); }
+}
+
+/* Scrollbar personnalisée */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(120, 180, 255, 0.4); border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: var(--accent-cyan); }
+
+/* Respecter les préférences de mouvement réduit */
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}

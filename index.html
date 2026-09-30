@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1d4a">
+    <title>FOR2D ROYAL - Lobby</title>
+    <!-- Polices (si le réseau les bloque, des polices de secours sont prévues dans le CSS) -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/lobby.css">
+    <link rel="stylesheet" href="css/settings.css">
+    <link rel="stylesheet" href="css/store.css">
+    <link rel="stylesheet" href="css/hub.css">
+    <link rel="stylesheet" href="css/mode-selector.css">
+</head>
+<body>
+    <!-- ================= ÉCRAN LOBBY ================= -->
+    <div id="lobby-screen" class="screen active">
+        <!-- Décor animé -->
+        <div class="lobby-bg" aria-hidden="true">
+            <div class="bg-rays"></div>
+            <div class="bg-cloud cloud-1"></div>
+            <div class="bg-cloud cloud-2"></div>
+            <div class="bg-cloud cloud-3"></div>
+            <div class="bg-bus"><span class="hud-ico" data-icon="bus"></span></div>
+        </div>
+
+        <!-- ===== HEADER ===== -->
+        <header class="lobby-header">
+            <div class="logo-container">
+                <h1 class="game-logo">FOR<span>2D</span> ROYAL</h1>
+            </div>
+
+            <nav class="main-navigation" aria-label="Navigation principale">
+                <button type="button" class="nav-btn active" data-view="lobby" aria-current="page">Lobby</button>
+                <button type="button" class="nav-btn" data-view="pass">Passe de combat</button>
+                <button type="button" class="nav-btn" data-view="locker" aria-controls="lockerScreen">Casier</button>
+                <button type="button" class="nav-btn" data-view="store" aria-controls="storeScreen">Boutique</button>
+                <button type="button" class="nav-btn" data-view="profile">Profil</button>
+                <button type="button" class="nav-btn" data-view="ranks">Classements</button>
+            </nav>
+
+            <div class="header-right">
+                <div class="currency-display">
+                    <!-- Solde mis à jour par js/lobby-store.js (Cosmetics.pixies) ; clic = boutique de Pixies -->
+                    <button type="button" class="currency-item currency-button" id="pixiesBox" title="Obtenir des Pixies" aria-label="0 Pixies, obtenir des Pixies" aria-haspopup="dialog" aria-controls="pixieShop">
+                        <span class="currency-icon pixie" aria-hidden="true">P</span>
+                        <span class="currency-amount" id="pixiesAmount" aria-hidden="true">0</span>
+                        <span class="currency-plus" aria-hidden="true">+</span>
+                    </button>
+                    <div class="currency-item" id="partyCountBox" title="Joueurs dans le groupe">
+                        <span class="currency-icon" aria-hidden="true"><span class="hud-ico" data-icon="group"></span></span>
+                        <span class="currency-amount" id="partyCount" aria-label="1 joueur dans le groupe">1</span>
+                    </div>
+                </div>
+                <button class="menu-button sound-button" id="soundToggle" type="button" aria-label="Couper le son" title="Couper le son" aria-pressed="false"><span class="hud-ico" data-icon="sound-on" aria-hidden="true"></span></button>
+                <button class="menu-button" id="settingsBtn" aria-label="Paramètres" title="Paramètres" aria-haspopup="dialog" aria-controls="settingsPanel"><span class="hud-ico" data-icon="gear" aria-hidden="true"></span></button>
+            </div>
+        </header>
+
+        <!-- ===== ZONE PRINCIPALE ===== -->
+        <main class="lobby-main">
+            <!-- Panneau gauche : saison, défis, chat -->
+            <aside class="left-panel">
+                <section class="card season-info">
+                    <div class="season-badge">
+                        <span class="season-text">Chapitre 1 · Saison 1</span>
+                    </div>
+
+                    <div class="level-display">
+                        <div class="level-icon" aria-hidden="true">
+                            <span class="level-number">1</span>
+                        </div>
+                        <div class="level-info">
+                            <h2 class="level-title">Niveau <span class="level-number-text">1</span></h2>
+                            <div class="xp-bar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Expérience">
+                                <div class="xp-progress" style="width: 0%"></div>
+                            </div>
+                            <p class="xp-text">0 / 100 XP</p>
+                        </div>
+                    </div>
+
+                    <div class="battle-pass-section">
+                        <div class="pass-header">
+                            <span class="pass-icon hud-ico" data-icon="ticket" aria-hidden="true"></span>
+                            <span class="pass-text">Passe gratuit</span>
+                            <span class="pass-tier">Palier 1</span>
+                        </div>
+                        <p class="pass-info">Joue des parties pour gagner de l'XP.</p>
+                        <button type="button" class="pass-open-btn" data-open-view="pass">Voir le passe</button>
+                    </div>
+                </section>
+
+                <section class="card challenges-section">
+                    <h3 class="section-title">Défis quotidiens</h3>
+                    <p class="no-challenges">Aucun défi disponible</p>
+                </section>
+
+                <!-- Chat du groupe -->
+                <section class="card party-chat" aria-label="Chat du groupe">
+                    <div class="chat-header">
+                        <span class="chat-icon hud-ico" data-icon="chat" aria-hidden="true"></span>
+                        <span>Groupe</span>
+                    </div>
+                    <div class="chat-messages" aria-live="polite">
+                        <div class="chat-message">
+                            <span class="chat-author">Système :</span>
+                            <span class="chat-text">Bienvenue dans For2D Royal !</span>
+                        </div>
+                    </div>
+                    <div class="chat-input-container">
+                        <input type="text" class="chat-input" placeholder="Entrée pour envoyer" aria-label="Message du chat" maxlength="200">
+                    </div>
+                </section>
+            </aside>
+
+            <!-- Scène centrale : personnages -->
+            <section class="players-area" aria-label="Escouade">
+                <div class="stage-floor" aria-hidden="true"></div>
+
+                <div class="player-slot slot-1">
+                    <div class="player-info">
+                        <div class="player-name">Joueur 1</div>
+                        <div class="player-meta">
+                            <div class="player-status not-ready">Pas prêt</div>
+                            <button class="mute-btn" aria-label="Couper le micro" aria-pressed="false"><span class="hud-ico" data-icon="sound-on" aria-hidden="true"></span></button>
+                        </div>
+                    </div>
+                    <div class="player-platform">
+                        <div class="platform-glow"></div>
+                        <button class="invite-btn" aria-label="Inviter un ami"><span aria-hidden="true">+</span></button>
+                        <div class="player-character">
+                            <div class="character-body">
+                                <span class="char-head"></span>
+                                <span class="char-arm left"></span>
+                                <span class="char-arm right"></span>
+                                <span class="char-torso"></span>
+                                <span class="char-backpack"></span>
+                                <span class="char-leg left"></span>
+                                <span class="char-leg right"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="player-slot slot-2 is-empty">
+                    <div class="player-info">
+                        <div class="player-name">En attente...</div>
+                        <div class="player-meta">
+                            <div class="player-status">-</div>
+                            <button class="mute-btn" aria-label="Couper le micro" aria-pressed="false" style="display: none;"><span class="hud-ico" data-icon="sound-on" aria-hidden="true"></span></button>
+                        </div>
+                    </div>
+                    <div class="player-platform">
+                        <div class="platform-glow"></div>
+                        <button class="invite-btn" aria-label="Inviter un ami"><span aria-hidden="true">+</span></button>
+                        <div class="player-character">
+                            <div class="character-body">
+                                <span class="char-head"></span>
+                                <span class="char-arm left"></span>
+                                <span class="char-arm right"></span>
+                                <span class="char-torso"></span>
+                                <span class="char-backpack"></span>
+                                <span class="char-leg left"></span>
+                                <span class="char-leg right"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="player-slot slot-3 is-empty">
+                    <div class="player-info">
+                        <div class="player-name">En attente...</div>
+                        <div class="player-meta">
+                            <div class="player-status">-</div>
+                            <button class="mute-btn" aria-label="Couper le micro" aria-pressed="false" style="display: none;"><span class="hud-ico" data-icon="sound-on" aria-hidden="true"></span></button>
+                        </div>
+                    </div>
+                    <div class="player-platform">
+                        <div class="platform-glow"></div>
+                        <button class="invite-btn" aria-label="Inviter un ami"><span aria-hidden="true">+</span></button>
+                        <div class="player-character">
+                            <div class="character-body">
+                                <span class="char-head"></span>
+                                <span class="char-arm left"></span>
+                                <span class="char-arm right"></span>
+                                <span class="char-torso"></span>
+                                <span class="char-backpack"></span>
+                                <span class="char-leg left"></span>
+                                <span class="char-leg right"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="player-slot slot-4 is-empty">
+                    <div class="player-info">
+                        <div class="player-name">En attente...</div>
+                        <div class="player-meta">
+                            <div class="player-status">-</div>
+                            <button class="mute-btn" aria-label="Couper le micro" aria-pressed="false" style="display: none;"><span class="hud-ico" data-icon="sound-on" aria-hidden="true"></span></button>
+                        </div>
+                    </div>
+                    <div class="player-platform">
+                        <div class="platform-glow"></div>
+                        <button class="invite-btn" aria-label="Inviter un ami"><span aria-hidden="true">+</span></button>
+                        <div class="player-character">
+                            <div class="character-body">
+                                <span class="char-head"></span>
+                                <span class="char-arm left"></span>
+                                <span class="char-arm right"></span>
+                                <span class="char-torso"></span>
+                                <span class="char-backpack"></span>
+                                <span class="char-leg left"></span>
+                                <span class="char-leg right"></span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Panneau droit : mode, prêt, réseau -->
+            <aside class="right-panel">
+                <section class="card game-mode-section">
+                    <div class="mode-art" aria-hidden="true">
+                        <span class="mode-art-island"><span class="hud-ico" data-icon="island"></span></span>
+                    </div>
+                    <div class="mode-body">
+                        <div class="mode-label">Battle Royale</div>
+                        <div class="mode-display">SOLO</div>
+                        <button class="change-mode-btn">Changer de mode</button>
+                    </div>
+                </section>
+
+                <section class="card squad-fill-section">
+                    <div class="fill-option">
+                        <span class="fill-label">🤖 Jouer avec des bots</span>
+                        <button class="fill-toggle" id="botFillToggle" aria-pressed="true" title="Activer ou désactiver les coéquipiers bots">Activé</button>
+                    </div>
+                </section>
+
+                <div class="ready-section">
+                    <button class="ready-button" id="readyBtn">
+                        <span class="ready-text">PRÊT</span>
+                    </button>
+                </div>
+
+                <!-- Réseau -->
+                <section class="card network-section">
+                    <h3 class="network-title">Jouer avec des amis</h3>
+
+                    <div class="network-mode">
+                        <button class="network-btn active" id="hostBtn">
+                            <span class="btn-icon hud-ico" data-icon="home" aria-hidden="true"></span>
+                            Créer
+                        </button>
+                        <button class="network-btn" id="joinBtn">
+                            <span class="btn-icon hud-ico" data-icon="link" aria-hidden="true"></span>
+                            Rejoindre
+                        </button>
+                    </div>
+
+                    <div class="join-room-form" id="joinForm" style="display: none;">
+                        <input type="text" id="roomInput" class="room-input" placeholder="CODE" maxlength="6" aria-label="Code de salle">
+                        <button class="join-room-btn" id="joinRoomBtn">OK</button>
+                    </div>
+
+                    <div class="connection-info" id="connectionInfo">
+                        <div class="info-item">
+                            <span class="info-label">Statut</span>
+                            <span class="info-value" id="connectionStatus">Déconnecté</span>
+                        </div>
+                        <div class="info-item">
+                            <span class="info-label">Code de salle</span>
+                            <span class="info-value room-code" id="roomCode">-</span>
+                        </div>
+                    </div>
+
+                    <details class="server-info">
+                        <summary>Comment ça marche ?</summary>
+                        <ol class="info-steps">
+                            <li>Clique sur « Créer »</li>
+                            <li>Partage le code à 6 caractères</li>
+                            <li>Tes amis cliquent « Rejoindre » et entrent le code</li>
+                        </ol>
+                    </details>
+                </section>
+            </aside>
+        </main>
+
+        <!-- ===== BOUTIQUE (js/lobby-store.js) ===== -->
+        <section id="storeScreen" class="shop-screen" hidden aria-labelledby="storeTitle">
+            <div class="shop-bg" aria-hidden="true"><div class="shop-rays"></div></div>
+            <div class="shop-inner">
+                <div class="shop-head">
+                    <button type="button" class="shop-back" data-shop-back>
+                        <span class="hud-ico" data-icon="back" aria-hidden="true"></span>
+                        <span>Retour</span>
+                        <kbd>Échap</kbd>
+                    </button>
+                    <div class="shop-titles">
+                        <h2 class="shop-title" id="storeTitle" tabindex="-1">Boutique d'objets</h2>
+                        <p class="shop-timer"><span class="hud-ico" data-icon="clock" aria-hidden="true"></span> Nouveaux objets dans <time id="storeTimer" datetime="PT0S">00:00:00</time></p>
+                    </div>
+                    <!-- Filtres par catégorie (remplis par js/lobby-store.js) -->
+                    <div class="shop-filters" id="storeFilters" role="group" aria-label="Filtrer par catégorie"></div>
+                </div>
+
+                <!-- Cadeau de bienvenue (visible tant qu'il n'est pas réclamé) -->
+                <div class="shop-gift" id="storeGift" hidden>
+                    <span class="shop-gift-ico hud-ico" data-icon="gift" aria-hidden="true"></span>
+                    <div class="shop-gift-text">
+                        <span class="shop-gift-kicker">Cadeau de bienvenue</span>
+                        <span class="shop-gift-amount">
+                            <span class="currency-icon pixie" aria-hidden="true">P</span>
+                            <span id="giftAmount">2 500</span> Pixies
+                        </span>
+                        <span class="shop-gift-desc" id="giftDesc">Offert une seule fois : de quoi t'offrir tes premiers objets.</span>
+                    </div>
+                    <button type="button" class="shop-btn" id="giftClaimBtn" aria-describedby="giftDesc"><span>Réclamer</span></button>
+                </div>
+
+                <!-- Sections (En vedette, Quotidien, Offerts) construites par js/lobby-store.js -->
+                <div class="shop-scroll" id="storeSections"></div>
+            </div>
+        </section>
+
+        <!-- ===== CASIER (js/lobby-store.js) ===== -->
+        <section id="lockerScreen" class="shop-screen" hidden aria-labelledby="lockerTitle">
+            <div class="shop-bg" aria-hidden="true"><div class="shop-rays"></div></div>
+            <div class="shop-inner">
+                <div class="shop-head">
+                    <button type="button" class="shop-back" data-shop-back>
+                        <span class="hud-ico" data-icon="back" aria-hidden="true"></span>
+                        <span>Retour</span>
+                        <kbd>Échap</kbd>
+                    </button>
+                    <div class="shop-titles">
+                        <h2 class="shop-title" id="lockerTitle" tabindex="-1">Casier</h2>
+                        <p class="shop-timer">Objets possédés <strong id="lockerCount">0 / 0</strong></p>
+                    </div>
+                </div>
+
+                <div class="locker-layout">
+                    <!-- Gauche : le chargement (un emplacement par catégorie, 4 emotes) -->
+                    <aside class="locker-loadout" aria-labelledby="loadoutTitle">
+                        <h3 class="store-col-title" id="loadoutTitle">Chargement</h3>
+                        <p class="loadout-label">Apparence</p>
+                        <div class="loadout-slots" id="loadoutMain" role="group" aria-label="Apparence"></div>
+                        <p class="loadout-label">Emotes <small>roue d'emotes</small></p>
+                        <div class="loadout-slots is-emotes" id="loadoutEmotes" role="group" aria-label="Emotes"></div>
+                    </aside>
+
+                    <!-- Centre : aperçu de l'objet choisi -->
+                    <div class="locker-preview" id="lockerPreview">
+                        <div class="locker-stage" aria-hidden="true">
+                            <div class="locker-rays"></div>
+                            <div class="locker-platform"></div>
+                            <div class="locker-turn"><div class="locker-skin" id="lockerSkin"></div></div>
+                        </div>
+                        <div class="locker-info">
+                            <span class="shop-rarity" id="lockerRarity">Commun</span>
+                            <h3 class="locker-name" id="lockerName" aria-live="polite">Recrue</h3>
+                            <p class="locker-series" id="lockerSeries">Série Essentiels</p>
+                            <p class="locker-desc" id="lockerDesc"></p>
+                            <div class="locker-actions">
+                                <button type="button" class="shop-btn" id="lockerEquip"><span>Équiper</span></button>
+                                <button type="button" class="shop-btn is-ghost" id="lockerUnequip" hidden><span>Retirer</span></button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Droite : tous les objets de la catégorie de l'emplacement choisi -->
+                    <section class="locker-list" aria-labelledby="lockerListTitle">
+                        <div class="locker-list-head">
+                            <h3 class="store-col-title" id="lockerListTitle">Tenues</h3>
+                            <span class="locker-list-count" id="lockerListCount"></span>
+                        </div>
+                        <div class="locker-grid" id="lockerGrid"></div>
+                    </section>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== PASSE DE COMBAT (js/lobby-hub.js) ===== -->
+        <section id="passScreen" class="shop-screen hub-screen" hidden aria-labelledby="passTitle">
+            <div class="shop-bg" aria-hidden="true"><div class="shop-rays"></div></div>
+            <div class="shop-inner">
+                <div class="shop-head">
+                    <button type="button" class="shop-back" data-shop-back>
+                        <span class="hud-ico" data-icon="back" aria-hidden="true"></span>
+                        <span>Retour</span>
+                        <kbd>Échap</kbd>
+                    </button>
+                    <div class="shop-titles">
+                        <h2 class="shop-title" id="passTitle" tabindex="-1">Passe de combat</h2>
+                        <p class="shop-timer">Saison 1 · Palier <strong id="passTierNow">1</strong> / <span id="passTierMax">30</span></p>
+                    </div>
+                    <div class="pass-head-actions">
+                        <button type="button" class="shop-btn is-ghost" id="passClaimAll"><span>Tout récupérer</span></button>
+                        <button type="button" class="shop-btn is-premium" id="passBuyBtn"><span>Passe premium</span></button>
+                        <span class="pass-premium-badge" id="passPremiumBadge" hidden>Passe premium actif</span>
+                    </div>
+                </div>
+
+                <!-- Progression : 1 niveau = 1 palier -->
+                <div class="pass-progress">
+                    <span class="pass-level" aria-hidden="true"><span id="passLevelNum">1</span></span>
+                    <div class="pass-progress-text">
+                        <span class="pass-progress-title">Niveau <strong id="passLevelText">1</strong></span>
+                        <div class="xp-bar pass-xp" id="passXpBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Expérience du niveau">
+                            <div class="xp-progress" id="passXpFill" style="width: 0%"></div>
+                        </div>
+                        <span class="pass-progress-sub"><span id="passXpText">0 / 100 XP</span> · Joue des parties pour gagner de l'XP : chaque niveau débloque un palier.</span>
+                    </div>
+                    <p class="pass-msg" id="passMsg" role="status" aria-live="polite"></p>
+                </div>
+
+                <div class="pass-layout">
+                    <!-- Récompense choisie -->
+                    <aside class="pass-detail" id="passDetail" aria-live="polite">
+                        <div class="pass-detail-art" id="passDetailArt" aria-hidden="true"></div>
+                        <div class="pass-detail-body">
+                            <span class="shop-rarity" id="passDetailRarity">Commun</span>
+                            <h3 class="pass-detail-name" id="passDetailName">Récompense</h3>
+                            <p class="pass-detail-meta" id="passDetailMeta"></p>
+                            <button type="button" class="shop-btn" id="passDetailBtn"><span>Récupérer</span></button>
+                        </div>
+                    </aside>
+
+                    <!-- Paliers : piste gratuite (haut) et premium (bas), défilement horizontal -->
+                    <div class="pass-track-wrap">
+                        <div class="pass-rows-legend" aria-hidden="true">
+                            <span class="pass-legend-free">Gratuit</span>
+                            <span class="pass-legend-premium">Premium</span>
+                        </div>
+                        <div class="pass-track" id="passTrack" role="list" aria-label="Paliers du passe"></div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== PROFIL (js/lobby-hub.js) ===== -->
+        <section id="profileScreen" class="shop-screen hub-screen" hidden aria-labelledby="profileTitle">
+            <div class="shop-bg" aria-hidden="true"><div class="shop-rays"></div></div>
+            <div class="shop-inner">
+                <div class="shop-head">
+                    <button type="button" class="shop-back" data-shop-back>
+                        <span class="hud-ico" data-icon="back" aria-hidden="true"></span>
+                        <span>Retour</span>
+                        <kbd>Échap</kbd>
+                    </button>
+                    <div class="shop-titles">
+                        <h2 class="shop-title" id="profileTitle" tabindex="-1">Profil</h2>
+                        <p class="shop-timer">Statistiques de la saison 1</p>
+                    </div>
+                </div>
+
+                <div class="profile-layout">
+                    <!-- Carte du joueur -->
+                    <aside class="profile-card">
+                        <div class="profile-stage" aria-hidden="true">
+                            <div class="locker-rays"></div>
+                            <div class="profile-skin" id="profileSkin"></div>
+                        </div>
+                        <form class="profile-name-form" id="profileNameForm" autocomplete="off" novalidate>
+                            <label class="profile-name-label" for="profileName">Pseudo</label>
+                            <div class="profile-name-row">
+                                <input class="profile-name-input" id="profileName" type="text" maxlength="16" spellcheck="false" autocomplete="off" aria-describedby="profileNameMsg">
+                                <button type="submit" class="shop-btn" id="profileNameBtn"><span>OK</span></button>
+                            </div>
+                            <p class="profile-name-msg" id="profileNameMsg" role="status" aria-live="polite"></p>
+                        </form>
+                        <div class="profile-level">
+                            <span class="pass-level" aria-hidden="true"><span id="profileLevelNum">1</span></span>
+                            <div class="profile-level-text">
+                                <span>Niveau <strong id="profileLevelText">1</strong></span>
+                                <div class="xp-bar" id="profileXpBar" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Expérience du niveau">
+                                    <div class="xp-progress" id="profileXpFill" style="width: 0%"></div>
+                                </div>
+                                <span class="profile-xp-text" id="profileXpText">0 / 100 XP</span>
+                            </div>
+                        </div>
+                        <ul class="profile-collection" id="profileCollection" aria-label="Collection"></ul>
+                    </aside>
+
+                    <div class="profile-main shop-scroll">
+                        <section aria-labelledby="profileStatsTitle">
+                            <div class="store-section-head">
+                                <h3 class="store-col-title" id="profileStatsTitle">Statistiques</h3>
+                                <span class="store-section-sub">Toutes tes parties de la saison</span>
+                            </div>
+                            <dl class="profile-stats" id="profileStats"></dl>
+                        </section>
+                        <section aria-labelledby="profileHistoryTitle">
+                            <div class="store-section-head">
+                                <h3 class="store-col-title" id="profileHistoryTitle">Dernières parties</h3>
+                                <span class="store-section-sub" id="profileHistoryCount"></span>
+                            </div>
+                            <ol class="profile-history" id="profileHistory"></ol>
+                        </section>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- ===== CLASSEMENTS (js/lobby-hub.js) ===== -->
+        <section id="ranksScreen" class="shop-screen hub-screen" hidden aria-labelledby="ranksTitle">
+            <div class="shop-bg" aria-hidden="true"><div class="shop-rays"></div></div>
+            <div class="shop-inner">
+                <div class="shop-head">
+                    <button type="button" class="shop-back" data-shop-back>
+                        <span class="hud-ico" data-icon="back" aria-hidden="true"></span>
+                        <span>Retour</span>
+                        <kbd>Échap</kbd>
+                    </button>
+                    <div class="shop-titles">
+                        <h2 class="shop-title" id="ranksTitle" tabindex="-1">Classements</h2>
+                        <p class="shop-timer">Saison 1 · mis à jour chaque jour</p>
+                    </div>
+                    <div class="shop-filters" id="ranksTabs" role="group" aria-label="Classer par"></div>
+                </div>
+
+                <div class="ranks-layout">
+                    <div class="ranks-podium" id="ranksPodium" aria-label="Podium"></div>
+                    <div class="ranks-board">
+                        <div class="ranks-row ranks-row-head" aria-hidden="true">
+                            <span>#</span><span>Joueur</span><span>Niveau</span><span id="ranksValueHead">Victoires</span>
+                        </div>
+                        <ol class="ranks-list shop-scroll" id="ranksList" aria-label="Classement"></ol>
+                        <div class="ranks-row is-me ranks-me" id="ranksMe"></div>
+                    </div>
+                </div>
+                <p class="ranks-note">Hors ligne : les autres joueurs sont simulés en attendant le mode en ligne. Tes chiffres, eux, sont les vrais.</p>
+            </div>
+        </section>
+
+        <!-- ===== FOOTER : actualités défilantes ===== -->
+        <footer class="lobby-footer">
+            <div class="news-section">
+                <span class="news-tag">Actus</span>
+                <div class="news-ticker">
+                    <div class="news-track">
+                        <span>Nouvelle saison disponible</span>
+                        <span>La corruption se propage sur l'île</span>
+                        <span>Invite tes amis avec un code de salle</span>
+                        <span>Nouvelle saison disponible</span>
+                        <span>La corruption se propage sur l'île</span>
+                        <span>Invite tes amis avec un code de salle</span>
+                    </div>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- ================= SÉLECTEUR DE MODE ================= -->
+    <div id="modeSelector" class="mode-overlay" hidden>
+        <div class="mode-panel" role="dialog" aria-modal="true" aria-labelledby="modePanelTitle">
+            <div class="mode-panel-head">
+                <div>
+                    <h2 class="mode-panel-title" id="modePanelTitle">Choisir un mode</h2>
+                    <p class="mode-panel-sub">Battle Royale · Sélectionne ton mode de jeu</p>
+                </div>
+                <button type="button" class="mode-close-btn" id="modeCloseBtn" aria-label="Fermer" title="Fermer (Échap)">
+                    <span class="hud-ico" data-icon="close" aria-hidden="true"></span>
+                </button>
+            </div>
+
+            <div class="mode-grid" id="modeGrid">
+                <!-- SOLO -->
+                <div class="mode-card is-selected" data-mode="solo" tabindex="0" role="button" aria-pressed="true">
+                    <div class="mode-card-art">
+                        <span class="mode-card-icon" aria-hidden="true">🧍</span>
+                    </div>
+                    <div class="mode-card-body">
+                        <div class="mode-card-name">SOLO</div>
+                        <p class="mode-card-desc">Seul contre tous. Sois le dernier debout sur l'île.</p>
+                        <span class="mode-card-players">1 joueur</span>
+                    </div>
+                </div>
+
+                <!-- DUO -->
+                <div class="mode-card" data-mode="duo" tabindex="0" role="button" aria-pressed="false">
+                    <div class="mode-card-art">
+                        <span class="mode-card-icon" aria-hidden="true">👥</span>
+                    </div>
+                    <div class="mode-card-body">
+                        <div class="mode-card-name">DUO</div>
+                        <p class="mode-card-desc">En équipe de 2. Couvre ton partenaire.</p>
+                        <span class="mode-card-players">2 joueurs</span>
+                    </div>
+                </div>
+
+                <!-- TRIO -->
+                <div class="mode-card" data-mode="trio" tabindex="0" role="button" aria-pressed="false">
+                    <div class="mode-card-art">
+                        <span class="mode-card-icon" aria-hidden="true">👥‍👤</span>
+                    </div>
+                    <div class="mode-card-body">
+                        <div class="mode-card-name">TRIO</div>
+                        <p class="mode-card-desc">Escouade de 3. Coordination et stratégie.</p>
+                        <span class="mode-card-players">3 joueurs</span>
+                    </div>
+                </div>
+
+                <!-- SECTION (Escouade / Squad) -->
+                <div class="mode-card" data-mode="section" tabindex="0" role="button" aria-pressed="false">
+                    <div class="mode-card-art">
+                        <span class="mode-card-icon" aria-hidden="true">🎖️</span>
+                    </div>
+                    <div class="mode-card-body">
+                        <div class="mode-card-name">SECTION</div>
+                        <p class="mode-card-desc">Escouade complète de 4. Force maximale.</p>
+                        <span class="mode-card-players">4 joueurs</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Options dynamiques (bots, etc.) -->
+            <div class="mode-options" id="modeOptions">
+                <div class="mode-option-row" id="modeOptBots">
+                    <div class="mode-option-text">
+                        <span class="mode-option-label">🤖 Jouer avec des bots</span>
+                        <span class="mode-option-desc">La partie est remplie de bots IA. Le mode sans bots (vrais joueurs) arrive bientôt !</span>
+                    </div>
+                    <button type="button" class="mode-toggle" id="modeBotsToggle" role="switch" aria-checked="true" aria-label="Bots activés" disabled></button>
+                </div>
+            </div>
+
+            <div class="mode-panel-foot">
+                <div class="mode-selected-info">
+                    <span class="mode-selected-name" id="modeSelectedName">SOLO</span>
+                    <span class="mode-selected-detail" id="modeSelectedDetail">1 joueur · Sans bots</span>
+                </div>
+                <button type="button" class="mode-confirm-btn" id="modeConfirmBtn">
+                    <span>Confirmer</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= ÉCRAN DE JEU ================= -->
+    <div id="game-screen" class="screen">
+        <canvas id="gameCanvas"></canvas>
+        <div id="hud"></div>
+    </div>
+
+    <!-- ================= PARAMÈTRES ================= -->
+    <div id="settingsPanel" class="settings-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="settings-card">
+            <div class="settings-head">
+                <h2 id="settingsTitle">Paramètres</h2>
+                <button type="button" class="settings-close" data-settings-close aria-label="Fermer les paramètres" title="Fermer (Échap)"><span class="hud-ico" data-icon="close" aria-hidden="true"></span></button>
+            </div>
+            <div class="setting-row">
+                <span class="setting-text">
+                    <span class="setting-label" id="optAutoAmmoLabel">Ramassage auto des munitions</span>
+                    <span class="setting-desc" id="optAutoAmmoDesc">Les munitions sont ramassées en passant dessus, sans appuyer sur E.</span>
+                </span>
+                <button type="button" class="switch" data-setting="autoAmmo" role="switch" aria-checked="true" aria-labelledby="optAutoAmmoLabel" aria-describedby="optAutoAmmoDesc">
+                    <span class="switch-knob" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= DÉTAIL D'UN OBJET (boutique) ================= -->
+    <div id="shopDialog" class="shop-dialog-backdrop" hidden>
+        <div class="shop-dialog" role="dialog" aria-modal="true" aria-labelledby="sdName" aria-describedby="sdDesc">
+            <button type="button" class="sd-close" data-dialog-close aria-label="Fermer le détail" title="Fermer (Échap)"><span class="hud-ico" data-icon="close" aria-hidden="true"></span></button>
+            <div class="sd-art" aria-hidden="true">
+                <div class="sd-skin" id="sdSkin"></div>
+                <div class="sd-burst" id="sdBurst"></div>
+                <span class="sd-stamp">Acheté !</span>
+            </div>
+            <div class="sd-body">
+                <span class="shop-rarity" id="sdRarity">Commun</span>
+                <h2 class="sd-name" id="sdName">Objet</h2>
+                <p class="sd-series" id="sdSeries"></p>
+                <p class="sd-desc" id="sdDesc"></p>
+                <div class="sd-price" id="sdPrice"></div>
+                <p class="sd-balance" id="sdBalance"></p>
+                <div class="sd-actions">
+                    <button type="button" class="shop-btn" id="sdMain"><span>Acheter</span></button>
+                    <button type="button" class="sd-link" id="sdGiftLink" hidden>Récupérer mon cadeau de bienvenue</button>
+                </div>
+                <p class="sd-msg" id="sdMsg" role="status" aria-live="polite"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= BOUTIQUE DE PIXIES (clic sur le solde) ================= -->
+    <div id="pixieShop" class="shop-dialog-backdrop" hidden>
+        <div class="pixie-shop" role="dialog" aria-modal="true" aria-labelledby="psTitle" aria-describedby="psLegal">
+            <button type="button" class="sd-close" data-pixie-close aria-label="Fermer la boutique de Pixies" title="Fermer (Échap)"><span class="hud-ico" data-icon="close" aria-hidden="true"></span></button>
+            <header class="ps-head">
+                <span class="ps-logo" aria-hidden="true"><span class="currency-icon pixie">P</span></span>
+                <div>
+                    <h2 class="ps-title" id="psTitle" tabindex="-1">Obtenir des Pixies</h2>
+                    <p class="ps-balance">Ton solde : <span class="currency-icon pixie" aria-hidden="true">P</span> <strong id="psBalance">0</strong> Pixies</p>
+                </div>
+            </header>
+
+            <!-- Packs remplis par js/lobby-store.js -->
+            <div class="ps-packs" id="psPacks"></div>
+            <p class="ps-note" id="psNote" role="status" aria-live="polite"></p>
+
+            <form class="ps-code" id="psCodeForm" autocomplete="off" novalidate>
+                <label class="ps-code-label" for="psCode"><span class="hud-ico" data-icon="gift" aria-hidden="true"></span> Code secret</label>
+                <div class="ps-code-row">
+                    <input class="ps-code-input" id="psCode" name="code" type="text" maxlength="32" spellcheck="false" autocapitalize="off" autocorrect="off" autocomplete="off" placeholder="Entre ton code ici" aria-describedby="psCodeMsg">
+                    <button type="submit" class="shop-btn" id="psCodeBtn"><span>Utiliser</span></button>
+                </div>
+                <p class="ps-code-msg" id="psCodeMsg" role="status" aria-live="polite"></p>
+            </form>
+
+            <p class="ps-legal" id="psLegal">Les achats en argent réel ne sont pas encore disponibles : aucun paiement ne sera demandé.</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <!-- Effets sonores (module ES, expose window.SFX) -->
+    <script type="module" src="js/sfx.js"></script>
+    <!-- Paramètres partagés avec le jeu (module ES, expose window.FOR2D_SETTINGS) -->
+    <script type="module" src="js/settings.js"></script>
+    <!-- Icônes SVG du lobby (module ES, expose window.FOR2D_ICONS) -->
+    <script type="module" src="js/lobby-icons.js"></script>
+    <!-- Casier + boutique + solde de Pixies + boutique de Pixies (module ES, expose window.FOR2D_STORE) -->
+    <script type="module" src="js/lobby-store.js"></script>
+    <!-- Skins SVG des personnages du lobby -->
+    <script type="module" src="js/lobby-skin.js"></script>
+    <!-- Passe de combat, Profil, Classements + niveau du lobby (module ES) -->
+    <script type="module" src="js/lobby-hub.js"></script>
+    <script src="js/network.js"></script>
+    <script src="js/lobby.js?v=2"></script>
+    <script src="js/main.js"></script>
+</body>
+</html>

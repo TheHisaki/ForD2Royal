@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>body{margin:0;background:#6fbf4a}canvas{display:block}</style></head>
+<body><canvas id="c" width="1400" height="500"></canvas>
+<script type="module">
+import { drawPlayer, drawDying } from './js/game/draw.js';
+import { drawFalling } from './js/game/drop.js';
+import { SKINS } from './js/cosmetics.js';
+const mode = new URLSearchParams(location.search).get('m') || 'ground';
+const ctx = document.getElementById('c').getContext('2d');
+ctx.fillStyle = '#7ccf55';
+ctx.fillRect(0, 0, 1400, 500);
+const list = SKINS.filter(s => s.id !== 'eclaireuse');
+const time = 1.3;
+list.forEach((s, i) => {
+    const p = {
+        id: i + 1, x: 0, y: 0, r: 26, angle: mode === 'ground2' ? Math.PI / 2 : 0, colors: { ...s.game }, skinStyle: s.style,
+        phase: mode === 'air' ? 'air' : 'ground', altitude: 0.8, vx: 60, vy: 20,
+        hitFlash: mode === 'flash' ? 0.5 : 0,
+        inventory: [{ kind: 'weapon', weaponId: 'pickaxe', rarity: 0 }], slot: 0
+    };
+    ctx.save();
+    ctx.translate(140 + i * 280, 250);
+    ctx.scale(mode === 'air' ? 1.8 : 3, mode === 'air' ? 1.8 : 3);
+    if (mode === 'air') drawFalling(ctx, p, time);
+    else if (mode === 'dying') drawDying(ctx, { ...p, t: 0.25 }, time);
+    else drawPlayer(ctx, p, time);
+    ctx.restore();
+});
+</script></body></html>

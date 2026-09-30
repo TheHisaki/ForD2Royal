@@ -1,0 +1,382 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1d4a">
+    <title>FOR2D ROYAL - En jeu</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/game.css?v=4">
+    <link rel="stylesheet" href="css/settings.css?v=4">
+    <link rel="stylesheet" href="css/end-screen.css?v=4">
+</head>
+<body>
+    <canvas id="gameCanvas" aria-label="Zone de jeu"></canvas>
+
+    <!-- ================= HUD ================= -->
+    <div id="hud">
+        <!-- Haut gauche -->
+        <div class="hud-top-left">
+            <a class="hud-btn" href="index.html" aria-label="Retour au lobby" title="Retour au lobby">
+                <span class="hud-ico" data-icon="back" aria-hidden="true"></span>
+            </a>
+            <button class="hud-btn" id="fullscreenBtn" type="button" aria-label="Plein écran" title="Plein écran">
+                <span class="hud-ico" data-icon="fullscreen" aria-hidden="true"></span>
+            </button>
+            <button class="hud-btn" id="soundBtn" type="button" aria-label="Couper le son" title="Couper le son (N)" aria-pressed="false"><span class="hud-ico" data-icon="sound-on" aria-hidden="true"></span></button>
+            <button class="hud-btn" id="settingsBtn" type="button" aria-label="Paramètres" title="Paramètres (P)" aria-haspopup="dialog" aria-controls="settingsPanel"><span class="hud-ico" data-icon="gear" aria-hidden="true"></span></button>
+        </div>
+
+        <!-- Escouade / Coéquipiers -->
+        <div id="hudSquad" class="hud-squad" hidden>
+            <div class="hud-squad-title" id="squadTitle">ESCOUADE</div>
+            <div class="hud-squad-members" id="squadMembers"></div>
+        </div>
+
+        <!-- Haut centre : lieu actuel -->
+        <div id="hudLocation" aria-live="polite">
+            <span class="loc-name">—</span>
+            <span class="loc-biome"></span>
+        </div>
+
+        <!-- Haut droite : minimap + stats -->
+        <div class="hud-top-right">
+            <button id="minimapBtn" type="button" aria-label="Ouvrir la carte (M)" title="Ouvrir la carte (M)">
+                <canvas id="minimap"></canvas>
+                <span class="map-key" aria-hidden="true"><span class="hud-ico" data-icon="map"></span>M</span>
+            </button>
+            <div class="hud-stats">
+                <span class="stat" title="Joueurs restants"><span class="hud-ico" data-icon="alive" aria-hidden="true"></span> <span id="statAlive">1</span></span>
+                <span class="stat" title="Éliminations"><span class="hud-ico" data-icon="kills" aria-hidden="true"></span> <span id="statKills">0</span></span>
+            </div>
+            <!-- Minuteur de la corruption (caché avant le début de la zone) -->
+            <div id="zoneTimer" role="timer" aria-label="Corruption" hidden>
+                <span class="zt-icon hud-ico" data-icon="corruption" aria-hidden="true"></span>
+                <span class="zt-body">
+                    <span class="zt-main"><span class="zt-label">Corruption dans</span> <span class="zt-time">0:00</span></span>
+                    <span class="zt-sub"></span>
+                </span>
+            </div>
+            <div id="hudCoords">X 0 · Y 0</div>
+        </div>
+
+        <!-- Bas gauche : nom + barres -->
+        <div class="hud-bottom-left">
+            <div id="hudName">Joueur 1</div>
+            <div class="bar shield-bar" role="progressbar" aria-label="Bouclier" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                <div class="bar-fill" id="shieldFill"></div>
+                <span class="bar-text" id="shieldText">0 / 100</span>
+            </div>
+            <div class="bar health-bar" role="progressbar" aria-label="Vie" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100">
+                <div class="bar-fill" id="healthFill"></div>
+                <span class="bar-text" id="healthText">100 / 100</span>
+            </div>
+        </div>
+
+        <!-- Inventaire détaillé (clic molette / I) : déplacer, jeter, statistiques -->
+        <div id="invPanel" hidden role="dialog" aria-labelledby="invTitle">
+            <div class="inv-top">
+                <h2 id="invTitle">Inventaire</h2>
+                <span class="inv-hint">Glisse pour déplacer · hors du panneau pour jeter</span>
+                <button type="button" id="invClose" aria-label="Fermer l'inventaire" title="Fermer (molette / I / Échap)"><span class="hud-ico" data-icon="close" aria-hidden="true"></span></button>
+            </div>
+            <div id="invSlots" role="group" aria-label="Cases de l'inventaire"></div>
+            <div id="invDetails" aria-live="polite"></div>
+            <div class="inv-ammo-row">
+                <span class="inv-ammo-title">Munitions</span>
+                <div id="invAmmo" role="group" aria-label="Munitions (clic pour en jeter 30)"></div>
+            </div>
+        </div>
+
+        <!-- Bas droite : matériaux + inventaire -->
+        <div class="hud-bottom-right">
+            <div class="materials">
+                <span class="mat" title="Bois"><span class="hud-ico" data-icon="wood" aria-hidden="true"></span> <span id="matWood">0</span></span>
+                <span class="mat" title="Pierre"><span class="hud-ico" data-icon="stone" aria-hidden="true"></span> <span id="matStone">0</span></span>
+                <span class="mat" title="Métal"><span class="hud-ico" data-icon="metal" aria-hidden="true"></span> <span id="matMetal">0</span></span>
+            </div>
+            <div id="hotbar" role="toolbar" aria-label="Inventaire">
+                <button class="slot active" type="button" aria-label="Emplacement 1 : pioche" aria-pressed="true"><span class="slot-icon" aria-hidden="true">⛏️</span><span class="slot-key">1</span></button>
+                <button class="slot" type="button" aria-label="Emplacement 2 : vide" aria-pressed="false"><span class="slot-icon" aria-hidden="true"></span><span class="slot-key">2</span></button>
+                <button class="slot" type="button" aria-label="Emplacement 3 : vide" aria-pressed="false"><span class="slot-icon" aria-hidden="true"></span><span class="slot-key">3</span></button>
+                <button class="slot" type="button" aria-label="Emplacement 4 : vide" aria-pressed="false"><span class="slot-icon" aria-hidden="true"></span><span class="slot-key">4</span></button>
+                <button class="slot" type="button" aria-label="Emplacement 5 : vide" aria-pressed="false"><span class="slot-icon" aria-hidden="true"></span><span class="slot-key">5</span></button>
+            </div>
+        </div>
+
+        <!-- Bas centre : aide -->
+        <div id="hudHelp">ZQSD : bouger · Clic : tirer · R : recharger · E : ouvrir / ramasser · 1-5 : armes · Tab : carte · Molette (clic) / I : inventaire · N : son · P : paramètres</div>
+
+        <!-- Fil des éliminations -->
+        <div id="killFeed" aria-live="polite"></div>
+
+        <!-- À gauche de l'inventaire : nom de l'objet en main, puis ses munitions -->
+        <div id="weaponInfo">
+            <div id="equipName" aria-live="polite">
+                <span class="eq-rarity"></span>
+                <span class="eq-name">Pioche</span>
+            </div>
+            <div id="ammoBox" hidden>
+                <span id="ammoMag">0</span>
+                <span id="ammoReserve">/ 0</span>
+            </div>
+        </div>
+
+        <!-- Rechargement / soin en cours -->
+        <div id="actionBar" hidden>
+            <div class="action-label"></div>
+            <div class="action-track"><div class="action-fill"></div></div>
+        </div>
+
+        <!-- Alerte de la corruption (centre-haut, sous le nom du lieu) -->
+        <div id="zoneAlert" hidden role="status" aria-live="polite">
+            <span class="za-title"></span>
+            <span class="za-sub"></span>
+        </div>
+
+        <!-- Confirmation d'élimination -->
+        <div id="killBanner" hidden aria-live="assertive">
+            <span class="kb-title">Élimination</span>
+            <span class="kb-name"></span>
+        </div>
+
+        <!-- Altimètre pendant la chute : centré, juste sous le personnage (info purement visuelle) -->
+        <div id="altMeter" hidden aria-hidden="true">
+            <div class="alt-readout"><span class="alt-value">1000</span><span class="alt-unit">m</span></div>
+            <div class="alt-gauge">
+                <div class="alt-track"><div class="alt-fill"></div></div>
+                <div class="alt-open"></div>
+            </div>
+            <span class="alt-hint">Chute libre</span>
+        </div>
+
+        <!-- Coffre / objet à portée -->
+        <div id="interactPrompt" hidden>
+            <span class="drop-key">E</span>
+            <span class="interact-text"></span>
+        </div>
+
+        <!-- Centre : message du vaisseau -->
+        <div id="dropPrompt" hidden aria-live="polite">
+            <span class="drop-key">ESPACE</span>
+            <span class="drop-text">pour sauter</span>
+            <span class="drop-timer"></span>
+        </div>
+
+        <!-- Bannière joueur K.O. -->
+        <div id="dbnoBanner" class="dbno-banner" hidden>
+            <div class="dbno-title">VOUS ÊTES À TERRE !</div>
+            <div class="dbno-sub">Attendez qu'un coéquipier vous réanime · Saignement dans <span id="dbnoTimer">35</span>s</div>
+        </div>
+
+        <!-- Jauge de réanimation -->
+        <div id="revivePrompt" class="revive-prompt" hidden>
+            <div class="revive-label" id="reviveLabel">RÉANIMATION EN COURS...</div>
+            <div class="revive-bar"><div class="revive-bar-fill" id="reviveFill"></div></div>
+        </div>
+    </div>
+
+    <!-- Effet "joueur corrompu" (hors de la zone saine) : calques décoratifs sous le HUD -->
+    <div id="corruptionFx" aria-hidden="true">
+        <div class="cfx-tint"></div>
+        <div class="cfx-deep"></div>
+        <div class="cfx-grain"></div>
+        <div class="cfx-scan"></div>
+        <div class="cfx-roll"></div>
+        <div class="cfx-glitch"></div>
+        <div class="cfx-glitch"></div>
+        <div class="cfx-flash"></div>
+    </div>
+
+    <!-- Bords rouges quand on prend des dégâts -->
+    <div id="damageVignette" aria-hidden="true"></div>
+
+    <!-- ================= FIN DE PARTIE ================= -->
+    <!-- Rempli et animé par js/game/end-screen.js (styles : css/end-screen.css) -->
+    <!-- Disposition "fin de broadcast" : tout est sur les bords, le centre reste libre (on voit la partie).
+         Haut gauche : ruban titre + place, puis le tueur ; gauche : statistiques ; droite : XP ;
+         bas : boutons ; centre : simple viseur décoratif. -->
+    <div id="endScreen" hidden role="dialog" aria-modal="true" aria-labelledby="endTitle" aria-describedby="esStats">
+        <!-- Décor (vignette sur les bords, viseur au centre, confettis de victoire) : ne capte pas la souris -->
+        <div class="es-frame" aria-hidden="true">
+            <i class="es-corner es-corner-tl"></i>
+            <i class="es-corner es-corner-tr"></i>
+            <i class="es-corner es-corner-bl"></i>
+            <i class="es-corner es-corner-br"></i>
+            <span class="es-frame-tag"><span class="es-frame-dot"></span><span class="es-frame-text">En direct</span></span>
+        </div>
+        <div class="es-confetti" aria-hidden="true">
+            <i style="--x: 2vw; --d: 0s; --c: #ffe03d; --r: 200deg"></i>
+            <i style="--x: 5vw; --d: 0.7s; --c: #ffffff; --r: -260deg"></i>
+            <i style="--x: 8vw; --d: 1.3s; --c: #ffb21f; --r: 300deg"></i>
+            <i style="--x: 11vw; --d: 0.3s; --c: #3aa0ff; --r: -180deg"></i>
+            <i style="--x: 14vw; --d: 1.8s; --c: #ffe03d; --r: 240deg"></i>
+            <i style="--x: 4vw; --d: 2.4s; --c: #ffb21f; --r: -320deg"></i>
+            <i style="--x: 9vw; --d: 2.9s; --c: #ffffff; --r: 280deg"></i>
+            <i style="--x: 16vw; --d: 1s; --c: #ff5470; --r: -220deg"></i>
+            <i style="--x: 84vw; --d: 0.4s; --c: #ffe03d; --r: -200deg"></i>
+            <i style="--x: 87vw; --d: 1.1s; --c: #ffffff; --r: 260deg"></i>
+            <i style="--x: 90vw; --d: 0.1s; --c: #ffb21f; --r: -300deg"></i>
+            <i style="--x: 93vw; --d: 1.6s; --c: #3aa0ff; --r: 180deg"></i>
+            <i style="--x: 96vw; --d: 0.8s; --c: #ffe03d; --r: -240deg"></i>
+            <i style="--x: 86vw; --d: 2.2s; --c: #ff5470; --r: 320deg"></i>
+            <i style="--x: 92vw; --d: 2.7s; --c: #ffffff; --r: -280deg"></i>
+            <i style="--x: 98vw; --d: 2s; --c: #ffb21f; --r: 220deg"></i>
+        </div>
+
+        <!-- Haut gauche : ruban du titre, place en énorme chiffre au bout -->
+        <header class="es-banner es-panel es-from-left" style="--i: 0">
+            <div class="es-banner-main">
+                <p class="es-kicker">Partie terminée</p>
+                <h2 id="endTitle" class="es-title">Éliminé</h2>
+            </div>
+            <p class="es-place">
+                <span class="es-place-label">Place</span>
+                <span class="es-place-num">#1</span>
+                <span class="es-place-of"><span class="es-sr-only">sur </span><span aria-hidden="true">/ </span><span class="es-place-total">1</span></span>
+            </p>
+        </header>
+
+        <!-- Sous le ruban : qui nous a éliminé, et avec quoi -->
+        <div class="es-killer es-panel es-from-left" style="--i: 1" hidden>
+            <span class="es-weapon">
+                <img class="es-weapon-icon" alt="" width="48" height="48" hidden>
+                <span class="es-weapon-corrupt" aria-hidden="true" hidden></span>
+            </span>
+            <span class="es-killer-by">
+                <span class="es-killer-label">Éliminé par</span>
+                <span class="es-killer-name"></span>
+                <span class="es-weapon-name"></span>
+            </span>
+        </div>
+
+        <!-- Bord gauche : statistiques en jetons (entrent un par un depuis le bord) -->
+        <ul class="es-stats" id="esStats" aria-label="Statistiques de la partie">
+            <li class="es-stat es-panel es-from-left" style="--i: 2">
+                <svg class="es-stat-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="7.5"/><circle cx="12" cy="12" r="2.2" class="es-ico-fill"/><path d="M12 1.5v5M12 17.5v5M1.5 12h5M17.5 12h5"/></svg>
+                <span class="es-stat-value" data-stat="kills">0</span>
+                <span class="es-stat-label">Éliminations</span>
+            </li>
+            <li class="es-stat es-panel es-from-left" style="--i: 3">
+                <svg class="es-stat-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 2l2.4 6.2L21 7l-4.3 5 4.3 5-6.6-1.2L12 22l-2.4-6.2L3 17l4.3-5L3 7l6.6 1.2z"/></svg>
+                <span class="es-stat-value" data-stat="damage">0</span>
+                <span class="es-stat-label">Dégâts infligés</span>
+            </li>
+            <li class="es-stat es-panel es-from-left" style="--i: 4">
+                <svg class="es-stat-icon" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="13" r="8.5"/><path d="M12 8.5V13l3 2M9.5 1.8h5"/></svg>
+                <span class="es-stat-value" data-stat="time">0:00</span>
+                <span class="es-stat-label">Temps de survie</span>
+            </li>
+            <li class="es-stat es-panel es-from-left" style="--i: 5">
+                <svg class="es-stat-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 10.5h18V20H3zM3 10.5C3 6 6 4 12 4s9 2 9 6.5M12 10.5v4"/><rect x="10.3" y="12.5" width="3.4" height="3.4" class="es-ico-fill"/></svg>
+                <span class="es-stat-value" data-stat="chests">0</span>
+                <span class="es-stat-label">Coffres ouverts</span>
+            </li>
+        </ul>
+
+        <!-- Bord droit : XP gagnée (enregistrée dans le profil par js/progress.js) -->
+        <section class="es-xp es-panel es-from-right" style="--i: 2" aria-labelledby="esXpTitle">
+            <div class="es-xp-head">
+                <h3 id="esXpTitle" class="es-xp-title">Expérience</h3>
+                <span class="es-xp-tag">Aperçu</span>
+            </div>
+            <ol class="es-xp-lines"></ol>
+            <p class="es-xp-total is-pending">
+                <span class="es-xp-total-label">Total</span>
+                <span class="es-xp-total-value">+0 XP</span>
+            </p>
+            <div class="es-level">
+                <span class="es-level-badge">
+                    <span class="es-level-word">Niv.</span>
+                    <span class="es-level-num">1</span>
+                </span>
+                <div class="es-level-main">
+                    <div class="es-level-bar" role="progressbar" aria-label="Progression vers le niveau suivant" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+                        <div class="es-level-fill"></div>
+                    </div>
+                    <span class="es-level-text">0 / 100 XP</span>
+                </div>
+                <span class="es-levelup" hidden>Niveau supérieur !</span>
+            </div>
+            <p class="es-xp-note">L'XP sera bientôt sauvegardée</p>
+            <p class="es-sr-only es-xp-announce" aria-live="polite"></p>
+        </section>
+
+        <!-- Bas : boutons (Rejouer a le focus) -->
+        <div class="es-actions es-panel es-from-bottom" style="--i: 6">
+            <button type="button" id="replayBtn" class="es-btn es-btn-primary"><span class="es-btn-text">Rejouer</span></button>
+            <button type="button" id="esWatchBtn" class="es-btn" hidden title="Regarder la partie (Échap)"><span class="es-btn-text">Regarder</span><kbd class="es-key" aria-hidden="true">Échap</kbd></button>
+            <a href="index.html" class="es-btn"><span class="es-btn-text">Lobby</span></a>
+        </div>
+
+        <!-- Anciens champs lus par CombatHud.showEnd (plus appelé) : gardés pour ne rien casser -->
+        <div class="es-legacy" hidden aria-hidden="true">
+            <span class="end-title"></span>
+            <span class="end-place"></span>
+            <span class="end-killer"></span>
+            <span class="end-kills"></span>
+        </div>
+    </div>
+
+    <!-- ================= SPECTATEUR (après une défaite) ================= -->
+    <div id="spectatorBar" hidden role="region" aria-label="Mode spectateur">
+        <!-- Petit rappel du résultat (rempli par EndScreen), posé comme un onglet au-dessus de la barre -->
+        <p class="spec-recap">
+            <span class="spec-recap-title">Éliminé</span>
+            <span class="spec-recap-place"><span class="spec-recap-num">#1</span><span class="es-sr-only"> sur </span><span aria-hidden="true">/</span><span class="spec-recap-total">1</span></span>
+        </p>
+        <button type="button" class="spec-btn" id="specPrev" aria-label="Combattant précédent" title="Précédent (←)"><span aria-hidden="true">◀</span></button>
+        <div class="spec-info">
+            <span class="spec-top">
+                <span class="spec-kicker">Spectateur</span>
+                <span class="spec-kills" title="Éliminations"><span class="hud-ico" data-icon="kills" aria-hidden="true"></span> <span class="spec-kills-value">0</span></span>
+            </span>
+            <span class="spec-name" aria-live="polite">—</span>
+            <span class="spec-bars">
+                <span class="spec-bar spec-shield" role="progressbar" aria-label="Bouclier" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0"><span class="spec-fill"></span></span>
+                <span class="spec-bar spec-health" role="progressbar" aria-label="Vie" aria-valuemin="0" aria-valuemax="100" aria-valuenow="100"><span class="spec-fill"></span></span>
+            </span>
+        </div>
+        <button type="button" class="spec-btn" id="specNext" aria-label="Combattant suivant" title="Suivant (→)"><span aria-hidden="true">▶</span></button>
+        <button type="button" class="spec-results" id="specResults" title="Revoir les résultats (Échap)">Résultats</button>
+    </div>
+
+    <!-- ================= PARAMÈTRES ================= -->
+    <div id="settingsPanel" class="settings-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="settingsTitle">
+        <div class="settings-card">
+            <div class="settings-head">
+                <h2 id="settingsTitle">Paramètres</h2>
+                <button type="button" class="settings-close" data-settings-close aria-label="Fermer les paramètres" title="Fermer (P / Échap)"><span class="hud-ico" data-icon="close" aria-hidden="true"></span></button>
+            </div>
+            <div class="setting-row">
+                <span class="setting-text">
+                    <span class="setting-label" id="optAutoAmmoLabel">Ramassage auto des munitions</span>
+                    <span class="setting-desc" id="optAutoAmmoDesc">Les munitions sont ramassées en passant dessus, sans appuyer sur E.</span>
+                </span>
+                <button type="button" class="switch" data-setting="autoAmmo" role="switch" aria-checked="true" aria-labelledby="optAutoAmmoLabel" aria-describedby="optAutoAmmoDesc">
+                    <span class="switch-knob" aria-hidden="true"></span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- ================= CARTE PLEIN ÉCRAN ================= -->
+    <div id="fullMap" hidden role="dialog" aria-modal="true" aria-label="Carte de l'île">
+        <div class="full-map-inner">
+            <canvas id="fullMapCanvas"></canvas>
+            <button id="fullMapClose" type="button" aria-label="Fermer la carte" title="Fermer (M / Échap)"><span class="hud-ico" data-icon="close" aria-hidden="true"></span></button>
+        </div>
+    </div>
+
+    <!-- ================= CHARGEMENT ================= -->
+    <div id="loading" role="status" aria-live="polite">
+        <h1 class="loading-logo">FOR<span>2D</span> ROYAL</h1>
+        <p class="loading-text">Génération de la carte…</p>
+        <div class="loading-spinner" aria-hidden="true"></div>
+    </div>
+
+    <script type="module" src="js/game/main.js?v=4"></script>
+</body>
+</html>

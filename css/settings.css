@@ -1,0 +1,156 @@
+/* ==================================
+   PANNEAU DES PARAMÈTRES - FOR2D ROYAL
+   Partagé par le lobby et le jeu (valeurs de secours si les variables manquent)
+   ================================== */
+
+.settings-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    padding: 16px;
+    /* Fond opaque plutôt qu'un backdrop-filter (coûteux au-dessus du jeu) */
+    background: rgba(5, 12, 35, 0.8);
+    animation: settingsIn 0.2s ease-out;
+}
+
+.settings-overlay[hidden] { display: none; }
+
+.settings-card {
+    width: min(460px, 100%);
+    padding: 20px 22px 22px;
+    border-radius: 10px;
+    background: rgba(8, 20, 56, 0.95);
+    border: 1px solid var(--panel-border, rgba(120, 180, 255, 0.25));
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6);
+    color: #ffffff;
+    font-family: var(--font-body, 'Rubik', 'Segoe UI', Arial, sans-serif);
+    text-align: left;
+    user-select: none;
+}
+
+.settings-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 14px;
+}
+
+.settings-head h2 {
+    margin: 0;
+    font-family: var(--font-display, 'Bebas Neue', Impact, sans-serif);
+    font-weight: 400;
+    font-size: 34px;
+    letter-spacing: 2px;
+    line-height: 1;
+    color: var(--accent-yellow, #ffe03d);
+}
+
+.settings-close {
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    font-size: 16px;
+    cursor: pointer;
+}
+
+.settings-close:hover { background: rgba(255, 255, 255, 0.18); }
+
+/* Croix SVG (data-icon="close", voir js/game/hud-icons.js) : centrée, rouge au survol */
+.settings-close {
+    display: grid;
+    place-items: center;
+}
+
+.settings-close .hud-ico {
+    width: 18px;
+    height: 18px;
+    transition: transform 0.15s ease;
+}
+
+.settings-close:hover .hud-ico { --ico-close: #ff5470; transform: scale(1.1); }
+.settings-close:active .hud-ico { transform: scale(0.92); }
+
+.setting-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.setting-row + .setting-row { margin-top: 8px; }
+
+.setting-text {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+}
+
+.setting-label {
+    font-weight: 600;
+    font-size: 15px;
+}
+
+.setting-desc {
+    font-size: 12.5px;
+    color: var(--text-secondary, #a9c1e8);
+    line-height: 1.35;
+}
+
+/* Interrupteur on / off */
+.switch {
+    position: relative;
+    flex: none;
+    width: 52px;
+    height: 28px;
+    padding: 0;
+    border: 2px solid rgba(255, 255, 255, 0.35);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.12);
+    cursor: pointer;
+    transition: background 0.18s, border-color 0.18s;
+}
+
+.switch-knob {
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #ffffff;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+    transition: transform 0.18s;
+}
+
+.switch.on {
+    background: #3fbf4a;
+    border-color: #6fe078;
+}
+
+.switch.on .switch-knob { transform: translateX(24px); }
+
+.switch:focus-visible,
+.settings-close:focus-visible {
+    outline: 3px solid var(--accent-yellow, #ffe03d);
+    outline-offset: 2px;
+}
+
+@keyframes settingsIn {
+    from { opacity: 0; }
+    to   { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .settings-overlay,
+    .switch,
+    .switch-knob { animation: none; transition: none; }
+}
