@@ -278,7 +278,8 @@ export class BotManager {
         for (const f of fighters) if (f.id >= nextId) nextId = f.id + 1;
         const names = shuffle([...BOT_NAMES]);
 
-        const teammateCount = Math.max(0, teamSize - 1);
+        const existingTeammates = fighters.filter(f => f.team === 1).length;
+        const teammateCount = Math.max(0, teamSize - existingTeammates);
         let enemySquadId = 2;
         let enemySquadFill = 0;
         let currentSquadLand = null;
@@ -297,7 +298,7 @@ export class BotManager {
             bot.id = nextId++;
             if (i < teammateCount) {
                 bot.name = TEAMMATE_NAMES[i] || `Agent ${i + 1}`;
-                bot.squadSlot = i + 2; // Slot 2, 3, 4
+                bot.squadSlot = existingTeammates + i + 1; // Slot adapté selon les joueurs réels
                 const look = TEAMMATE_LOOKS[i] || TEAMMATE_LOOKS[0];
                 bot.colors = { ...look.colors };
                 bot.skinStyle = look.skinStyle;
@@ -315,6 +316,8 @@ export class BotManager {
                     bot.skinStyle = 'default';
                 }
             }
+            bot.pickaxeSkin = rpick(['pioche-defaut', 'pioche-laser', 'pioche-royale', 'pioche-cosmique', 'pioche-maudite', 'pioche-bonbon']);
+            if (bot.inventory?.[0]) bot.inventory[0].pickaxeSkin = bot.pickaxeSkin;
             bot.phase = 'ship';
             bot.altitude = 1;
             bot.angle = drop.angle;

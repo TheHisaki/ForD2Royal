@@ -165,6 +165,135 @@ function emote(it) {
     return svg(body, 'item-emote');
 }
 
+/* ===================== PIOCHES ===================== */
+
+function pickaxe(it) {
+    const motif = it.motif || 'classic';
+    let s = '';
+
+    if (motif === 'laser') {
+        // Faux Néon : manche cyberpunk sombre + longue lame courbée néon cyan & magenta
+        s +=
+            // Manche tech sombre
+            `<path d="M24 96 L74 46" fill="none" stroke="#121324" stroke-width="8"/>` +
+            `<path d="M24 96 L74 46" fill="none" stroke="#252a48" stroke-width="4"/>` +
+            // Anneaux néon sur le manche
+            `<path d="M38 82 L42 86 M52 68 L56 72" fill="none" stroke="#00e5ff" stroke-width="3"/>` +
+            // Émetteur / Tête tech
+            `<rect x="68" y="38" width="14" height="14" rx="3" fill="#ff007f" transform="rotate(45 75 45)"/>` +
+            `<circle cx="75" cy="45" r="4" fill="#00e5ff"/>` +
+            // Lame de faux énergétique cyan lumineuse
+            `<path d="M72 42 Q86 16 108 20 Q92 38 78 52 Z" fill="#00e5ff"/>` +
+            `<path d="M74 40 Q84 20 102 22 Q90 36 80 48 Z" fill="#e0ffff" stroke="none"/>` +
+            // Contre-pointe énergétique
+            `<path d="M68 48 Q54 58 48 52 Q60 42 70 44 Z" fill="#ff007f"/>` +
+            shine('M78 36 Q88 22 102 22', 2.5, 0.7) +
+            // Étincelles
+            `<circle cx="106" cy="18" r="2.5" fill="#fff" stroke="none"/>` +
+            `<circle cx="46" cy="52" r="2" fill="#00e5ff" stroke="none"/>`;
+    } else if (motif === 'royal') {
+        // Hache du Lion : manche velours pourpre, double hache dorée ouvragée, rubis flamboyant
+        s +=
+            // Manche orné pourpre
+            `<path d="M22 98 L76 44" fill="none" stroke="#3b0f44" stroke-width="8"/>` +
+            `<path d="M22 98 L76 44" fill="none" stroke="#6b2180" stroke-width="4"/>` +
+            // Anneaux or sur manche et pommeau
+            `<circle cx="20" cy="100" r="5" fill="#ffd24a"/>` +
+            `<path d="M36 84 L40 88 M54 66 L58 70" fill="none" stroke="#ffd24a" stroke-width="3"/>` +
+            // Lame avant dorée large et incurvée
+            `<path d="M74 42 Q92 24 106 32 Q96 52 82 50 Z" fill="#ffd24a"/>` +
+            `<path d="M77 44 Q90 30 100 36 Q93 48 83 47 Z" fill="#ffeaa7" stroke="none"/>` +
+            // Lame arrière en pic royal
+            `<path d="M70 46 Q56 36 48 44 Q60 56 72 52 Z" fill="#ffd24a"/>` +
+            // Bague centrale sertie
+            `<rect x="68" y="38" width="14" height="14" rx="3" fill="#ffd24a" transform="rotate(45 75 45)"/>` +
+            // Rubis étincelant au cœur
+            `<rect x="71" y="41" width="8" height="8" rx="2" fill="#e82845" transform="rotate(45 75 45)"/>` +
+            `<circle cx="75" cy="45" r="1.5" fill="#fff" stroke="none"/>` +
+            shine('M78 38 Q90 28 100 34', 2.5, 0.6);
+    } else if (motif === 'cosmic') {
+        // Sonde Stellaire : manche aérospatial blanc et gris, réacteur orbital orange, pointeur frontal
+        s +=
+            // Manche céramique spatial
+            `<path d="M24 96 L74 46" fill="none" stroke="#64748b" stroke-width="8"/>` +
+            `<path d="M24 96 L74 46" fill="none" stroke="#f8fafc" stroke-width="5"/>` +
+            // Bandes techniques bleu ciel
+            `<path d="M38 82 L42 86 M52 68 L56 72" fill="none" stroke="#38bdf8" stroke-width="3.5"/>` +
+            // Module orbital / buse arrière réacteur
+            `<path d="M68 52 L54 62 L60 68 L74 58 Z" fill="#ff7700"/>` +
+            // Flamme de propulsion ionique
+            `<path d="M54 62 Q42 72 38 78 Q50 68 60 68 Z" fill="#ffb703" stroke="none"/>` +
+            // Tête de sonde / pointeur d'astéroïde
+            `<path d="M70 42 L94 18 L104 28 L80 52 Z" fill="#e2e8f0"/>` +
+            `<path d="M94 18 L108 22 L104 28 Z" fill="#38bdf8"/>` +
+            // Pointeur laser frontal orange
+            `<path d="M102 24 L114 16" fill="none" stroke="#ff7700" stroke-width="4"/>` +
+            `<circle cx="114" cy="16" r="2" fill="#fff" stroke="none"/>` +
+            // Noyau énergie orbital
+            `<circle cx="82" cy="38" r="4.5" fill="#38bdf8"/>` +
+            shine('M76 44 L92 24', 2.5, 0.7);
+    } else if (motif === 'void') {
+        // Faux du Néant : manche os sombre corrompu, lame de faux en cristal violet déchiqueté
+        s +=
+            // Manche en os sombre torturé
+            `<path d="M22 98 Q46 74 74 46" fill="none" stroke="#180e29" stroke-width="8"/>` +
+            `<path d="M22 98 Q46 74 74 46" fill="none" stroke="#3b1d5c" stroke-width="4"/>` +
+            // Nœuds d'os et pointes
+            `<path d="M36 86 L32 92 M52 70 L48 76" fill="none" stroke="#b04cff" stroke-width="3"/>` +
+            // Tête de faux en cristal déchiqueté
+            `<path d="M70 46 Q84 14 108 14 Q94 36 78 52 L82 42 Z" fill="#b04cff"/>` +
+            `<path d="M72 44 Q84 20 102 20 Q92 34 80 46 Z" fill="#df70ff" stroke="none"/>` +
+            // Pointes secondaires de cristal corrompu
+            `<path d="M84 40 L96 46 L86 48 Z" fill="#801dbf"/>` +
+            `<path d="M68 48 Q54 44 46 36 Q60 54 72 54 Z" fill="#801dbf"/>` +
+            // Œil / Cœur de corruption
+            `<circle cx="74" cy="46" r="4" fill="#180e29"/>` +
+            `<circle cx="74" cy="46" r="2" fill="#df70ff" stroke="none"/>` +
+            shine('M76 38 Q86 22 100 20', 2.5, 0.6) +
+            // Particules de fumée sombre / étincelles
+            `<circle cx="108" cy="12" r="2" fill="#df70ff" stroke="none"/>` +
+            `<circle cx="44" cy="34" r="1.8" fill="#b04cff" stroke="none"/>`;
+    } else if (motif === 'candy') {
+        // Sucre d'Orge Piquant : torsade festive rouge et blanche, crochet en pointe acérée, ruban vert
+        s +=
+            // Manche torsadé rouge et blanc
+            `<path d="M24 96 L76 44" fill="none" stroke="#ffffff" stroke-width="9"/>` +
+            // Torsades rouges
+            `<path d="M26 94 L32 100 M38 82 L44 88 M50 70 L56 76 M62 58 L68 64" fill="none" stroke="#ef4444" stroke-width="4.5"/>` +
+            // Crochet du sucre d'orge vers le haut et la droite, se terminant en biseau tranchant
+            `<path d="M74 46 Q86 34 98 42 Q108 52 102 66 L94 62 Q98 52 92 46 Q84 40 76 48 Z" fill="#ffffff"/>` +
+            `<path d="M82 40 L88 44 M94 44 L98 50 M98 56 L94 60" fill="none" stroke="#ef4444" stroke-width="3"/>` +
+            // Pointe acérée biseautée
+            `<path d="M102 66 L108 72 L94 62 Z" fill="#ef4444"/>` +
+            // Nœud papillon festif vert menthe
+            `<polygon points="68,52 60,42 62,56" fill="#10b981"/>` +
+            `<polygon points="76,44 86,52 74,54" fill="#10b981"/>` +
+            `<circle cx="71" cy="49" r="3.5" fill="#34d399"/>` +
+            shine('M30 88 L68 50', 2, 0.5);
+    } else {
+        // Pioche Classique : manche en bois avec poignée sombre, tête double en acier trempé
+        s +=
+            // Manche en bois chaleureux
+            `<path d="M22 98 L76 44" fill="none" stroke="#784920" stroke-width="8"/>` +
+            `<path d="M22 98 L76 44" fill="none" stroke="#a1622b" stroke-width="4.5"/>` +
+            // Poignée en cuir foncé
+            `<path d="M22 98 L40 80" fill="none" stroke="#452712" stroke-width="8.5"/>` +
+            `<path d="M26 94 L29 97 M32 88 L35 91 M38 82 L41 85" fill="none" stroke="#784920" stroke-width="2"/>` +
+            // Collerette en métal
+            `<rect x="68" y="38" width="12" height="12" rx="2" fill="#64748b" transform="rotate(45 74 44)"/>` +
+            // Tête de pioche incurvée en croissant d'acier
+            `<path d="M50 32 Q74 38 98 22 Q92 42 78 52 Q66 44 50 32 Z" fill="#94a3b8"/>` +
+            `<path d="M52 34 Q74 40 94 26 Q88 40 78 48 Q68 42 52 34 Z" fill="#cbd5e1" stroke="none"/>` +
+            // Contre-pointe
+            `<path d="M50 32 L44 38 L54 44 Z" fill="#64748b"/>` +
+            // Pointe acérée avant
+            `<path d="M98 22 L106 20 L96 28 Z" fill="#e2e8f0"/>` +
+            shine('M60 38 Q74 42 90 28', 2.5, 0.7);
+    }
+
+    return svg(s, 'item-pickaxe');
+}
+
 /* ===================== API ===================== */
 
 export function itemArt(it) {
@@ -172,5 +301,6 @@ export function itemArt(it) {
     if (it.type === 'backpack') return backpack(it);
     if (it.type === 'glider') return glider(it);
     if (it.type === 'emote') return emote(it);
+    if (it.type === 'pickaxe') return pickaxe(it);
     return '';
 }

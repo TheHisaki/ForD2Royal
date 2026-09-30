@@ -169,7 +169,174 @@ function part(ctx, x, len, thick, color, stroke = true) {
     }
 }
 
-function drawPickaxe(ctx, L, bandColor) {
+function drawPickaxe(ctx, L, bandColor, skinId = null) {
+    if (skinId === 'pioche-laser') {
+        // Faux Néon : manche sombre, émetteur magenta, lame plasma cyan courbée
+        part(ctx, 0, L - 6, 6, '#181b2a');
+        part(ctx, 0, 10, 7, '#0f101d');
+        roundRect(ctx, L - 18, -3, 5, 6, 1);
+        ctx.fillStyle = '#ff007f';
+        ctx.fill();
+
+        // Lame plasma courbée cyan
+        ctx.beginPath();
+        ctx.moveTo(L - 10, -22);
+        ctx.quadraticCurveTo(L + 16, -6, L - 8, 14);
+        ctx.lineTo(L - 14, 10);
+        ctx.quadraticCurveTo(L + 4, -4, L - 16, -18);
+        ctx.closePath();
+        ctx.fillStyle = '#00f0ff';
+        ctx.fill();
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = LW;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        // Cœur blanc de haute énergie
+        ctx.beginPath();
+        ctx.moveTo(L - 11, -17);
+        ctx.quadraticCurveTo(L + 9, -5, L - 10, 7);
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 2.5;
+        ctx.stroke();
+        return;
+    }
+
+    if (skinId === 'pioche-royale') {
+        // Hache du Lion : manche pourpre velours avec anneaux dorés, double tranchant doré et rubis
+        part(ctx, 0, L - 6, 7, '#4c1d6b');
+        part(ctx, 0, 12, 8, '#320e47');
+        roundRect(ctx, 14, -3, 3, 6, 1);
+        ctx.fillStyle = '#ffd24a';
+        ctx.fill();
+
+        // Double tête dorée ouvragée
+        ctx.beginPath();
+        ctx.moveTo(L - 16, -20);
+        ctx.quadraticCurveTo(L + 12, -18, L - 4, -4);
+        ctx.lineTo(L - 4, 4);
+        ctx.quadraticCurveTo(L + 12, 18, L - 16, 20);
+        ctx.lineTo(L - 14, 13);
+        ctx.quadraticCurveTo(L + 3, 0, L - 14, -13);
+        ctx.closePath();
+        ctx.fillStyle = '#ffd24a';
+        ctx.fill();
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = LW;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        // Rubis royal au centre
+        roundRect(ctx, L - 10, -3.5, 7, 7, 2);
+        ctx.fillStyle = '#e11d48';
+        ctx.fill();
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        return;
+    }
+
+    if (skinId === 'pioche-cosmique') {
+        // Sonde Stellaire : manche céramique blanc, propulseur orange, tête sonde
+        part(ctx, 0, L - 6, 7, '#f8fafc');
+        part(ctx, 0, 11, 8, '#64748b');
+        roundRect(ctx, L - 22, -3, 5, 6, 1);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fill();
+
+        // Réacteur arrière orange
+        ctx.beginPath();
+        ctx.moveTo(L - 14, -8);
+        ctx.lineTo(L - 24, -13);
+        ctx.lineTo(L - 20, 0);
+        ctx.closePath();
+        ctx.fillStyle = '#ff7700';
+        ctx.fill();
+
+        // Tête de sonde géométrique
+        ctx.beginPath();
+        ctx.moveTo(L - 12, -15);
+        ctx.lineTo(L + 14, 0);
+        ctx.lineTo(L - 12, 15);
+        ctx.lineTo(L - 16, 8);
+        ctx.lineTo(L + 2, 0);
+        ctx.lineTo(L - 16, -8);
+        ctx.closePath();
+        ctx.fillStyle = '#e2e8f0';
+        ctx.fill();
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = LW;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        // Cœur bleu
+        roundRect(ctx, L - 7, -2.5, 5, 5, 1.5);
+        ctx.fillStyle = '#38bdf8';
+        ctx.fill();
+        return;
+    }
+
+    if (skinId === 'pioche-maudite') {
+        // Faux du Néant : os sombre, lame de faux corrompue en cristal violet
+        part(ctx, 0, L - 6, 7, '#1e142b');
+        part(ctx, 0, 11, 8, '#120b1c');
+
+        // Lame dentelée de faux en cristal violet
+        ctx.beginPath();
+        ctx.moveTo(L - 10, -24);
+        ctx.quadraticCurveTo(L + 14, -8, L - 6, 12);
+        ctx.lineTo(L - 12, 14);
+        ctx.lineTo(L - 10, 4);
+        ctx.quadraticCurveTo(L + 3, -4, L - 15, -18);
+        ctx.closePath();
+        ctx.fillStyle = '#a855f7';
+        ctx.fill();
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = LW;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        // Reflet améthyste
+        ctx.beginPath();
+        ctx.moveTo(L - 10, -20);
+        ctx.quadraticCurveTo(L + 8, -6, L - 8, 6);
+        ctx.strokeStyle = '#df70ff';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        return;
+    }
+
+    if (skinId === 'pioche-bonbon') {
+        // Sucre d'Orge Piquant : torsade rouge et blanche, crochet en pointe acérée
+        part(ctx, 0, L - 6, 8, '#ffffff');
+        for (let x = 6; x < L - 12; x += 10) {
+            roundRect(ctx, x, -3.5, 4, 7, 1);
+            ctx.fillStyle = '#ef4444';
+            ctx.fill();
+        }
+
+        // Crochet tranchant
+        ctx.beginPath();
+        ctx.moveTo(L - 14, -18);
+        ctx.quadraticCurveTo(L + 12, -10, L + 6, 14);
+        ctx.lineTo(L + 12, 19);
+        ctx.lineTo(L, 10);
+        ctx.quadraticCurveTo(L + 4, -4, L - 14, -10);
+        ctx.closePath();
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = LW;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        // Nœud vert festif
+        roundRect(ctx, L - 14, -4, 5, 8, 2);
+        ctx.fillStyle = '#10b981';
+        ctx.fill();
+        return;
+    }
+
     // Manche en bois
     part(ctx, 0, L - 6, 7, '#9a6a3a');
     // Poignée enroulée
@@ -202,7 +369,7 @@ function drawPickaxe(ctx, L, bandColor) {
 }
 
 // Dessine l'arme en coordonnées locales : poignée en x = 0, canon vers +x
-export function drawWeapon(ctx, weaponId, rarity = 0) {
+export function drawWeapon(ctx, weaponId, rarity = 0, pickaxeSkin = null) {
     const w = WEAPONS[weaponId];
     const L = w ? w.length : 44;
     const bandColor = (RARITIES[rarity] || RARITIES[0]).color;
@@ -210,7 +377,7 @@ export function drawWeapon(ctx, weaponId, rarity = 0) {
     ctx.lineJoin = 'round';
 
     if (!w || w.type === 'melee') {
-        drawPickaxe(ctx, L, bandColor);
+        drawPickaxe(ctx, L, bandColor, pickaxeSkin);
         ctx.restore();
         return;
     }

@@ -15,5 +15,8 @@
     "local-network"
   ],
   "author": "",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
 }

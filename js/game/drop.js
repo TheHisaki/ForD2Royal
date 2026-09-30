@@ -15,13 +15,22 @@ const AIR_SPEED = 520;       // on se dirige plus vite en l'air qu'au sol
 const ISLAND_MARGIN = 450;   // on ne peut sauter qu'au-dessus de l'île
 const OUTLINE = '#0a1030';
 
+function seededRandom(seed) {
+    let s = (Math.abs(seed) % 2147483647) || 12345;
+    return () => {
+        s = (s * 16807) % 2147483647;
+        return (s - 1) / 2147483646;
+    };
+}
+
 export class Drop {
-    constructor() {
+    constructor(seed = null) {
         // Trajet : une droite qui passe près du centre, avec un angle au hasard
-        // (Math.random et pas la graine de la carte : il change à chaque partie)
-        const angle = Math.random() * Math.PI * 2;
-        const cx = WORLD_SIZE / 2 + (Math.random() - 0.5) * 2400;
-        const cy = WORLD_SIZE / 2 + (Math.random() - 0.5) * 2400;
+        // (utilise la graine si en multijoueur pour synchroniser tous les joueurs)
+        const rng = seed ? seededRandom(seed) : Math.random;
+        const angle = rng() * Math.PI * 2;
+        const cx = WORLD_SIZE / 2 + (rng() - 0.5) * 2400;
+        const cy = WORLD_SIZE / 2 + (rng() - 0.5) * 2400;
         const L = 4600;
         const dx = Math.cos(angle);
         const dy = Math.sin(angle);

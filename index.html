@@ -15,6 +15,7 @@
     <link rel="stylesheet" href="css/store.css">
     <link rel="stylesheet" href="css/hub.css">
     <link rel="stylesheet" href="css/mode-selector.css">
+    <link rel="stylesheet" href="css/welcome.css">
 </head>
 <body>
     <!-- ================= ÉCRAN LOBBY ================= -->
@@ -276,6 +277,11 @@
                         <div class="info-item">
                             <span class="info-label">Code de salle</span>
                             <span class="info-value room-code" id="roomCode">-</span>
+                        </div>
+                        <div class="party-actions" id="partyActions">
+                            <button type="button" class="party-action-btn" id="copyCodeBtn" title="Copier le code">📋 Code</button>
+                            <button type="button" class="party-action-btn" id="copyLinkBtn" title="Copier le lien d'invitation">🔗 Inviter</button>
+                            <button type="button" class="party-action-btn is-leave" id="leavePartyBtn" title="Quitter la salle">✕</button>
                         </div>
                     </div>
 
@@ -718,6 +724,36 @@
             </form>
 
             <p class="ps-legal" id="psLegal">Les achats en argent réel ne sont pas encore disponibles : aucun paiement ne sera demandé.</p>
+        </div>
+    </div>
+
+    <!-- ===== MODALE DE BIENVENUE (1re visite / Onboarding) ===== -->
+    <div id="welcomeModal" class="welcome-overlay" hidden role="dialog" aria-modal="true" aria-labelledby="welcomeTitle">
+        <div class="welcome-card">
+            <div class="welcome-crown" aria-hidden="true">👑</div>
+            <h2 class="welcome-title" id="welcomeTitle">BIENVENUE SUR FOR2D ROYAL !</h2>
+            <p class="welcome-intro">Prépare-toi à plonger dans l'arène 2D, looter des armes légendaires et décrocher la Victoire Royale !</p>
+
+            <div class="welcome-warning-box">
+                <div class="warning-badge">⚠️ Sauvegarde temporaire sur navigateur</div>
+                <p class="warning-text">
+                    Le jeu ne nécessite <strong>aucun compte</strong> pour le moment : toutes tes informations (pseudo, niveau, Pixies, tenues, pioches et statistiques) sont <strong>enregistrées uniquement dans ton navigateur</strong> (<code>localStorage</code>).
+                </p>
+                <p class="warning-sub">
+                    Si tu effaces tes cookies/données de navigation ou si tu changes d'appareil, tes données pourront être perdues.
+                </p>
+            </div>
+
+            <form id="welcomeForm" class="welcome-form" autocomplete="off">
+                <label for="welcomeNameInput" class="welcome-label">Choisis ton pseudo de combat :</label>
+                <div class="welcome-input-wrap">
+                    <input type="text" id="welcomeNameInput" class="welcome-input" maxlength="16" placeholder="Ton pseudo" required autocomplete="nickname">
+                    <button type="button" id="welcomeRandomBtn" class="welcome-random-btn" title="Générer un pseudo aléatoire">🎲</button>
+                </div>
+                <button type="submit" class="welcome-submit-btn" id="welcomeSubmitBtn">
+                    <span>C'EST PARTI !</span>
+                </button>
+            </form>
         </div>
     </div>
 

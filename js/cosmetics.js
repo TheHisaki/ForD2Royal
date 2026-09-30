@@ -35,6 +35,7 @@ export const RARITY = {
 export const TYPES = {
     outfit:   { name: 'Tenue',     plural: 'Tenues' },
     backpack: { name: 'Sac à dos', plural: 'Sacs à dos' },
+    pickaxe:  { name: 'Pioche',    plural: 'Pioches' },
     glider:   { name: 'Planeur',   plural: 'Planeurs' },
     emote:    { name: 'Emote',     plural: 'Emotes' }
 };
@@ -43,6 +44,7 @@ export const TYPES = {
 export const SLOTS = [
     { type: 'outfit' },
     { type: 'backpack' },
+    { type: 'pickaxe' },
     { type: 'glider' },
     ...Array.from({ length: EMOTE_SLOTS }, (_, i) => ({ type: 'emote', index: i }))
 ];
@@ -181,12 +183,35 @@ const EMOTES = [
         series: 'Passe Saison 1', icon: 'crown', color: '#b05cff', desc: 'Pour fêter une Victoire Royale.' }
 ].map(s => ({ ...s, type: 'emote' }));
 
-export const ITEMS = [...SKINS, ...BACKPACKS, ...GLIDERS, ...EMOTES];
+// Pioches : motif de dessin dans le casier/boutique + rendu spécifique en partie.
+const PICKAXES = [
+    { id: 'pioche-defaut', name: 'Pioche Classique', rarity: 'common', price: 0, starter: true,
+        series: 'Essentiels', motif: 'classic',
+        desc: 'Le fidèle outil de récolte standard. Simple, robuste et efficace.' },
+    { id: 'pioche-laser', name: 'Faux Néon', rarity: 'rare', price: 500,
+        series: 'Ombres de la ville', motif: 'laser',
+        desc: 'Forgée dans l\'énergie pure de la mégapole. Découpe toute structure avec un sifflement électrique.' },
+    { id: 'pioche-royale', name: 'Hache du Lion', rarity: 'epic', price: 800,
+        series: 'Royaume déchu', motif: 'royal',
+        desc: 'Lourde hache dorée frappée du sceau royal et sertie d\'un rubis flamboyant.' },
+    { id: 'pioche-cosmique', name: 'Sonde Stellaire', rarity: 'epic', price: 800,
+        series: 'Au-delà du vaisseau', motif: 'cosmic',
+        desc: 'Équipement de forage pour astéroïdes doté d\'un micro-réacteur orbital orange vif.' },
+    { id: 'pioche-maudite', name: 'Faux du Néant', rarity: 'legendary', price: 1200,
+        series: 'Nuit de la corruption', motif: 'void',
+        desc: 'Taillée dans un cristal d\'essence corrompue. Elle aspire la lumière et pulse d\'une aura ténébreuse.' },
+    { id: 'pioche-bonbon', name: 'Sucre d\'Orge Piquant', rarity: 'uncommon', price: 300,
+        series: 'Essentiels', motif: 'candy',
+        desc: 'Un bâton de sucre géant taillé en biseau tranchant. Dangereusement sucré !' }
+].map(s => ({ ...s, type: 'pickaxe' }));
+
+export const ITEMS = [...SKINS, ...BACKPACKS, ...PICKAXES, ...GLIDERS, ...EMOTES];
 
 const BY_ID = new Map(ITEMS.map(s => [s.id, s]));
 const FIRST = {
     outfit: 'recrue',
     backpack: 'sac-tenue',
+    pickaxe: 'pioche-defaut',
     glider: 'aile-standard',
     emote: 'emote-salut'
 };
@@ -208,6 +233,7 @@ function freshProfile() {
         owned: ITEMS.filter(s => s.starter).map(s => s.id),
         equipped: FIRST.outfit,
         backpack: FIRST.backpack,
+        pickaxe: FIRST.pickaxe,
         glider: FIRST.glider,
         emotes: ['emote-salut', 'emote-pouce', null, null],
         giftClaimed: false,
@@ -237,6 +263,7 @@ function load() {
             }
             p.equipped = validFor(p, 'outfit', saved.equipped, p.equipped);
             p.backpack = validFor(p, 'backpack', saved.backpack, p.backpack);
+            p.pickaxe = validFor(p, 'pickaxe', saved.pickaxe, p.pickaxe);
             p.glider = validFor(p, 'glider', saved.glider, p.glider);
             if (Array.isArray(saved.emotes)) {
                 p.emotes = Array.from({ length: EMOTE_SLOTS }, (_, i) => validFor(p, 'emote', saved.emotes[i], null));
@@ -280,6 +307,7 @@ export const Cosmetics = {
     equippedOf(type, i = 0) {
         if (type === 'outfit') return getSkin(profile.equipped);
         if (type === 'backpack') return BY_ID.get(profile.backpack) || BY_ID.get(FIRST.backpack);
+        if (type === 'pickaxe') return BY_ID.get(profile.pickaxe) || BY_ID.get(FIRST.pickaxe);
         if (type === 'glider') return BY_ID.get(profile.glider) || BY_ID.get(FIRST.glider);
         if (type === 'emote') return BY_ID.get(profile.emotes[i]) || null;
         return null;
@@ -287,7 +315,7 @@ export const Cosmetics = {
 
     // L'objet est-il équipé (dans n'importe quelle case pour les emotes) ?
     isEquipped(id) {
-        return profile.equipped === id || profile.backpack === id || profile.glider === id || profile.emotes.includes(id);
+        return profile.equipped === id || profile.backpack === id || profile.pickaxe === id || profile.glider === id || profile.emotes.includes(id);
     },
 
     buy(id) {
@@ -307,6 +335,7 @@ export const Cosmetics = {
         if (!s || !profile.owned.includes(id)) return false;
         if (s.type === 'outfit') profile.equipped = id;
         else if (s.type === 'backpack') profile.backpack = id;
+        else if (s.type === 'pickaxe') profile.pickaxe = id;
         else if (s.type === 'glider') profile.glider = id;
         else if (s.type === 'emote') {
             let k = Number.isInteger(i) && i >= 0 && i < EMOTE_SLOTS ? i : profile.emotes.indexOf(null);

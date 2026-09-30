@@ -1410,7 +1410,7 @@ function paintFighter(ctx, p, time, fx) {
         ctx.translate(hx, hy);
         ctx.rotate(arm - 0.6);
         ctx.translate(-r * 0.25, 0);
-        drawWeapon(ctx, held.weaponId, held.rarity);
+        drawWeapon(ctx, held.weaponId, held.rarity, p.pickaxeSkin || held.pickaxeSkin);
         ctx.restore();
         hand(hx, hy);
     } else {

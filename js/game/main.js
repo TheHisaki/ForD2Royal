@@ -3,26 +3,26 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-import { generateWorld } from './world.js?v=4';
-import { Player } from './player.js?v=4';
-import { Renderer } from './renderer.js?v=4';
-import { Hud } from './hud.js?v=4';
-import { Input } from './input.js?v=4';
-import { Drop } from './drop.js?v=4';
-import { Combat } from './combat.js?v=4';
-import { Loot } from './loot.js?v=4';
-import { BotManager, roofAlphaAt } from './bots.js?v=4';
-import { Corruption } from './corruption.js?v=4';
-import { CombatHud } from './combat-hud.js?v=4';
-import { Effects } from './effects.js?v=4';
-import { HEALS } from './weapons.js?v=4';
-import { drawPlayer, drawDying } from './draw.js?v=4';
-import { SFX } from '../sfx.js?v=4';
-import { Settings } from '../settings.js?v=4';
-import { Cosmetics } from '../cosmetics.js?v=4';
-import { InventoryUI } from './inventory-ui.js?v=4';
-import { EndScreen, Spectator } from './end-screen.js?v=4';
-import { mountHudIcons, setHudIcon } from './hud-icons.js?v=4';
+import { generateWorld } from './world.js?v=6';
+import { Player } from './player.js?v=6';
+import { Renderer } from './renderer.js?v=6';
+import { Hud } from './hud.js?v=6';
+import { Input } from './input.js?v=6';
+import { Drop, drawFalling } from './drop.js?v=6';
+import { Combat } from './combat.js?v=6';
+import { Loot } from './loot.js?v=6';
+import { BotManager, roofAlphaAt } from './bots.js?v=6';
+import { Corruption } from './corruption.js?v=7';
+import { CombatHud } from './combat-hud.js?v=7';
+import { Effects } from './effects.js?v=7';
+import { HEALS } from './weapons.js?v=7';
+import { drawPlayer, drawDying } from './draw.js?v=7';
+import { SFX } from '../sfx.js?v=7';
+import { Settings } from '../settings.js?v=7';
+import { Cosmetics } from '../cosmetics.js?v=7';
+import { InventoryUI } from './inventory-ui.js?v=7';
+import { EndScreen, Spectator } from './end-screen.js?v=7';
+import { mountHudIcons, setHudIcon } from './hud-icons.js?v=7';
 
 const BOT_COUNT = 24;
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -64,12 +64,12 @@ function start() {
     const loot = new Loot(world); // coffres (ajoutés aux obstacles) + butin au sol
     const effects = new Effects();
 
-    // Départ dans le vaisseau, sur un trajet différent à chaque partie
-    const drop = new Drop();
+    // Départ dans le vaisseau (trajet synchronisé par la graine en multijoueur)
+    const drop = new Drop(gameConfig.seed);
     const player = new Player(drop.ship.x, drop.ship.y);
     player.phase = 'ship';
     player.team = 1;
-    player.squadSlot = 1; // Joueur principal : slot 1 (Cyan)
+    player.squadSlot = gameConfig.mySlot || 1; // Joueur principal (slot assigné dans le salon)
     // Skin équipé dans le casier du lobby (sinon on garde les couleurs par défaut)
     try {
         const eq = Cosmetics.equipped;
@@ -77,16 +77,44 @@ function start() {
             player.colors = { ...player.colors, ...eq.game };
             player.skinStyle = eq.style || 'default';
         }
-        // Sac à dos et planeur du chargement
+        // Sac à dos, pioche et planeur du chargement
         const pack = Cosmetics.equippedOf('backpack');
         if (pack && pack.color && !pack.none) player.colors.pack = pack.color;
         const glider = Cosmetics.equippedOf('glider');
         if (glider && Array.isArray(glider.colors)) player.gliderColors = glider.colors;
+        const pick = Cosmetics.equippedOf('pickaxe');
+        if (pick) {
+            player.pickaxeSkin = pick.id;
+            if (player.inventory?.[0]) player.inventory[0].pickaxeSkin = pick.id;
+        }
     } catch {
         /* profil illisible : apparence par défaut */
     }
 
     const fighters = [player];
+
+    // Multijoueur WebSocket : détection et initialisation des coéquipiers réels
+    const isMultiplayer = Boolean(gameConfig.isMultiplayer && gameConfig.roomCode);
+    const remotePlayersMap = new Map();
+    if (isMultiplayer && Array.isArray(gameConfig.roomPlayers)) {
+        for (const rp of gameConfig.roomPlayers) {
+            if (rp.id && rp.id !== gameConfig.myPlayerId) {
+                const mate = new Player(drop.ship.x, drop.ship.y);
+                mate.id = rp.id;
+                mate.name = rp.name || 'Coéquipier';
+                mate.team = 1;
+                mate.squadSlot = rp.slot || 2;
+                mate.isRemote = true;
+                mate.phase = 'ship';
+                if (rp.skin && rp.skin.game) {
+                    mate.colors = { ...mate.colors, ...rp.skin.game };
+                    mate.skinStyle = rp.skin.style || 'default';
+                }
+                remotePlayersMap.set(rp.id, mate);
+                fighters.push(mate);
+            }
+        }
+    }
     const corpses = [];                        // personnages en train de disparaître
     const hitmarker = { t: 0, kill: false };   // croix sur le viseur quand on touche
     const pendingDamage = new Map();           // dégâts infligés par le joueur pendant l'image
@@ -110,6 +138,9 @@ function start() {
     };
     const killerOf = new WeakMap(); // victime -> tueur (le spectateur passe au tueur de sa cible)
 
+    let gameWs = null;
+    let lastNetSync = 0;
+
     // Volume des sons d'action : plein pour le joueur, un peu moins pour les bots
     const actionVol = (f) => (f === player ? 1 : BOT_VOL);
 
@@ -125,7 +156,17 @@ function start() {
                 if (!hidden) effects.muzzle(mx, my, f.angle, w.id);
                 SFX.play('shot', { x: f.x, y: f.y, weapon: w.id });
             }
-            if (f === player) renderer?.shake(FIRE_SHAKE[w.id] || 1);
+            if (f === player) {
+                renderer?.shake(FIRE_SHAKE[w.id] || 1);
+                if (isMultiplayer && gameWs && gameWs.readyState === WebSocket.OPEN) {
+                    gameWs.send(JSON.stringify({
+                        type: 'p_action',
+                        action: 'fire',
+                        weaponId: w.id,
+                        mx, my
+                    }));
+                }
+            }
         },
         onImpact(x, y, angle, kind, target) {
             effects.impact(x, y, angle, kind);
@@ -349,7 +390,13 @@ function start() {
         },
         onSlot: (i) => { if (!player.dbno) selectSlot(i); },
         onZoom: (f) => renderer.zoomBy(f),
-        onJump: () => { if (!player.dbno) drop.jump(player); },
+        onJump: () => {
+            if (!player.dbno) {
+                if (drop.jump(player) && isMultiplayer && gameWs?.readyState === WebSocket.OPEN) {
+                    gameWs.send(JSON.stringify({ type: 'p_action', action: 'jump' }));
+                }
+            }
+        },
         onInteract: interact,
         onReload: () => { if (!player.dbno) combat.startReload(player); },
         onInventory: () => {
@@ -361,7 +408,13 @@ function start() {
 
     // Inventaire détaillé (clic molette / I) : déplacer, jeter, statistiques
     const inventoryUI = new InventoryUI({ player, loot, onSelect: selectSlot, sfx: SFX });
-    canvas.addEventListener('click', () => drop.jump(player)); // on peut aussi cliquer pour sauter
+    canvas.addEventListener('click', () => {
+        if (!player.dbno) {
+            if (drop.jump(player) && isMultiplayer && gameWs?.readyState === WebSocket.OPEN) {
+                gameWs.send(JSON.stringify({ type: 'p_action', action: 'jump' }));
+            }
+        }
+    });
 
     addEventListener('resize', () => {
         renderer.resize();
@@ -421,6 +474,99 @@ function start() {
 
     document.getElementById('loading')?.classList.add('done');
 
+    /* ----- Connexion WebSocket Multijoueur en jeu ----- */
+    if (isMultiplayer) {
+        try {
+            const loc = window.location;
+            const proto = (loc.protocol === 'https:') ? 'wss:' : 'ws:';
+            const wsHost = (loc.port === '8080' || loc.port === '5500') ? `${loc.hostname}:3000` : loc.host;
+            const wsUrl = `${proto}//${wsHost}`;
+            gameWs = new WebSocket(wsUrl);
+
+            gameWs.addEventListener('open', () => {
+                gameWs.send(JSON.stringify({
+                    type: 'join_room',
+                    code: gameConfig.roomCode,
+                    player: {
+                        id: gameConfig.myPlayerId,
+                        name: player.name,
+                        slot: player.squadSlot
+                    }
+                }));
+            });
+
+            gameWs.addEventListener('message', (event) => {
+                try {
+                    const msg = JSON.parse(event.data);
+                    if (msg.type === 'p_state' && msg.id && msg.id !== gameConfig.myPlayerId) {
+                        let mate = remotePlayersMap.get(msg.id);
+                        if (!mate) {
+                            mate = new Player(msg.x || drop.ship.x, msg.y || drop.ship.y);
+                            mate.id = msg.id;
+                            mate.name = msg.name || 'Coéquipier';
+                            mate.team = 1;
+                            mate.squadSlot = msg.slot || 2;
+                            mate.isRemote = true;
+                            remotePlayersMap.set(msg.id, mate);
+                            fighters.push(mate);
+                        }
+                        if (typeof msg.x === 'number') mate.x = msg.x;
+                        if (typeof msg.y === 'number') mate.y = msg.y;
+                        if (typeof msg.vx === 'number') mate.vx = msg.vx;
+                        if (typeof msg.vy === 'number') mate.vy = msg.vy;
+                        if (typeof msg.angle === 'number') mate.angle = msg.angle;
+                        if (msg.phase) mate.phase = msg.phase;
+                        if (typeof msg.altitude === 'number') mate.altitude = msg.altitude;
+                        if (typeof msg.health === 'number') mate.health = msg.health;
+                        if (typeof msg.shield === 'number') mate.shield = msg.shield;
+                        if (typeof msg.slot === 'number') mate.slot = msg.slot;
+                        if (typeof msg.dbno === 'boolean') {
+                            if (!mate.dbno && msg.dbno) {
+                                mate.dbno = true;
+                                effects.death(mate.x, mate.y, mate.colors);
+                                SFX.play('playerDown', { x: mate.x, y: mate.y });
+                                combatHud?.addKill(null, mate, 'knockout');
+                            } else if (mate.dbno && !msg.dbno) {
+                                mate.dbno = false;
+                                effects.healDone(mate.x, mate.y, false);
+                                SFX.play('healDone', { x: mate.x, y: mate.y });
+                            }
+                        }
+                        if (typeof msg.dbnoTimer === 'number') mate.dbnoTimer = msg.dbnoTimer;
+                        if (mate.health <= 0 && !mate.dbno) mate.alive = false;
+                    } else if (msg.type === 'p_action' && msg.id && msg.id !== gameConfig.myPlayerId) {
+                        const mate = remotePlayersMap.get(msg.id);
+                        if (msg.action === 'jump' && mate) {
+                            drop.jump(mate);
+                            SFX.play('jump', { x: mate.x, y: mate.y });
+                        } else if (msg.action === 'fire' && mate) {
+                            const hidden = roofAlphaAt(world, mate.x, mate.y) > 0.5;
+                            if (msg.weaponId === 'melee' || msg.weaponId === 'pickaxe') {
+                                if (!hidden) effects.swing(mate.x, mate.y, mate.angle, mate.r);
+                                SFX.play('swing', { x: mate.x, y: mate.y });
+                            } else {
+                                if (!hidden) effects.muzzle(mate.x + Math.cos(mate.angle) * 20, mate.y + Math.sin(mate.angle) * 20, mate.angle, msg.weaponId || 'ar');
+                                SFX.play('shot', { x: mate.x, y: mate.y, weapon: msg.weaponId || 'ar' });
+                            }
+                        } else if (msg.action === 'revive_done' && msg.targetId) {
+                            const target = (msg.targetId === gameConfig.myPlayerId) ? player : fighters.find(f => f.id === msg.targetId);
+                            if (target && target.dbno) {
+                                target.dbno = false;
+                                target.health = 30;
+                                target.reviveProgress = 0;
+                                combat.onRevive?.(mate || player, target);
+                            }
+                        }
+                    }
+                } catch (err) {
+                    console.warn('[WS Msg error]', err);
+                }
+            });
+        } catch (err) {
+            console.warn('[WS Connect error]', err);
+        }
+    }
+
     /* ----- Actions du joueur (tir, soin) ----- */
     function playerActions() {
         const pressed = input.consumePress();
@@ -466,13 +612,22 @@ function start() {
         if (downed) {
             const holdingE = input.keys?.has?.('KeyE') || input.keys?.has?.('KeyF');
             if (holdingE) {
-                // Réanimation en cours
+                // Réanimation en cours : cacher complètement le prompt "Maintenir pour réanimer"
+                if (interactPrompt) interactPrompt.hidden = true;
                 if (revivePrompt) revivePrompt.hidden = false;
                 if (reviveLabel) reviveLabel.textContent = `RÉANIMATION DE ${downed.name.toUpperCase()}...`;
                 const done = combat.revive(player, downed, dt);
                 if (reviveFill) reviveFill.style.width = `${Math.min(100, Math.round((downed.reviveProgress || 0) / 5 * 100))}%`;
                 if (done) {
                     if (revivePrompt) revivePrompt.hidden = true;
+                    if (interactPrompt) interactPrompt.hidden = true;
+                    if (isMultiplayer && gameWs?.readyState === WebSocket.OPEN) {
+                        gameWs.send(JSON.stringify({
+                            type: 'p_action',
+                            action: 'revive_done',
+                            targetId: downed.id
+                        }));
+                    }
                 }
             } else {
                 // Pas en train de maintenir E : afficher consigne
@@ -488,6 +643,9 @@ function start() {
             }
         } else {
             if (revivePrompt && !player.dbno) revivePrompt.hidden = true;
+            if (interactPrompt && interactPrompt.querySelector('.interact-text')?.textContent?.includes('réanimer')) {
+                interactPrompt.hidden = true;
+            }
         }
     }
 
@@ -628,17 +786,50 @@ function start() {
             const allStandingInTeam = teamAlive.filter(f => !f.dbno);
             const otherTeamsAlive = fighters.filter(f => f.alive && f.team !== 1);
 
+            // Dès que le joueur meurt (éliminé), afficher l'écran de mort avec la possibilité
+            // de cliquer sur "Regarder la partie" (ou Échap) pour suivre son coéquipier
+            if (!player.alive && !playerDeathShown) {
+                playerDeathShown = true;
+                const remainingFighters = fighters.filter(f => f.alive).length;
+                stats.place = remainingFighters + 1;
+                if (stats.endT === null) stats.endT = time;
+                const target = allStandingInTeam[0] || teamAlive[0] || stats.killer;
+                if (target) {
+                    setTimeout(() => {
+                        if (!spectator.active) spectator.start(target);
+                        if (target.alive) spectator.target = target;
+                    }, SPECTATE_DELAY);
+                }
+                setTimeout(() => {
+                    SFX.play('defeat');
+                    endScreen.show(endResult(false));
+                }, DEFEAT_DELAY);
+            }
+
+            // Si le joueur est mort mais que l'escouade est toujours en jeu : spectateur sur un coéquipier
+            if (!player.alive && allStandingInTeam.length > 0) {
+                if (!spectator.active) {
+                    spectator.start(allStandingInTeam[0]);
+                }
+                if (!spectator.target || !spectator.target.alive) {
+                    spectator.target = allStandingInTeam[0];
+                }
+            }
+
             // Escouade du joueur complètement éliminée
             if (teamAlive.length === 0) {
                 gameOver = true;
                 const remainingFighters = fighters.filter(f => f.alive).length;
                 stats.place = remainingFighters + 1;
                 if (stats.endT === null) stats.endT = time;
-                setTimeout(() => spectator.start(stats.killer), SPECTATE_DELAY);
-                setTimeout(() => {
-                    SFX.play('defeat');
-                    endScreen.show(endResult(false));
-                }, DEFEAT_DELAY);
+                if (!playerDeathShown) {
+                    playerDeathShown = true;
+                    setTimeout(() => spectator.start(stats.killer), SPECTATE_DELAY);
+                    setTimeout(() => {
+                        SFX.play('defeat');
+                        endScreen.show(endResult(false));
+                    }, DEFEAT_DELAY);
+                }
                 return;
             }
 
@@ -649,14 +840,20 @@ function start() {
                 stats.endT = time;
                 setTimeout(() => {
                     SFX.play('victory');
-                    endScreen.show(endResult(true));
+                    if (endScreen.shown) {
+                        endScreen.result.win = true;
+                        endScreen.result.place = 1;
+                        if (endScreen.el.kicker) endScreen.el.kicker.textContent = `Dernier debout sur ${fighters.length}`;
+                        if (endScreen.el.title) endScreen.el.title.textContent = 'Victoire Royale';
+                        if (endScreen.el.placeNum) endScreen.el.placeNum.textContent = '#1';
+                        endScreen.root.classList.add('is-win');
+                        endScreen.root.classList.remove('is-lost');
+                        endScreen.open();
+                    } else {
+                        endScreen.show(endResult(true));
+                    }
                 }, VICTORY_DELAY);
                 return;
-            }
-
-            // Si le joueur est mort mais que l'escouade est toujours en jeu : spectateur sur un coéquipier
-            if (!player.alive && !spectator.target && allStandingInTeam.length > 0) {
-                spectator.start(allStandingInTeam[0]);
             }
         } else {
             const alive = fighters.filter(f => f.alive).length;
@@ -892,6 +1089,67 @@ function start() {
         ctx.restore();
     }
 
+    /* ----- Indicateurs et noms des coéquipiers réels au-dessus de leur tête ----- */
+    function drawRemoteTeammateLabels(ctx, v, time = 0) {
+        if (!teamMode) return;
+        const SQUAD_COLORS = { 1: '#00e5ff', 2: '#ffd21e', 3: '#ff4fd8', 4: '#00ff88' };
+        const m = 50;
+        for (const mate of remotePlayersMap.values()) {
+            if (!mate.alive || mate.phase !== 'ground') continue;
+            if (v && (mate.x < v.minX - m || mate.x > v.maxX + m || mate.y < v.minY - m || mate.y > v.maxY + m)) continue;
+            const roofA = roofAlphaAt(world, mate.x, mate.y);
+            if (roofA > 0.9) continue;
+
+            ctx.save();
+            ctx.globalAlpha = 1 - roofA;
+            const col = SQUAD_COLORS[mate.squadSlot || 2] || '#ffd21e';
+            const healthY = mate.y - mate.r - 17;
+            const shieldY = healthY - 6;
+
+            // Flèche ▼ animée
+            const bob = Math.sin((time || 0) * 6) * 4;
+            const arrowTipY = shieldY - 24 + bob;
+            ctx.beginPath();
+            ctx.moveTo(mate.x, arrowTipY);
+            ctx.lineTo(mate.x - 9, arrowTipY - 14);
+            ctx.lineTo(mate.x + 9, arrowTipY - 14);
+            ctx.closePath();
+            ctx.fillStyle = mate.dbno ? '#ff334b' : col;
+            ctx.fill();
+            ctx.strokeStyle = '#0a1030';
+            ctx.lineWidth = 3;
+            ctx.stroke();
+
+            // Nom du coéquipier
+            ctx.font = 'bold 14px Rubik, sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'bottom';
+            ctx.strokeStyle = '#0a1030';
+            ctx.lineWidth = 4;
+            ctx.strokeText(mate.name, mate.x, arrowTipY - 6);
+            ctx.fillStyle = '#ffffff';
+            ctx.fillText(mate.name, mate.x, arrowTipY - 6);
+
+            // Barre de vie / bouclier
+            const W = 46;
+            const H = 4;
+            const bx = mate.x - W / 2;
+            ctx.fillStyle = '#0a1030';
+            ctx.fillRect(bx - 1, healthY - 1, W + 2, H + 2);
+            ctx.fillStyle = mate.dbno ? '#ff334b' : '#00e5ff';
+            ctx.fillRect(bx, healthY, Math.max(0, (mate.health / 100) * W), H);
+
+            if (mate.shield > 0) {
+                ctx.fillStyle = '#0a1030';
+                ctx.fillRect(bx - 1, shieldY - 1, W + 2, H + 2);
+                ctx.fillStyle = '#3a8dff';
+                ctx.fillRect(bx, shieldY, Math.max(0, (mate.shield / 100) * W), H);
+            }
+
+            ctx.restore();
+        }
+    }
+
     /* ----- Dessins en plus de la carte ----- */
     const hooks = {
         under: (ctx, v) => {
@@ -910,9 +1168,15 @@ function start() {
         overlay: (ctx, v) => {
             corruption.drawWorld(ctx, v, time); // au-dessus du sol et des toits, sous le vaisseau et les chutes
             bots.drawAir(ctx, time, v);   // v : on ne dessine que les bots proches de l'écran
+            if (isMultiplayer) {
+                for (const mate of remotePlayersMap.values()) {
+                    if (mate.alive && mate.phase === 'air') drawFalling(ctx, mate, time);
+                }
+            }
             drop.draw(ctx, player, time);
             effects.drawTop(ctx, v);
             bots.drawLabels(ctx, v, time);
+            if (isMultiplayer) drawRemoteTeammateLabels(ctx, v, time);
             drawTeammateOffscreen(ctx);
             drawHitmarker(ctx);
         }
@@ -930,6 +1194,26 @@ function start() {
         last = now;
         time += dt;
 
+        // Synchronisation réseau (20 Hz)
+        if (isMultiplayer && gameWs && gameWs.readyState === WebSocket.OPEN && (now - lastNetSync > 50)) {
+            lastNetSync = now;
+            gameWs.send(JSON.stringify({
+                type: 'p_state',
+                x: Math.round(player.x * 10) / 10,
+                y: Math.round(player.y * 10) / 10,
+                vx: Math.round(player.vx),
+                vy: Math.round(player.vy),
+                angle: Math.round(player.angle * 100) / 100,
+                phase: player.phase,
+                altitude: Math.round((player.altitude || 0) * 100) / 100,
+                health: Math.round(player.health),
+                shield: Math.round(player.shield),
+                slot: player.slot,
+                dbno: !!player.dbno,
+                dbnoTimer: player.dbnoTimer || 0
+            }));
+        }
+
         const aim = renderer.screenToWorld(input.mouse.x, input.mouse.y);
         drop.update(dt, player, input, aim.x, aim.y);
         // Premier cycle de corruption : vaisseau arrivé au bout OU joueur au sol (le premier des deux)
@@ -940,7 +1224,6 @@ function start() {
             if (Settings.get('autoAmmo')) loot.autoPickupAmmo(player);
             playerActions();
         }
-        updateRevive(dt);
         updateSquadHud();
         bots.update(dt, time);
         combat.update(dt);
@@ -972,6 +1255,7 @@ function start() {
         hud.update(dt, time);
         inventoryUI.update();
         combatHud.update(dt);
+        updateRevive(dt);
 
         requestAnimationFrame(frame);
     }

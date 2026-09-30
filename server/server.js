@@ -3,9 +3,11 @@ const fs = require('fs');
 const path = require('path');
 const os = require('os');
 const crypto = require('crypto');
+const { WebSocketServer } = require('ws');
+const { RoomManager } = require('./rooms.js');
 
-// Configuration
-const PORT = 3000;
+// Configuration (compatible avec l'hébergement Hostinger Node.js)
+const PORT = process.env.PORT || 3000;
 const ROOT = path.resolve(__dirname, '..');
 
 // Types MIME autorisés : tout autre fichier n'est jamais envoyé
@@ -203,11 +205,78 @@ function serveFile(req, res) {
 
 // Créer le serveur HTTP
 const server = http.createServer((req, res) => {
-    console.log(`${req.method} ${req.url}`);
     const pathname = (req.url || '/').split('?')[0];
     if (pathname === '/api/redeem') return handleRedeem(req, res);
     serveFile(req, res);
 });
+
+// Créer le serveur WebSocket pour le multijoueur temps-réel
+const wss = new WebSocketServer({ server });
+const roomManager = new RoomManager();
+
+wss.on('connection', (ws) => {
+    ws.isAlive = true;
+    ws.on('pong', () => { ws.isAlive = true; });
+
+    ws.on('message', (raw) => {
+        let msg;
+        try {
+            msg = JSON.parse(raw);
+        } catch {
+            return;
+        }
+
+        switch (msg.type) {
+            case 'create_room':
+                roomManager.createRoom(ws, msg.player || msg);
+                break;
+            case 'join_room':
+                roomManager.joinRoom(ws, msg.roomCode || msg.code, msg.player || msg);
+                break;
+            case 'update_status':
+                roomManager.updateStatus(ws, msg);
+                break;
+            case 'update_config':
+                roomManager.updateConfig(ws, msg);
+                break;
+            case 'chat':
+                roomManager.sendChat(ws, msg.message);
+                break;
+            case 'start_game':
+                roomManager.startGame(ws);
+                break;
+            case 'leave_room':
+                roomManager.leaveCurrentRoom(ws);
+                break;
+            // Événements de synchronisation en partie
+            case 'p_state':
+            case 'p_action':
+            case 'p_hit':
+            case 'p_revive':
+            case 'p_kill':
+                roomManager.relayGameMessage(ws, msg);
+                break;
+        }
+    });
+
+    ws.on('close', () => {
+        roomManager.leaveCurrentRoom(ws);
+    });
+
+    ws.on('error', () => {
+        roomManager.leaveCurrentRoom(ws);
+    });
+});
+
+const heartbeatInterval = setInterval(() => {
+    wss.clients.forEach((ws) => {
+        if (!ws.isAlive) return ws.terminate();
+        ws.isAlive = false;
+        ws.ping();
+    });
+}, 30000);
+
+wss.on('close', () => clearInterval(heartbeatInterval));
 
 // Obtenir l'adresse IP locale
 function getLocalIP() {
@@ -257,3 +326,5 @@ process.on('SIGINT', () => {
         process.exit(0);
     });
 });
+
+module.exports = { server, wss, roomManager };

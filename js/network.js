@@ -1,392 +1,469 @@
 /* ==================================
-   GESTION RÉSEAU - FOR2D ROYAL
-   Système de jeu en réseau local avec PeerJS
+   GESTION RÉSEAU MULTIJOUEUR - FOR2D ROYAL
+   Client WebSocket haute performance avec gestion de salles (codes à 6 lettres),
+   session locale dans le navigateur et synchronisation temps-réel du lobby et des parties.
    ================================== */
+
+const SESSION_KEY = 'for2d-session';
+
+function getOrInitSession() {
+    let session = null;
+    try {
+        const raw = localStorage.getItem(SESSION_KEY);
+        if (raw) session = JSON.parse(raw);
+    } catch { /* parse error */ }
+
+    if (!session || !session.playerId) {
+        session = {
+            playerId: 'usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+            created: Date.now()
+        };
+        try {
+            localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+        } catch { /* storage full */ }
+    }
+    return session;
+}
 
 class NetworkManager {
     constructor() {
-        this.peer = null;
-        this.connections = [];
+        this.session = getOrInitSession();
+        this.ws = null;
+        this.connected = false;
         this.isHost = false;
         this.roomCode = null;
-        this.playerData = {
-            id: this.generatePlayerId(),
-            name: 'Joueur 1',
-            ready: false
-        };
+        this.roomPlayers = [];
+        this.slot = 1;
+        this.reconnectTimer = null;
+        this.pendingAction = null;
+        this.gameDataHandlers = [];
+
         this.init();
     }
 
+    getPlayerId() {
+        return this.session.playerId;
+    }
+
+    getPlayerName() {
+        if (window.FOR2D_PROGRESS && window.FOR2D_PROGRESS.name) {
+            return window.FOR2D_PROGRESS.name;
+        }
+        return localStorage.getItem('for2d-player-name') || 'Joueur';
+    }
+
+    getPlayerSkinData() {
+        const cos = window.FOR2D_COSMETICS;
+        const skin = cos?.equipped?.id || 'recrue';
+        const pickaxe = cos?.equippedOf('pickaxe')?.id || 'pioche-defaut';
+        const colors = cos?.equipped?.game || null;
+        return { skin, pickaxeSkin: pickaxe, colors };
+    }
+
     init() {
-        // Initialiser PeerJS pour la connexion P2P
-        // En production, vous devriez utiliser votre propre serveur PeerJS
-        try {
-            this.peer = new Peer(this.playerData.id, {
-                debug: 0 // Niveau de debug (0-3)
-            });
-
-            this.setupPeerListeners();
-        } catch (error) {
-            console.warn('PeerJS non disponible. Le mode réseau sera limité.');
-            this.useFallbackMode();
-        }
+        this.connect();
+        this.checkUrlForRoomCode();
     }
 
-    useFallbackMode() {
-        // Mode de secours sans PeerJS (simulation locale)
-        console.log('Mode réseau en simulation locale');
-        this.updateConnectionStatus('Simulation locale', 'orange');
-    }
-
-    setupPeerListeners() {
-        if (!this.peer) return;
-
-        this.peer.on('open', (id) => {
-            console.log('Connexion P2P établie avec ID:', id);
-            this.updateConnectionStatus('Prêt', '#00ff88');
-        });
-
-        this.peer.on('connection', (conn) => {
-            console.log('Nouvelle connexion entrante');
-            this.handleIncomingConnection(conn);
-        });
-
-        this.peer.on('error', (err) => {
-            console.error('Erreur PeerJS:', err);
-            this.updateConnectionStatus('Erreur: ' + err.type, '#ff4757');
-            
-            // Messages d'erreur plus conviviaux
-            if (err.type === 'peer-unavailable') {
-                this.showError('Code de salle invalide ou partie inexistante.');
-            } else if (err.type === 'network') {
-                this.showError('Erreur réseau. Vérifiez votre connexion.');
-            }
-        });
-
-        this.peer.on('disconnected', () => {
-            console.log('Déconnecté du serveur de signaling');
-            this.updateConnectionStatus('Déconnecté', '#ff4757');
-        });
-    }
-
-    generatePlayerId() {
-        return 'player_' + Date.now() + '_' + Math.floor(Math.random() * 1000);
-    }
-
-    generateRoomCode() {
-        const chars = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
-        let code = '';
-        for (let i = 0; i < 6; i++) {
-            code += chars.charAt(Math.floor(Math.random() * chars.length));
-        }
-        return code;
-    }
-
-    createRoom() {
-        if (!this.peer) {
-            this.showError('Service réseau non disponible.');
+    connect() {
+        if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
             return;
         }
 
-        this.isHost = true;
-        this.roomCode = this.generateRoomCode();
-        
-        // Afficher le code de salle
-        document.getElementById('roomCode').textContent = this.roomCode;
-        this.updateConnectionStatus('Hôte actif', '#00ff88');
-        
-        // Sauvegarder l'ID de l'hôte avec le code de salle
-        this.hostPeerId = this.peer.id;
-        
-        console.log('Partie créée avec le code:', this.roomCode);
-        console.log('ID de l\'hôte:', this.hostPeerId);
-        
-        if (window.lobbyManager) {
-            window.lobbyManager.addChatMessage(`Partie créée! Code: ${this.roomCode}`);
-            window.lobbyManager.addChatMessage('Partagez ce code avec vos amis!');
+        const isHttps = window.location.protocol === 'https:';
+        const host = window.location.host;
+        // Si ouvert via file:// ou sans serveur WS local actif, fallback propre
+        if (!host || window.location.protocol === 'file:') {
+            console.warn('[Network] Exécution hors serveur HTTP : multijoueur désactivé.');
+            this.updateConnectionStatus('Hors ligne (serveur requis)', '#ffaa00');
+            return;
         }
 
-        // Sauvegarder dans le localStorage pour la découverte
-        this.saveRoomToLocalStorage();
+        const wsUrl = `${isHttps ? 'wss:' : 'ws:'}//${host}/`;
+        console.log('[Network] Connexion WebSocket vers', wsUrl);
+
+        try {
+            this.ws = new WebSocket(wsUrl);
+        } catch (e) {
+            console.warn('[Network] Impossible d\'établir la connexion WebSocket:', e);
+            this.updateConnectionStatus('Hors ligne', '#ff4757');
+            return;
+        }
+
+        this.ws.onopen = () => {
+            console.log('[Network] Connecté au serveur multijoueur !');
+            this.connected = true;
+            this.updateConnectionStatus(this.roomCode ? `Connecté (${this.roomCode})` : 'En ligne', '#00ff88');
+
+            if (this.pendingAction) {
+                const act = this.pendingAction;
+                this.pendingAction = null;
+                act();
+            }
+        };
+
+        this.ws.onmessage = (event) => {
+            try {
+                const msg = JSON.parse(event.data);
+                this.handleMessage(msg);
+            } catch (err) {
+                console.error('[Network] Message invalide reçu:', err);
+            }
+        };
+
+        this.ws.onclose = () => {
+            this.connected = false;
+            if (this.roomCode) {
+                this.updateConnectionStatus('Déconnecté (reconnexion...)', '#ff4757');
+            } else {
+                this.updateConnectionStatus('Déconnecté', '#888');
+            }
+
+            // Tentative de reconnexion automatique après 3 secondes
+            clearTimeout(this.reconnectTimer);
+            this.reconnectTimer = setTimeout(() => this.connect(), 3000);
+        };
+
+        this.ws.onerror = (err) => {
+            console.warn('[Network] Erreur WebSocket:', err);
+        };
     }
 
-    saveRoomToLocalStorage() {
-        const roomData = {
-            code: this.roomCode,
-            hostId: this.hostPeerId,
-            timestamp: Date.now()
+    send(data) {
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+            this.ws.send(JSON.stringify(data));
+        } else {
+            // Mettre en file d'attente
+            this.pendingAction = () => this.send(data);
+            if (!this.ws || this.ws.readyState === WebSocket.CLOSED) {
+                this.connect();
+            }
+        }
+    }
+
+    /* ===== ACTIONS DE SALLE ===== */
+
+    createRoom(mode = 'duo', botFill = true) {
+        const skinData = this.getPlayerSkinData();
+        const payload = {
+            type: 'create_room',
+            id: this.getPlayerId(),
+            name: this.getPlayerName(),
+            mode: mode || 'duo',
+            botFill: botFill !== false,
+            skin: skinData.skin,
+            pickaxeSkin: skinData.pickaxeSkin,
+            colors: skinData.colors
         };
-        localStorage.setItem('for2d_room_' + this.roomCode, JSON.stringify(roomData));
+
+        this.send(payload);
+        this.updateConnectionStatus('Création en cours...', '#ffd700');
     }
 
     joinRoom(roomCode) {
-        if (!this.peer) {
-            this.showError('Service réseau non disponible.');
-            return;
-        }
+        if (!roomCode) return;
+        roomCode = roomCode.trim().toUpperCase();
 
-        this.roomCode = roomCode;
-        
-        // Chercher le room dans le localStorage
-        const roomDataStr = localStorage.getItem('for2d_room_' + roomCode);
-        
-        if (roomDataStr) {
-            const roomData = JSON.parse(roomDataStr);
-            const hostId = roomData.hostId;
-            
-            console.log('Connexion à l\'hôte:', hostId);
-            
-            // Se connecter à l'hôte
-            const conn = this.peer.connect(hostId, {
-                reliable: true
-            });
-            
-            this.setupConnection(conn);
-            this.updateConnectionStatus('Connexion...', '#ffd700');
-            
-        } else {
-            this.showError('Code de salle introuvable. L\'hôte doit être sur le même réseau.');
-        }
+        const skinData = this.getPlayerSkinData();
+        const payload = {
+            type: 'join_room',
+            roomCode,
+            id: this.getPlayerId(),
+            name: this.getPlayerName(),
+            skin: skinData.skin,
+            pickaxeSkin: skinData.pickaxeSkin,
+            colors: skinData.colors
+        };
+
+        this.send(payload);
+        this.updateConnectionStatus('Connexion à la salle...', '#ffd700');
     }
 
-    handleIncomingConnection(conn) {
-        console.log('Joueur en cours de connexion:', conn.peer);
-        
-        this.setupConnection(conn);
-        
-        // Envoyer les données de la partie au nouveau joueur
-        conn.on('open', () => {
-            this.sendToConnection(conn, {
-                type: 'welcome',
-                host: this.isHost,
-                roomCode: this.roomCode,
-                players: window.lobbyManager ? window.lobbyManager.players : []
-            });
-        });
-    }
+    leaveRoom() {
+        if (this.roomCode) {
+            this.send({ type: 'leave_room' });
+            this.roomCode = null;
+            this.isHost = false;
+            this.roomPlayers = [];
+            this.slot = 1;
+            this.updateRoomCodeUI('-');
+            this.updateConnectionStatus('En ligne', '#00ff88');
 
-    setupConnection(conn) {
-        this.connections.push(conn);
-
-        conn.on('open', () => {
-            console.log('Connexion établie avec:', conn.peer);
-            this.updateConnectionStatus('Connecté', '#00ff88');
-            document.getElementById('roomCode').textContent = this.roomCode;
-            
-            // Envoyer nos données de joueur
-            this.sendToConnection(conn, {
-                type: 'playerJoin',
-                player: this.playerData
-            });
-            
             if (window.lobbyManager) {
-                window.lobbyManager.addChatMessage('Connecté à la partie!');
+                window.lobbyManager.resetTeammateSlots?.();
+                window.lobbyManager.addChatMessage?.('Tu as quitté la salle.');
             }
-        });
-
-        conn.on('data', (data) => {
-            this.handleMessage(data, conn);
-        });
-
-        conn.on('close', () => {
-            console.log('Connexion fermée avec:', conn.peer);
-            this.removeConnection(conn);
-            
-            if (window.lobbyManager) {
-                window.lobbyManager.addChatMessage('Un joueur s\'est déconnecté.');
-            }
-        });
-
-        conn.on('error', (err) => {
-            console.error('Erreur de connexion:', err);
-            this.removeConnection(conn);
-        });
-    }
-
-    removeConnection(conn) {
-        const index = this.connections.indexOf(conn);
-        if (index > -1) {
-            this.connections.splice(index, 1);
-        }
-        
-        if (this.connections.length === 0 && !this.isHost) {
-            this.updateConnectionStatus('Déconnecté', '#ff4757');
-            document.getElementById('roomCode').textContent = '-';
         }
     }
 
-    handleMessage(data, conn) {
-        console.log('Message reçu:', data);
+    sendPlayerStatus(ready) {
+        const skinData = this.getPlayerSkinData();
+        this.send({
+            type: 'update_status',
+            ready: !!ready,
+            name: this.getPlayerName(),
+            skin: skinData.skin,
+            pickaxeSkin: skinData.pickaxeSkin,
+            colors: skinData.colors
+        });
+    }
 
-        switch(data.type) {
-            case 'welcome':
-                console.log('Bienvenue dans la partie!', data);
-                break;
+    sendRoomConfig(mode, botFill) {
+        if (!this.isHost) return;
+        this.send({
+            type: 'update_config',
+            mode,
+            botFill
+        });
+    }
 
-            case 'playerJoin':
+    sendChatMessage(text) {
+        if (!text) return;
+        this.send({
+            type: 'chat',
+            message: text
+        });
+    }
+
+    startGame() {
+        if (!this.isHost) return;
+        this.send({ type: 'start_game' });
+    }
+
+    sendGameData(type, payload) {
+        this.send({
+            type,
+            ...payload
+        });
+    }
+
+    /* ===== GESTION DES MESSAGES SERVEUR ===== */
+
+    handleMessage(msg) {
+        switch (msg.type) {
+            case 'room_created':
+                this.isHost = true;
+                this.roomCode = msg.roomCode;
+                this.slot = 1;
+                this.roomPlayers = msg.players || [];
+                this.updateRoomCodeUI(this.roomCode);
+                this.updateConnectionStatus(`Hôte actif (Salle ${this.roomCode})`, '#00ff88');
+
+                this.copyCodeToClipboard(this.roomCode);
+
                 if (window.lobbyManager) {
-                    window.lobbyManager.onPlayerJoined(data.player);
-                }
-                
-                // Si on est l'hôte, informer les autres joueurs
-                if (this.isHost) {
-                    this.broadcastToOthers({
-                        type: 'playerJoin',
-                        player: data.player
-                    }, conn);
+                    window.lobbyManager.addChatMessage(`Partie créée ! Code : ${this.roomCode}`);
+                    window.lobbyManager.addChatMessage('Partage ce code ou le lien d\'invitation avec tes amis !');
+                    window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
                 }
                 break;
 
-            case 'playerReady':
+            case 'room_joined':
+                this.isHost = (msg.hostId === this.getPlayerId());
+                this.roomCode = msg.roomCode;
+                this.slot = msg.slot || 2;
+                this.roomPlayers = msg.players || [];
+                this.updateRoomCodeUI(this.roomCode);
+                this.updateConnectionStatus(`Connecté (Salle ${this.roomCode})`, '#00ff88');
+
                 if (window.lobbyManager) {
-                    window.lobbyManager.onPlayerReadyChanged(data.playerId, data.ready);
+                    window.lobbyManager.addChatMessage(`Connecté à la salle ${this.roomCode} !`);
+                    if (msg.mode) window.lobbyManager.setGameModeSilently?.(msg.mode);
+                    window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
                 }
-                
-                // Relayer aux autres joueurs
-                if (this.isHost) {
-                    this.broadcastToOthers(data, conn);
+                break;
+
+            case 'player_joined':
+                if (msg.player) {
+                    // Mettre à jour la liste des joueurs
+                    this.roomPlayers = this.roomPlayers.filter(p => p.id !== msg.player.id);
+                    this.roomPlayers.push(msg.player);
+
+                    if (window.lobbyManager) {
+                        window.lobbyManager.addChatMessage(`${msg.player.name} a rejoint le groupe !`);
+                        window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
+                        window.SFX?.play?.('click');
+                    }
+                }
+                break;
+
+            case 'player_updated':
+                if (msg.player) {
+                    const idx = this.roomPlayers.findIndex(p => p.id === msg.player.id);
+                    if (idx >= 0) this.roomPlayers[idx] = { ...this.roomPlayers[idx], ...msg.player };
+                    else this.roomPlayers.push(msg.player);
+
+                    if (window.lobbyManager) {
+                        window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
+                    }
+                }
+                break;
+
+            case 'player_left':
+                this.roomPlayers = this.roomPlayers.filter(p => p.id !== msg.playerId);
+                if (window.lobbyManager) {
+                    window.lobbyManager.addChatMessage(`${msg.playerName || 'Un joueur'} a quitté le groupe.`);
+                    window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
+                }
+                break;
+
+            case 'new_host':
+                this.isHost = (msg.hostId === this.getPlayerId());
+                if (this.isHost && window.lobbyManager) {
+                    window.lobbyManager.addChatMessage('👑 Tu es maintenant le chef du groupe !');
+                    window.lobbyManager.showToast?.('Tu es maintenant le chef du groupe !');
+                }
+                break;
+
+            case 'room_config':
+                if (window.lobbyManager && msg.mode) {
+                    window.lobbyManager.setGameModeSilently?.(msg.mode);
+                    window.lobbyManager.addChatMessage(`Le mode a été changé pour : ${msg.mode.toUpperCase()}`);
                 }
                 break;
 
             case 'chat':
                 if (window.lobbyManager) {
-                    window.lobbyManager.addChatMessage(data.message, data.author);
-                }
-                
-                // Relayer le message
-                if (this.isHost) {
-                    this.broadcastToOthers(data, conn);
+                    window.lobbyManager.addChatMessage(msg.message, msg.author);
                 }
                 break;
 
-            case 'startGame':
-                if (window.lobbyManager) {
-                    window.lobbyManager.startGame();
-                }
+            case 'game_start':
+                this.handleGameStart(msg);
                 break;
 
-            case 'gameData':
-                // Données de jeu (positions, actions, etc.)
-                if (window.gameManager) {
-                    window.gameManager.handleNetworkData(data);
+            case 'error':
+                this.showError(msg.message || 'Erreur réseau');
+                break;
+
+            // In-game messages
+            case 'p_state':
+            case 'p_action':
+            case 'p_hit':
+            case 'p_revive':
+            case 'p_kill':
+                for (const handler of this.gameDataHandlers) {
+                    try { handler(msg); } catch (e) { console.error(e); }
                 }
                 break;
         }
     }
 
-    sendToConnection(conn, data) {
-        if (conn && conn.open) {
-            conn.send(data);
+    onGameData(fn) {
+        this.gameDataHandlers.push(fn);
+    }
+
+    handleGameStart(msg) {
+        console.log('[Network] Lancement de la partie multijoueur !', msg);
+
+        // Sauvegarder la configuration de la partie dans le localStorage pour game.html
+        const teamSize = msg.mode === 'duo' ? 2 : msg.mode === 'trio' ? 3 : msg.mode === 'section' ? 4 : 1;
+        const config = {
+            mode: msg.mode || 'duo',
+            modeName: (msg.mode || 'duo').toUpperCase(),
+            teamSize,
+            bots: msg.botFill !== false,
+            isMultiplayer: true,
+            roomCode: msg.roomCode,
+            seed: msg.seed,
+            mySlot: this.slot,
+            myPlayerId: this.getPlayerId(),
+            roomPlayers: msg.players || this.roomPlayers
+        };
+
+        try {
+            localStorage.setItem('for2d-game-mode', JSON.stringify(config));
+        } catch { /* ignore */ }
+
+        if (window.lobbyManager) {
+            window.lobbyManager.addChatMessage('🚀 La partie commence maintenant !');
+            window.SFX?.play?.('launch');
         }
+
+        setTimeout(() => {
+            window.location.href = `game.html?room=${msg.roomCode}`;
+        }, 1200);
     }
 
-    broadcast(data) {
-        this.connections.forEach(conn => {
-            this.sendToConnection(conn, data);
-        });
-    }
+    /* ===== OUTILS UI ET COPIE ===== */
 
-    broadcastToOthers(data, excludeConn) {
-        this.connections.forEach(conn => {
-            if (conn !== excludeConn) {
-                this.sendToConnection(conn, data);
+    copyCodeToClipboard(code) {
+        if (!code || code === '-') return;
+        const url = `${window.location.origin}${window.location.pathname}#party=${code}`;
+
+        navigator.clipboard?.writeText(code).then(() => {
+            if (window.lobbyManager) {
+                window.lobbyManager.showToast?.(`Code ${code} copié dans le presse-papier !`);
             }
-        });
+        }).catch(() => {});
     }
 
-    sendPlayerStatus(ready) {
-        this.playerData.ready = ready;
-        this.broadcast({
-            type: 'playerReady',
-            playerId: this.playerData.id,
-            ready: ready
-        });
+    copyInviteLinkToClipboard(code) {
+        const c = code || this.roomCode;
+        if (!c || c === '-') return;
+        const url = `${window.location.origin}${window.location.pathname}#party=${c}`;
+
+        navigator.clipboard?.writeText(url).then(() => {
+            if (window.lobbyManager) {
+                window.lobbyManager.showToast?.(`Lien d'invitation copié !`);
+            }
+        }).catch(() => {});
     }
 
-    sendChatMessage(message) {
-        this.broadcast({
-            type: 'chat',
-            author: this.playerData.name,
-            message: message
-        });
-    }
+    checkUrlForRoomCode() {
+        // Détecter #party=CODE ou #join=CODE ou ?room=CODE
+        const hash = window.location.hash;
+        const search = window.location.search;
+        let foundCode = null;
 
-    sendGameData(gameData) {
-        this.broadcast({
-            type: 'gameData',
-            data: gameData
-        });
-    }
+        const partyMatch = hash.match(/#(?:party|join)=([A-Z0-9]{4,8})/i);
+        if (partyMatch) foundCode = partyMatch[1];
+        else {
+            const queryMatch = search.match(/[?&]room=([A-Z0-9]{4,8})/i);
+            if (queryMatch) foundCode = queryMatch[1];
+        }
 
-    isConnected() {
-        return this.connections.length > 0 || this.isHost;
+        if (foundCode) {
+            console.log('[Network] Code de salle trouvé dans l\'URL:', foundCode);
+            setTimeout(() => {
+                this.joinRoom(foundCode);
+                // Nettoyer le hash après détection
+                history.replaceState(null, '', window.location.pathname);
+            }, 800);
+        }
     }
 
     updateConnectionStatus(status, color = '#00ff88') {
-        const statusElement = document.getElementById('connectionStatus');
-        if (statusElement) {
-            statusElement.textContent = status;
-            statusElement.style.color = color;
+        const el = document.getElementById('connectionStatus');
+        if (el) {
+            el.textContent = status;
+            el.style.color = color;
         }
     }
 
-    showError(message) {
+    updateRoomCodeUI(code) {
+        const el = document.getElementById('roomCode');
+        if (el) {
+            el.textContent = code || '-';
+            el.classList.toggle('has-code', !!code && code !== '-');
+        }
+    }
+
+    showError(msg) {
         if (window.lobbyManager) {
-            window.lobbyManager.addChatMessage('❌ ' + message);
+            window.lobbyManager.showToast?.(`❌ ${msg}`);
+            window.lobbyManager.addChatMessage?.(`❌ ${msg}`);
+        } else {
+            alert(msg);
         }
-        alert(message);
+        this.updateConnectionStatus('Erreur', '#ff4757');
     }
 
-    disconnect() {
-        this.connections.forEach(conn => conn.close());
-        this.connections = [];
-        
-        if (this.peer) {
-            this.peer.disconnect();
-        }
-        
-        this.isHost = false;
-        this.roomCode = null;
-        this.updateConnectionStatus('Déconnecté', '#ff4757');
-        document.getElementById('roomCode').textContent = '-';
+    isConnected() {
+        return this.connected && this.ws && this.ws.readyState === WebSocket.OPEN;
     }
 }
 
-// Initialisation
-let networkManager;
-
-// Attendre que le DOM soit chargé
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', initNetwork);
-} else {
-    initNetwork();
-}
-
-function initNetwork() {
-    // Vérifier si PeerJS est disponible
-    if (typeof Peer !== 'undefined') {
-        networkManager = new NetworkManager();
-        window.networkManager = networkManager;
-        console.log('NetworkManager initialisé avec PeerJS');
-    } else {
-        console.warn('PeerJS non chargé. Chargement depuis CDN...');
-        loadPeerJS();
-    }
-}
-
-function loadPeerJS() {
-    const script = document.createElement('script');
-    script.src = 'https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js';
-    script.onload = () => {
-        console.log('PeerJS chargé avec succès');
-        networkManager = new NetworkManager();
-        window.networkManager = networkManager;
-    };
-    script.onerror = () => {
-        console.error('Impossible de charger PeerJS');
-        // Créer un NetworkManager en mode simulation
-        networkManager = new NetworkManager();
-        window.networkManager = networkManager;
-    };
-    document.head.appendChild(script);
-}
+// Initialisation globale
+const networkManager = new NetworkManager();
+window.networkManager = networkManager;

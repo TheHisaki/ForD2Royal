@@ -728,15 +728,17 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
 
 /* ================= COMBAT ================= */
 
-/* Fil des éliminations (sous les boutons en haut à gauche) */
+/* Fil des éliminations (en bas à gauche, au-dessus de la barre de vie) */
 #killFeed {
     position: absolute;
-    top: calc(var(--gap) + 52px);
+    bottom: calc(var(--gap) + 82px);
     left: var(--gap);
     display: flex;
     flex-direction: column;
     gap: 4px;
-    max-width: min(420px, 45vw);
+    max-width: min(380px, 42vw);
+    pointer-events: none;
+    z-index: 15;
 }
 
 .kill-entry {
@@ -995,7 +997,7 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
 }
 
 @media (max-width: 760px), (max-height: 520px) {
-    #killFeed { top: calc(var(--gap) + 44px); max-width: 60vw; }
+    #killFeed { bottom: calc(var(--gap) + 70px); top: auto; max-width: 60vw; }
     .kill-entry { font-size: 11px; }
     #ammoMag { font-size: 28px; }
     #interactPrompt { font-size: 18px; }
@@ -2026,8 +2028,9 @@ body.item-dragging * { cursor: grabbing !important; }
 
 .squad-member.is-dbno {
     border-color: #ff334b;
-    background: rgba(40, 10, 20, 0.85);
-    animation: dbnoPulse 1.2s infinite alternate;
+    background: rgba(45, 10, 22, 0.92);
+    box-shadow: 0 0 14px rgba(255, 51, 75, 0.45);
+    animation: squadDbnoPulse 1.2s ease-in-out infinite alternate;
 }
 
 .squad-member.is-dead {
@@ -2131,23 +2134,32 @@ body.item-dragging * { cursor: grabbing !important; }
     100% { filter: drop-shadow(0 0 25px rgba(255, 45, 85, 0.8)); transform: translateX(-50%) scale(1.02); }
 }
 
+@keyframes squadDbnoPulse {
+    0%   { border-color: rgba(255, 51, 75, 0.6); box-shadow: 0 0 6px rgba(255, 51, 75, 0.3); }
+    100% { border-color: rgba(255, 51, 75, 1); box-shadow: 0 0 18px rgba(255, 51, 75, 0.7); }
+}
+
 /* ================= RÉANIMATION ================= */
+#hud:has(#revivePrompt:not([hidden])) #interactPrompt {
+    display: none !important;
+}
+
 .revive-prompt {
     position: absolute;
     left: 50%;
-    bottom: 25%;
+    bottom: 27%;
     transform: translateX(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
-    gap: 6px;
-    background: rgba(8, 16, 40, 0.9);
+    gap: 8px;
+    background: rgba(8, 16, 40, 0.94);
     border: 2px solid var(--accent-cyan);
-    box-shadow: 0 0 25px rgba(79, 216, 255, 0.4);
+    box-shadow: 0 0 30px rgba(79, 216, 255, 0.5);
     border-radius: 8px;
-    padding: 10px 24px;
+    padding: 12px 28px;
     pointer-events: none;
-    z-index: 30;
+    z-index: 35;
 }
 
 .revive-prompt[hidden] { display: none; }

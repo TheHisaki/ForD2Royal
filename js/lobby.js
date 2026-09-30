@@ -42,6 +42,7 @@ class LobbyManager {
         this.saveGameConfig();
         this.setupEventListeners();
         this.setupSounds();
+        this.setupWelcomeModal();
         this.updateUI();
         this.startAnimations();
     }
@@ -140,9 +141,30 @@ class LobbyManager {
 
         // Bouton rejoindre salle
         const joinRoomBtn = document.getElementById('joinRoomBtn');
+        const roomInput = document.getElementById('roomInput');
         if (joinRoomBtn) {
             joinRoomBtn.addEventListener('click', () => this.joinRoom());
         }
+        if (roomInput) {
+            roomInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') this.joinRoom();
+            });
+        }
+
+        // Actions de groupe (copie de code, lien, quitter)
+        document.getElementById('copyCodeBtn')?.addEventListener('click', () => {
+            const code = window.networkManager?.roomCode;
+            if (code) window.networkManager.copyCodeToClipboard(code);
+        });
+
+        document.getElementById('copyLinkBtn')?.addEventListener('click', () => {
+            const code = window.networkManager?.roomCode;
+            if (code) window.networkManager.copyInviteLinkToClipboard(code);
+        });
+
+        document.getElementById('leavePartyBtn')?.addEventListener('click', () => {
+            window.networkManager?.leaveRoom();
+        });
 
         // Input chat
         const chatInput = document.querySelector('.chat-input');
@@ -225,12 +247,16 @@ class LobbyManager {
 
         this.updatePlayerStatus(0, this.localPlayerReady);
 
-        // Tout le monde est prêt : on lance la partie
-        if (this.localPlayerReady) this.startGame();
-        
-        // Notifier le réseau si connecté
-        if (window.networkManager && window.networkManager.isConnected()) {
+        // Notifier le réseau si connecté dans une salle
+        if (window.networkManager && window.networkManager.isConnected() && window.networkManager.roomCode) {
             window.networkManager.sendPlayerStatus(this.localPlayerReady);
+            if (this.localPlayerReady && window.networkManager.isHost) {
+                const allReady = this.players.every(p => p.ready);
+                if (allReady) window.networkManager.startGame();
+            }
+        } else {
+            // Hors ligne / Solo : on lance la partie
+            if (this.localPlayerReady) this.startGame();
         }
     }
 
@@ -491,16 +517,16 @@ class LobbyManager {
         const joinBtn = document.getElementById('joinBtn');
         const joinForm = document.getElementById('joinForm');
         
-        hostBtn.classList.add('active');
-        joinBtn.classList.remove('active');
-        joinForm.style.display = 'none';
+        hostBtn?.classList.add('active');
+        joinBtn?.classList.remove('active');
+        if (joinForm) joinForm.style.display = 'none';
         
-        // Créer une partie
+        // Créer une salle multijoueur sur le serveur
         if (window.networkManager) {
-            window.networkManager.createRoom();
+            window.networkManager.createRoom(this.currentGameMode.toLowerCase(), this.botsEnabled);
         }
         
-        this.addChatMessage('Création d\'une partie en réseau local...');
+        this.addChatMessage('Création d\'une salle multijoueur...');
     }
 
     handleJoinGame() {
@@ -508,25 +534,141 @@ class LobbyManager {
         const joinBtn = document.getElementById('joinBtn');
         const joinForm = document.getElementById('joinForm');
         
-        hostBtn.classList.remove('active');
-        joinBtn.classList.add('active');
-        joinForm.style.display = 'flex';
+        hostBtn?.classList.remove('active');
+        joinBtn?.classList.add('active');
+        if (joinForm) joinForm.style.display = 'flex';
         
-        this.addChatMessage('Entrez le code de la salle pour rejoindre.');
+        const roomInput = document.getElementById('roomInput');
+        roomInput?.focus();
+        this.addChatMessage('Entre le code à 6 lettres de la salle pour la rejoindre.');
     }
 
     joinRoom() {
         const roomInput = document.getElementById('roomInput');
-        const roomCode = roomInput.value.trim().toUpperCase();
+        const roomCode = (roomInput?.value || '').trim().toUpperCase();
         
-        if (roomCode.length === 6) {
+        if (roomCode.length >= 4) {
             if (window.networkManager) {
                 window.networkManager.joinRoom(roomCode);
-                this.addChatMessage(`Tentative de connexion à la salle ${roomCode}...`);
+                this.addChatMessage(`Connexion à la salle ${roomCode}...`);
             }
         } else {
-            this.addChatMessage('Code de salle invalide (6 caractères requis).');
+            this.showToast('Code de salle trop court (6 caractères requis).');
         }
+    }
+
+    /* ===== MODALE DE BIENVENUE (PREMIÈRE VISITE) ===== */
+    setupWelcomeModal() {
+        const modal = document.getElementById('welcomeModal');
+        const form = document.getElementById('welcomeForm');
+        const nameInput = document.getElementById('welcomeNameInput');
+        const randomBtn = document.getElementById('welcomeRandomBtn');
+        if (!modal || !form || !nameInput) return;
+
+        const welcomed = localStorage.getItem('for2d-welcomed');
+        if (welcomed) return;
+
+        const RANDOM_NAMES = [
+            'NinjaPixel', 'ShadowRoyale', 'VortexKing', 'AuraSniper',
+            'LaserStorm', 'PixelKnight', 'NovaHunter', 'CosmicHero',
+            'CyberGhost', 'OmegaLegend', 'StrikeForce', 'RoyalBlade'
+        ];
+        const pickRandom = () => RANDOM_NAMES[Math.floor(Math.random() * RANDOM_NAMES.length)] + Math.floor(Math.random() * 90 + 10);
+
+        const currentName = window.FOR2D_PROGRESS?.name || localStorage.getItem('for2d-player-name') || pickRandom();
+        nameInput.value = currentName;
+
+        randomBtn?.addEventListener('click', () => {
+            nameInput.value = pickRandom();
+            nameInput.focus();
+            window.SFX?.play?.('click');
+        });
+
+        // Afficher la modale
+        modal.hidden = false;
+        requestAnimationFrame(() => modal.classList.add('is-visible'));
+
+        form.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const chosen = (nameInput.value || '').trim();
+            if (!chosen) return;
+
+            if (window.FOR2D_PROGRESS?.setName) {
+                window.FOR2D_PROGRESS.setName(chosen);
+            }
+            localStorage.setItem('for2d-player-name', chosen);
+            localStorage.setItem('for2d-welcomed', '1');
+
+            this.players[0].name = chosen;
+            const playerNameEl = document.querySelector('.player-slot .player-name');
+            if (playerNameEl) playerNameEl.textContent = chosen;
+
+            window.SFX?.play?.('purchase');
+            this.showToast(`Bienvenue dans l'arène, ${chosen} !`);
+
+            modal.classList.remove('is-visible');
+            setTimeout(() => { modal.hidden = true; }, 350);
+        });
+    }
+
+    /* ===== SYNCHRONISATION DU GROUPE MULTIJOUEUR ===== */
+    syncPartyMembers(members) {
+        if (!Array.isArray(members)) return;
+        const myId = window.networkManager?.getPlayerId();
+        const me = members.find(m => m.id === myId) || members[0];
+        const others = members.filter(m => m.id !== myId);
+
+        if (me) {
+            this.players[0].name = me.name || this.players[0].name;
+            this.players[0].ready = !!me.ready;
+            this.localPlayerReady = !!me.ready;
+            const readyBtn = document.getElementById('readyBtn');
+            if (readyBtn) {
+                readyBtn.classList.toggle('is-ready', this.localPlayerReady);
+                readyBtn.querySelector('.ready-text').textContent = this.localPlayerReady ? 'ANNULER' : 'PRÊT';
+            }
+        }
+
+        const newPlayers = [this.players[0]];
+        others.forEach((p) => {
+            newPlayers.push({
+                id: p.id,
+                name: p.name,
+                ready: !!p.ready,
+                isBot: false,
+                skin: p.skin,
+                colors: p.colors,
+                pickaxeSkin: p.pickaxeSkin
+            });
+        });
+
+        this.players = newPlayers;
+        this.updateUI();
+
+        const partyActions = document.getElementById('partyActions');
+        if (partyActions) {
+            partyActions.classList.toggle('is-active', !!window.networkManager?.roomCode);
+        }
+    }
+
+    resetTeammateSlots() {
+        this.players = [this.players[0]];
+        this.syncBotTeammates();
+        this.updateUI();
+        const partyActions = document.getElementById('partyActions');
+        if (partyActions) partyActions.classList.remove('is-active');
+    }
+
+    setGameModeSilently(mode) {
+        if (!mode) return;
+        const upper = mode.toUpperCase();
+        this.currentGameMode = upper === 'SECTION' ? 'ESCOUADE' : upper;
+        const display = document.getElementById('currentModeDisplay');
+        if (display) display.textContent = this.currentGameMode;
+        const modeSizes = { SOLO: 1, DUO: 2, TRIO: 3, ESCOUADE: 4 };
+        this.teamSize = modeSizes[this.currentGameMode] || 2;
+        this.saveGameConfig();
+        this.updateUI();
     }
 
     addChatMessage(message, author = 'Party') {
@@ -733,24 +875,28 @@ class LobbyManager {
     }
 
     startGame() {
-        // Vérifier que tous les joueurs sont prêts
         const allReady = this.players.every(p => p.ready);
         
         if (allReady) {
+            if (window.networkManager && window.networkManager.isConnected() && window.networkManager.roomCode) {
+                if (window.networkManager.isHost) {
+                    window.networkManager.startGame();
+                } else {
+                    this.addChatMessage('En attente que le chef lance la partie...');
+                }
+                return;
+            }
+
             this.addChatMessage('Démarrage de la partie...');
-            
-            // S'assurer que la configuration de mode est bien persistée
             this.saveGameConfig();
 
-            // Petit délai pour laisser le temps d'annuler
             clearTimeout(this.startTimer);
-            // Son joué maintenant : la navigation vers game.html le couperait
             window.SFX?.play('launch');
             this.startTimer = setTimeout(() => {
                 if (this.localPlayerReady) window.location.href = 'game.html';
             }, 1500);
         } else {
-            this.addChatMessage('Tous les joueurs doivent être prêts!');
+            this.addChatMessage('Tous les joueurs doivent être prêts !');
         }
     }
 }

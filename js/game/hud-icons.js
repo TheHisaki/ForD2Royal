@@ -257,7 +257,16 @@ const ICONS = {
             `<rect x="7.2" y="15" width="9.6" height="4.8" rx="0.8" fill="${C.brass}"/>` +
             `<rect x="6.6" y="19.2" width="10.8" height="2.4" rx="0.8" fill="${C.brassDark}"/>` +
             '</g>';
-    }
+    },
+
+    // Pioche : manche en bois incliné + tête double en acier avec reflets
+    pickaxe: () =>
+        '<g transform="rotate(-30 12 12)">' +
+        `<rect x="10.8" y="5" width="2.4" height="15" rx="1.2" fill="${C.wood}"/>` +
+        gloss('<rect x="11.4" y="6" width="0.8" height="13" rx="0.4"/>', 0.45) +
+        `<path d="M4 8.5 C8 4.2 16 4.2 20 8.5 L17.5 10.5 C15 7.8 9 7.8 6.5 10.5 Z" fill="${C.metal}"/>` +
+        shine('M7 7.5 C10 5.8 14 5.8 17 7.5', 1.2, 0.7) +
+        '</g>'
 };
 
 /* ===================== API ===================== */

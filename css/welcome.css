@@ -1,0 +1,196 @@
+/* ==================================
+   MODALE DE BIENVENUE - FOR2D ROYAL
+   Onboarding première visite + avertissement sauvegarde locale
+   ================================== */
+
+.welcome-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 300;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(3, 8, 26, 0.92);
+    -webkit-backdrop-filter: blur(14px);
+    backdrop-filter: blur(14px);
+    padding: 16px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.35s ease;
+}
+
+.welcome-overlay.is-visible {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+.welcome-card {
+    position: relative;
+    width: min(94vw, 540px);
+    max-height: 94vh;
+    overflow-y: auto;
+    background:
+        radial-gradient(ellipse 80% 60% at 50% 0%, rgba(255, 210, 74, 0.15) 0%, transparent 70%),
+        linear-gradient(180deg, rgba(16, 26, 68, 0.98) 0%, rgba(9, 14, 40, 0.99) 100%);
+    border: 2px solid rgba(255, 210, 74, 0.4);
+    border-radius: 16px;
+    box-shadow:
+        0 0 60px rgba(255, 210, 74, 0.18),
+        0 25px 50px rgba(0, 0, 0, 0.7);
+    padding: 32px 28px;
+    text-align: center;
+    transform: scale(0.92) translateY(20px);
+    transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.welcome-overlay.is-visible .welcome-card {
+    transform: scale(1) translateY(0);
+}
+
+.welcome-crown {
+    font-size: 46px;
+    line-height: 1;
+    margin-bottom: 12px;
+    filter: drop-shadow(0 0 16px rgba(255, 210, 74, 0.6));
+    animation: welcomeBounce 2.5s ease-in-out infinite;
+}
+
+@keyframes welcomeBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+}
+
+.welcome-title {
+    font-family: var(--font-display, 'Bebas Neue', sans-serif);
+    font-size: clamp(28px, 5vw, 36px);
+    letter-spacing: 2px;
+    color: #fff;
+    margin: 0 0 10px;
+    text-shadow: 0 3px 12px rgba(0, 0, 0, 0.5);
+}
+
+.welcome-intro {
+    font-size: 15px;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.85);
+    margin: 0 0 20px;
+}
+
+/* Encart d'avertissement sauvegarde locale */
+.welcome-warning-box {
+    text-align: left;
+    background: rgba(255, 178, 31, 0.1);
+    border: 1px solid rgba(255, 178, 31, 0.35);
+    border-left: 5px solid #ffb21f;
+    border-radius: 8px;
+    padding: 14px 16px;
+    margin-bottom: 24px;
+}
+
+.warning-badge {
+    font-size: 13px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    color: #ffd24a;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 6px;
+}
+
+.warning-text {
+    font-size: 13px;
+    line-height: 1.45;
+    color: rgba(255, 255, 255, 0.9);
+    margin: 0 0 6px;
+}
+
+.warning-sub {
+    font-size: 12px;
+    line-height: 1.35;
+    color: rgba(255, 255, 255, 0.65);
+    margin: 0;
+}
+
+/* Formulaire */
+.welcome-form {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.welcome-label {
+    font-size: 14px;
+    font-weight: 600;
+    text-align: left;
+    color: rgba(255, 255, 255, 0.9);
+}
+
+.welcome-input-wrap {
+    display: flex;
+    gap: 8px;
+}
+
+.welcome-input {
+    flex: 1;
+    height: 48px;
+    background: rgba(4, 10, 32, 0.85);
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    padding: 0 16px;
+    font-family: inherit;
+    font-size: 17px;
+    font-weight: 700;
+    color: #fff;
+    outline: none;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.welcome-input:focus {
+    border-color: #ffd24a;
+    box-shadow: 0 0 14px rgba(255, 210, 74, 0.35);
+}
+
+.welcome-random-btn {
+    width: 48px;
+    height: 48px;
+    background: rgba(255, 255, 255, 0.08);
+    border: 2px solid rgba(255, 255, 255, 0.18);
+    border-radius: 8px;
+    font-size: 20px;
+    cursor: pointer;
+    transition: background 0.2s, transform 0.15s;
+    display: grid;
+    place-items: center;
+}
+
+.welcome-random-btn:hover {
+    background: rgba(255, 255, 255, 0.18);
+    transform: scale(1.05);
+}
+
+.welcome-submit-btn {
+    margin-top: 8px;
+    height: 52px;
+    border: none;
+    border-radius: 10px;
+    background: linear-gradient(180deg, #ffe03d 0%, #f5b800 100%);
+    color: #0a1030;
+    font-family: var(--font-display, 'Bebas Neue', sans-serif);
+    font-size: 22px;
+    letter-spacing: 2px;
+    cursor: pointer;
+    box-shadow: 0 6px 20px rgba(245, 184, 0, 0.4);
+    transition: transform 0.15s, box-shadow 0.15s, filter 0.15s;
+}
+
+.welcome-submit-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(245, 184, 0, 0.6);
+    filter: brightness(1.06);
+}
+
+.welcome-submit-btn:active {
+    transform: translateY(1px);
+}
