@@ -1,196 +1,157 @@
-# 🎮 FOR2D ROYAL - Battle Royale 2D
+# ⚡ FOR2D ROYAL — Battle Royale 2D Multijoueur
 
-Un jeu de type Battle Royale en 2D inspiré de Fortnite, avec un système de jeu en réseau local.
+**FOR2D ROYAL** est un jeu web Battle Royale 2D en vue du dessus (Top-Down) inspiré de l'univers de *Fortnite*. Développé en HTML5 Canvas et JavaScript moderne, il intègre un moteur de jeu fluide, des graphismes vectoriels soignés, une ambiance sonore spatiale et un système **multijoueur temps réel en WebSocket** propulsé par **Node.js**.
 
-![Version](https://img.shields.io/badge/version-0.1.0--alpha-blue)
-![License](https://img.shields.io/badge/license-MIT-green)
+---
 
-## ✨ Fonctionnalités
+## 🎯 Fonctionnalités Clés
 
-### 🏠 Lobby Style Fortnite
-- **Design moderne** avec dégradés bleus et effets néon cyan
-- **4 emplacements joueurs** avec plateformes illuminées
-- **Système de statut** (Ready/Not Ready)
-- **Chat en temps réel** pour communiquer avec les autres joueurs
-- **Informations de saison** et progression de niveau
-- **Interface responsive** et animations fluides
+### 🕹️ Gameplay Battle Royale Complet
+- **Largage Aérien & Planeur** : Départ synchronisé dans le vaisseau de transport avec trajectoire commune, phase de chute libre et déploiement du planeur.
+- **Carte Procédurale & Bâtiments** : Génération de terrain par bruit de Perlin (biomes herbe, sable, eau, toits traversables et intérieurs masqués).
+- **Arsenal & Butin** : 
+  - Armes par raretés (Fusil d'assaut, Fusil à pompe, Sniper, Pistolet-mitrailleur, Lance-roquettes, Pioche).
+  - Objets de soin et bouclier (Mini-potions, Grosse potion, Bandages, Kit de soins).
+  - Coffres sonores avec butin animé.
+- **Zone de Corruption (Tempête)** : Rétrécissement progressif en plusieurs phases avec dégâts continus et ambiance sonore dédiée.
+- **Escouades & Réanimation (DBNO)** :
+  - Modes **Solo**, **Duo**, **Trio** et **Section** (1 à 4 joueurs).
+  - Système de K.O. : les joueurs à terre rampent à 4 pattes à vitesse réduite et peuvent être réanimés par leurs alliés.
+  - Indicateurs directionnels à l'écran pointant vers les coéquipiers hors champ.
+- **Bots Intelligents** : IA autonome avec ciblage, ouverture de coffres, suivi d'escouade et repli stratégique en zone sûre.
+- **Mode Spectateur & Écran de Fin** : Statistiques complètes de la partie (éliminations, dégâts, survie, coffres, XP) et caméra spectateur dynamique après élimination.
 
-### 🌐 Système de Réseau Local
-- **Connexion P2P** avec WebRTC (PeerJS)
-- **Créer une partie** et obtenir un code de salle à 6 caractères
-- **Rejoindre une partie** avec le code de salle
-- **Communication en temps réel** entre tous les joueurs du réseau local
-- **Synchronisation** des statuts et messages de chat
+---
 
-### 🎯 Gameplay (À venir)
-- Combat Battle Royale 2D
-- Système d'armes et de matériaux
-- Tempête qui rétrécit
-- Construction de structures
+### 🎨 Casier, Boutique & Cosmétiques
+- **Personnalisation** : Skins de personnages, pioches originales animées, planeurs et sacs à dos.
+- **Boutique d'Objets & Passe de Combat** : Progression par niveaux et acquisition de cosmétiques.
+- **Codes Secrets** : Système de récompenses sécurisé par empreintes cryptographiques `scrypt` côté serveur.
 
-## 🚀 Installation et Lancement
+---
+
+### 🌐 Multijoueur Temps Réel (Node.js + WebSockets)
+- **Codes de Salle à 6 Caractères** : Création instantanée de salon privé, partage par simple code ou lien direct (`https://mon-site.com/#party=CODE`).
+- **Attribution des Rôles** : Gestion d'escouade avec couleur de slot unique (Slot 1 : Cyan, Slot 2 : Jaune, Slot 3 : Rose, Slot 4 : Vert).
+- **Synchronisation Haute Fréquence (20 Hz)** : Déplacements, visée, tirs, largage, réanimations et états de santé relayés instantanément.
+- **Sauvegarde Navigateur (`localStorage`)** :
+  - Aucune base de données complexe requise.
+  - Pop-up de bienvenue lors de la première connexion pour choisir son pseudo de combat avec avertissement sur la persistance locale des données.
+
+---
+
+## 🎮 Commandes de Jeu
+
+### 🏠 Dans le Salon (Lobby)
+| Action | Raccourci |
+|---|---|
+| Changer le statut Prêt / Pas Prêt | `Clic sur PRÊT` ou `Ctrl + Entrée` |
+| Plein écran | `F11` |
+| Ouvrir le Casier / Boutique / Paramètres | `Clic sur les onglets du haut` |
+
+### ⚔️ En Partie
+| Action | Touche / Contrôle |
+|---|---|
+| **Se déplacer** | `Z, Q, S, D` ou `W, A, S, D` ou `Touches Fléchées` |
+| **Viser** | `Souris` (orientation du regard et du réticule) |
+| **Tirer / Frapper** | `Clic gauche` |
+| **Sauter du vaisseau** | `Espace` ou `Clic gauche` |
+| **Interagir / Ramasser / Réanimer** | `E` ou `F` (maintenir pour réanimer un allié K.O.) |
+| **Recharger** | `R` |
+| **Sélectionner un objet** | `1, 2, 3, 4, 5` ou `Molette de la souris` |
+| **Inventaire détaillé** | `I` ou `Clic molette` |
+| **Ouvrir la Carte** | `M` ou `Tab` |
+| **Couper / Activer le son** | `N` |
+| **Menu des Paramètres** | `P` ou `Échap` |
+
+---
+
+## 🚀 Installation & Lancement en Local
 
 ### Prérequis
-- Un navigateur web moderne (Chrome, Firefox, Edge, Safari)
-- Connexion au même réseau local pour le mode multijoueur
+- [Node.js](https://nodejs.org/) (version 18 ou supérieure recommandée).
 
-### Lancement
-1. Ouvrez le fichier `index.html` dans votre navigateur
-2. Vous arrivez directement dans le lobby
+### Étapes
+1. Ouvrez un terminal dans le dossier du jeu :
+   ```bash
+   npm install
+   ```
+2. Démarrez le serveur :
+   ```bash
+   npm start
+   ```
+3. Ouvrez votre navigateur sur :
+   - Sur votre ordinateur : `http://localhost:3000`
+   - Depuis un autre appareil sur le même réseau WiFi : `http://VOTRE_IP_LOCALE:3000`
 
-### Mode Réseau Local
+---
 
-#### Créer une partie (Hôte)
-1. Cliquez sur le bouton **"🏠 Créer une partie"**
-2. Un code de salle à 6 caractères s'affiche
-3. Partagez ce code avec vos amis sur le même réseau
+## ☁️ Déploiement sur Hostinger (Plan Business Node.js)
 
-#### Rejoindre une partie
-1. Cliquez sur le bouton **"🔗 Rejoindre"**
-2. Entrez le code de salle à 6 caractères
-3. Cliquez sur **"Rejoindre"**
+Le serveur est nativement configuré pour écouter sur `process.env.PORT` et gérer simultanément les requêtes Web et WebSocket derrière le reverse proxy d'Hostinger.
+
+### Étapes de configuration sur Hostinger :
+1. **Téléversez les fichiers** dans le répertoire de votre site (via le Gestionnaire de Fichiers, FTP ou Git).
+2. Dans le panneau de contrôle **hPanel**, ouvrez la section **Node.js** :
+   - **Version de Node.js** : Sélectionnez **Node.js 18.x** ou **20.x**.
+   - **Application root** : Le dossier contenant votre jeu (ex. `public_html`).
+   - **Application startup file** : `server/server.js`.
+3. Cliquez sur **NPM Install** pour installer la dépendance `ws`.
+4. Cliquez sur **Start / Restart Application**.
+5. Votre jeu est immédiatement accessible en `https://` avec le multijoueur actif sur `wss://` !
+
+---
 
 ## 📁 Structure du Projet
 
 ```
 For2DRoyal/
-├── index.html              # Page principale
-├── game.js                 # Logique de jeu (ancien, à refactoriser)
-├── style.css               # Styles anciens (à supprimer)
+├── index.html              # Interface du salon (Lobby, Casier, Boutique, Salon multijoueur)
+├── game.html               # Fenêtre de jeu Canvas et affichage HUD
+├── package.json            # Configuration du projet et dépendances Node.js (ws)
+├── README.md               # Documentation officielle du projet
 │
-├── css/
-│   ├── main.css           # Styles globaux et variables
-│   └── lobby.css          # Styles spécifiques au lobby
+├── css/                    # Feuilles de style modulaires
+│   ├── welcome.css         # Pop-up d'accueil et enregistrement du pseudo
+│   ├── lobby.css           # Design du salon, podiums et options multijoueur
+│   ├── game.css            # Styles du HUD de combat, inventaire et zone
+│   ├── mode-selector.css   # Sélecteur de mode (Solo, Duo, Trio, Section)
+│   ├── cosmetics.css       # Casier et prévisualisation des skins
+│   ├── shop.css            # Boutique d'objets
+│   ├── battlepass.css      # Passe de combat
+│   └── settings.css        # Panneau des paramètres audio et gameplay
 │
-├── js/
-│   ├── main.js            # Point d'entrée de l'application
-│   ├── lobby.js           # Gestion du lobby et des joueurs
-│   ├── network.js         # Système de réseau P2P
-│   └── game.js            # Logique du jeu (à créer)
+├── js/                     # Logique applicative et client Web
+│   ├── network.js          # Gestionnaire de réseau WebSocket & session locale
+│   ├── lobby.js            # Contrôleur d'interface du salon
+│   ├── cosmetics.js        # Définition des skins, pioches, sacs et planeurs
+│   ├── sfx.js              # Moteur audio synthétique (Web Audio API)
+│   ├── settings.js         # Paramètres utilisateur
+│   │
+│   └── game/               # Moteur de jeu Battle Royale
+│       ├── main.js         # Boucle de jeu principale et synchronisation multijoueur
+│       ├── player.js       # Physique et déplacements du joueur
+│       ├── drop.js         # Vaisseau de largage, trajectoire et planeur
+│       ├── combat.js       # Balistique, tirs, dégâts et système K.O./réanimation
+│       ├── bots.js         # Intelligence artificielle et gestion des escouades bots
+│       ├── world.js        # Générateur procédural de l'île
+│       ├── loot.js         # Coffres, apparitions d'armes et ramassage
+│       ├── corruption.js   # Gestion de la tempête (zone toxique)
+│       ├── hud.js          # Affichage tête haute, boussole et minimap
+│       ├── draw.js         # Rendu Canvas 2D (personnages, ombres, armes)
+│       └── weapons.js      # Statistiques des armes et objets de soin
 │
-├── assets/                 # Images et ressources (à ajouter)
-└── server/                 # Scripts serveur optionnels
+├── server/                 # Serveur Node.js
+│   ├── server.js           # Serveur HTTP statique + passerelle WebSocket
+│   ├── rooms.js            # Gestionnaire des salles, codes de partie et relais d'état
+│   ├── codes.js            # Liste des empreintes scrypt pour les codes cadeaux
+│   └── hash-code.js        # Utilitaire pour générer de nouveaux codes cadeaux
+│
+└── assets/                 # Ressources graphiques et sonores
 ```
-
-## 🎮 Contrôles
-
-### Dans le Lobby
-- **Clic sur READY** - Changer votre statut
-- **Ctrl + Enter** - Toggle Ready/Not Ready
-- **F11** - Plein écran
-- **ESC** - Menu (à venir)
-
-### Dans le Jeu (À implémenter)
-- **Q/D ou ←/→** - Déplacement
-- **Z ou ↑ ou Espace** - Sauter
-- **E ou Clic souris** - Tirer
-- **1-5** - Changer d'arme
-
-## 🔧 Technologies Utilisées
-
-- **HTML5** - Structure
-- **CSS3** - Design et animations
-- **JavaScript (Vanilla)** - Logique applicative
-- **PeerJS** - Connexions P2P WebRTC
-- **Canvas API** - Rendu du jeu
-
-## 🌐 Système de Réseau
-
-Le jeu utilise **PeerJS** qui implémente WebRTC pour établir des connexions peer-to-peer entre les joueurs. 
-
-### Comment ça marche ?
-1. L'hôte crée une partie et génère un code de salle
-2. Le code est stocké dans le `localStorage` pour la découverte locale
-3. Les autres joueurs sur le même réseau peuvent rejoindre avec ce code
-4. Les connexions sont établies directement entre les navigateurs (P2P)
-5. Toutes les données de jeu transitent directement entre les joueurs
-
-### Avantages
-- ✅ Pas besoin de serveur dédié
-- ✅ Faible latence (connexion directe)
-- ✅ Fonctionne sur réseau local
-- ✅ Gratuit et open-source
-
-### Limitations
-- ⚠️ Nécessite que tous les joueurs soient sur le même réseau
-- ⚠️ Le navigateur doit supporter WebRTC
-- ⚠️ Connexion Internet requise pour le serveur de signaling PeerJS
-
-## 🎨 Personnalisation
-
-### Modifier les couleurs
-Éditez les variables CSS dans `css/main.css` :
-
-```css
-:root {
-    --primary-bg: #0a1428;
-    --accent-cyan: #00d9ff;
-    --accent-blue: #1e90ff;
-    /* ... */
-}
-```
-
-### Ajouter des personnages
-Les personnages sont dans `.character-body`. Modifiez les gradients dans `lobby.css`.
-
-## 🐛 Dépannage
-
-### Le réseau ne fonctionne pas
-- Vérifiez que tous les joueurs sont sur le même réseau WiFi
-- Assurez-vous que PeerJS se charge (vérifiez la console)
-- Essayez de rafraîchir la page
-- Vérifiez que votre pare-feu ne bloque pas WebRTC
-
-### Les animations sont saccadées
-- Fermez les autres onglets du navigateur
-- Désactivez les extensions qui peuvent ralentir la page
-- Essayez un autre navigateur
-
-### Le code de salle ne fonctionne pas
-- Le code est sensible à la casse
-- Vérifiez qu'il contient exactement 6 caractères
-- L'hôte doit avoir créé la partie avant que vous rejoigniez
-
-## 📝 TODO
-
-- [ ] Implémenter le gameplay complet
-- [ ] Ajouter des sons et effets audio
-- [ ] Créer un système de skins pour les personnages
-- [ ] Ajouter un lobby vocal
-- [ ] Implémenter le système de construction
-- [ ] Optimiser les performances réseau
-- [ ] Ajouter un mode solo contre IA
-- [ ] Créer un système de replay
-
-## 👥 Développement
-
-### Contribuer
-Les contributions sont les bienvenues ! N'hésitez pas à :
-1. Fork le projet
-2. Créer une branche pour votre fonctionnalité
-3. Commiter vos changements
-4. Pusher vers la branche
-5. Ouvrir une Pull Request
-
-### Console de Debug
-Ouvrez la console du navigateur (F12) pour voir les logs de réseau et de jeu.
-
-Commandes utiles :
-```javascript
-FOR2D.version          // Afficher la version
-FOR2D.disconnect()     // Se déconnecter du réseau
-FOR2D.showLobby()      // Retour au lobby
-```
-
-## 📜 Licence
-
-MIT License - Libre d'utilisation et de modification
-
-## 🙏 Crédits
-
-Inspiré par Fortnite (Epic Games)  
-Développé avec ❤️ pour l'apprentissage et le fun
 
 ---
 
-**Note** : Ce jeu est un projet éducatif et n'est pas affilié à Epic Games ou Fortnite.
+## 📜 Licence
+
+Ce projet est sous licence MIT. Libre à vous de l'utiliser, le modifier et l'héberger pour jouer entre amis !
