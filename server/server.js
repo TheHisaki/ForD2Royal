@@ -254,6 +254,10 @@ wss.on('connection', (ws) => {
             case 'p_hit':
             case 'p_revive':
             case 'p_kill':
+            case 'b_sync':
+            case 'chest_open':
+            case 'loot_pickup':
+            case 'game_sync':
                 roomManager.relayGameMessage(ws, msg);
                 break;
         }

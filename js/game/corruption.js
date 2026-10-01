@@ -103,7 +103,7 @@ function visibleArc(cx, cy, r, minX, minY, maxX, maxY) {
 /* ===================== CLASSE ===================== */
 
 export class Corruption {
-    constructor(world) {
+    constructor(world, seed = null) {
         this.world = world;
         this.phaseCount = PHASES.length;
         this.state = 'idle';
@@ -114,6 +114,19 @@ export class Corruption {
         this.dps = PHASES[0].dps;
         this.elapsed = 0;
         this.onEvent = null;      // callback optionnel (type, data)
+
+        // RNG seeded pour que tous les joueurs aient les mêmes zones (multijoueur)
+        if (seed != null) {
+            let _a = ((seed + 77777) >>> 0) || 1;
+            this._rng = function () {
+                _a = (_a + 0x6D2B79F5) | 0;
+                let t = Math.imul(_a ^ (_a >>> 15), 1 | _a);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        } else {
+            this._rng = Math.random;
+        }
 
         this._from = { x: this.cur.x, y: this.cur.y, r: this.cur.r }; // cercle au début de l'avancée
         this._timers = new WeakMap(); // minuteur de tick par combattant
@@ -147,8 +160,8 @@ export class Corruption {
         const room = Math.max(0, c.r - r); // distance max entre les deux centres
         let fallback = null;
         for (let i = 0; i < CENTER_TRIES; i++) {
-            const a = Math.random() * TAU;
-            const d = Math.sqrt(Math.random()) * room; // répartition uniforme dans le disque
+            const a = this._rng() * TAU;
+            const d = Math.sqrt(this._rng()) * room; // répartition uniforme dans le disque
             const x = c.x + Math.cos(a) * d;
             const y = c.y + Math.sin(a) * d;
             if (!fallback) fallback = { x, y, r };

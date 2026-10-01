@@ -50,6 +50,22 @@ function start() {
         if (stored) gameConfig = { ...gameConfig, ...JSON.parse(stored) };
     } catch { /* config par défaut */ }
 
+    // Paramètres d'URL prioritaires (garantit que chaque onglet/joueur a ses propres identifiants en multi)
+    const urlParams = new URLSearchParams(window.location.search);
+    const roomParam = urlParams.get('room');
+    const slotParam = urlParams.get('slot');
+    const pidParam = urlParams.get('pid');
+    if (roomParam) {
+        gameConfig.isMultiplayer = true;
+        gameConfig.roomCode = roomParam;
+    }
+    if (slotParam) {
+        gameConfig.mySlot = parseInt(slotParam, 10);
+    }
+    if (pidParam) {
+        gameConfig.myPlayerId = pidParam;
+    }
+
     // Règle de cohérence stricte : déduire teamSize si mode est duo/trio/section
     const m = (gameConfig.mode || gameConfig.modeName || '').toLowerCase();
     if (m.includes('duo')) gameConfig.teamSize = 2;
@@ -60,12 +76,32 @@ function start() {
     const teamSize = gameConfig.teamSize;
     const teamMode = teamSize > 1;
 
+    /* ----- Aléatoire synchronisé en multijoueur -----
+       En mode multijoueur, la graine (seed) envoyée par le serveur est partagée
+       par tous les joueurs de la salle. On remplace temporairement Math.random
+       par un générateur déterministe pendant l'initialisation du monde, du butin
+       et des bots : même graine = mêmes coffres, mêmes bots, mêmes noms,
+       mêmes équipes, mêmes points d'atterrissage sur TOUS les clients.
+       Après l'initialisation, Math.random redevient normal (effets visuels, IA runtime). */
+    const _realRandom = Math.random;
+    const gameSeed = gameConfig.seed || Date.now();
+    {
+        // Générateur Mulberry32 (rapide, bon cycle, identique à noise.js)
+        let _a = (gameSeed >>> 0) || 1;
+        Math.random = function seededRandom() {
+            _a = (_a + 0x6D2B79F5) | 0;
+            let t = Math.imul(_a ^ (_a >>> 15), 1 | _a);
+            t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+            return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+        };
+    }
+
     const world = generateWorld();
-    const loot = new Loot(world); // coffres (ajoutés aux obstacles) + butin au sol
+    const loot = new Loot(world, gameSeed); // coffres (ajoutés aux obstacles) + butin au sol
     const effects = new Effects();
 
     // Départ dans le vaisseau (trajet synchronisé par la graine en multijoueur)
-    const drop = new Drop(gameConfig.seed);
+    const drop = new Drop(gameSeed);
     const player = new Player(drop.ship.x, drop.ship.y);
     player.phase = 'ship';
     player.team = 1;
@@ -95,6 +131,7 @@ function start() {
 
     // Multijoueur WebSocket : détection et initialisation des coéquipiers réels
     const isMultiplayer = Boolean(gameConfig.isMultiplayer && gameConfig.roomCode);
+    const isHost = Boolean(gameConfig.isHost || gameConfig.mySlot === 1 || (gameConfig.roomPlayers && gameConfig.roomPlayers[0]?.id === gameConfig.myPlayerId));
     const remotePlayersMap = new Map();
     const myTeam = gameConfig.myTeam || 1;
     player.team = myTeam;
@@ -157,6 +194,7 @@ function start() {
 
     let gameWs = null;
     let lastNetSync = 0;
+    let lastBotSync = 0;
 
     // Volume des sons d'action : plein pour le joueur, un peu moins pour les bots
     const actionVol = (f) => (f === player ? 1 : BOT_VOL);
@@ -183,6 +221,14 @@ function start() {
                         mx, my
                     }));
                 }
+            } else if (isMultiplayer && isHost && f.isBot && gameWs && gameWs.readyState === WebSocket.OPEN) {
+                gameWs.send(JSON.stringify({
+                    type: 'p_action',
+                    action: 'bot_fire',
+                    botId: f.id,
+                    weaponId: w.id,
+                    mx, my
+                }));
             }
         },
         onImpact(x, y, angle, kind, target) {
@@ -218,6 +264,15 @@ function start() {
                 pendingDamage.set(victim, d);
                 hitmarker.t = 1;
                 hitmarker.kill = false;
+
+                if (isMultiplayer && !isHost && gameWs && gameWs.readyState === WebSocket.OPEN) {
+                    gameWs.send(JSON.stringify({
+                        type: 'p_hit',
+                        targetId: victim.id,
+                        damage: amount,
+                        weaponId
+                    }));
+                }
             }
             if (victim === player) {
                 SFX.play('hurt');
@@ -250,6 +305,16 @@ function start() {
             }
             loot.dropAll(victim);
             combatHud?.addKill(killer, victim, weaponId);
+
+            if (isMultiplayer && isHost && gameWs && gameWs.readyState === WebSocket.OPEN) {
+                gameWs.send(JSON.stringify({
+                    type: 'p_action',
+                    action: 'bot_kill',
+                    victimId: victim.id,
+                    killerId: killer ? killer.id : null,
+                    weaponId
+                }));
+            }
 
             if (killer === player && victim !== player) {
                 SFX.play('killConfirm');
@@ -309,15 +374,31 @@ function start() {
     loot.onChestOpen = (c, f) => {
         effects.chestOpen(c.x, c.y);
         SFX.play('chest', { x: c.x, y: c.y });
-        if (f === player) stats.chests++;
+        if (f === player) {
+            stats.chests++;
+            if (isMultiplayer && gameWs && gameWs.readyState === WebSocket.OPEN) {
+                gameWs.send(JSON.stringify({
+                    type: 'p_action',
+                    action: 'chest_open',
+                    chestId: c.id
+                }));
+            }
+        }
     };
     loot.onPickup = (f, item, color) => {
         effects.pickup(item.x, item.y, color);
         SFX.play('pickup', { x: item.x, y: item.y, kind: item.kind });
+        if (f === player && isMultiplayer && gameWs && gameWs.readyState === WebSocket.OPEN && typeof item.id === 'number') {
+            gameWs.send(JSON.stringify({
+                type: 'p_action',
+                action: 'loot_pickup',
+                itemId: item.id
+            }));
+        }
     };
 
     // La corruption (zone qui rétrécit) : démarre quand le vaisseau a fini ou que le joueur a atterri
-    const corruption = new Corruption(world);
+    const corruption = new Corruption(world, gameSeed);
     corruption.onEvent = (type) => {
         if (type === 'warn') SFX.play('zoneWarn');
         else if (type === 'shrink') SFX.play('zoneShrink');
@@ -326,8 +407,14 @@ function start() {
     const bots = new BotManager({
         world, drop, loot, combat, fighters,
         count: teamMode ? 23 : BOT_COUNT,
-        corruption, teamSize, player
+        corruption, teamSize, player,
+        isGuest: isMultiplayer && !isHost
     });
+
+    // ----- Fin de l'initialisation déterministe -----
+    // Restaurer Math.random pour que l'IA, les effets visuels et les sons
+    // restent naturels (non prédictibles) pendant la partie.
+    Math.random = _realRandom;
 
     const canvas = document.getElementById('gameCanvas');
     renderer = new Renderer(canvas, world);
@@ -515,7 +602,30 @@ function start() {
             gameWs.addEventListener('message', (event) => {
                 try {
                     const msg = JSON.parse(event.data);
-                    if (msg.type === 'p_state' && msg.id && msg.id !== gameConfig.myPlayerId) {
+                    if (msg.type === 'room_joined') {
+                        console.log(`[Multiplayer] Connecté à la salle ${msg.roomCode} (slot ${msg.slot})`);
+                    } else if (msg.type === 'b_sync' && !isHost && Array.isArray(msg.bots)) {
+                        for (const bData of msg.bots) {
+                            const [id, bx, by, bangle, hp, sh, bphase, bdbno, balive] = bData;
+                            const b = bots.bots.find(bot => bot.id === id);
+                            if (b) {
+                                if (bphase && b.phase !== bphase) b.phase = bphase;
+                                b.x = bx;
+                                b.y = by;
+                                b.angle = bangle;
+                                b.health = hp;
+                                b.shield = sh;
+                                b.dbno = Boolean(bdbno);
+                                b.alive = Boolean(balive);
+                            }
+                        }
+                    } else if (msg.type === 'p_hit' && isHost && msg.targetId) {
+                        const victim = fighters.find(f => f.id === msg.targetId);
+                        if (victim && victim.alive) {
+                            const mate = remotePlayersMap.get(msg.id) || player;
+                            combat.damage(victim, msg.damage || 20, mate, false, msg.weaponId || 'ar');
+                        }
+                    } else if (msg.type === 'p_state' && msg.id && msg.id !== gameConfig.myPlayerId) {
                         let mate = remotePlayersMap.get(msg.id);
                         if (!mate) {
                             mate = new Player(msg.x || drop.ship.x, msg.y || drop.ship.y);
@@ -564,6 +674,35 @@ function start() {
                             } else {
                                 if (!hidden) effects.muzzle(mate.x + Math.cos(mate.angle) * 20, mate.y + Math.sin(mate.angle) * 20, mate.angle, msg.weaponId || 'ar');
                                 SFX.play('shot', { x: mate.x, y: mate.y, weapon: msg.weaponId || 'ar' });
+                            }
+                        } else if (msg.action === 'chest_open' && typeof msg.chestId === 'number') {
+                            const c = loot.chests[msg.chestId];
+                            if (c && !c.opened) {
+                                loot.openChest(c, mate || null);
+                            }
+                        } else if (msg.action === 'loot_pickup' && typeof msg.itemId === 'number') {
+                            const it = loot.items.find(item => item.id === msg.itemId);
+                            if (it && !it.gone) {
+                                loot._remove(it);
+                                effects.pickup(it.x, it.y, loot._itemColor(it));
+                            }
+                        } else if (msg.action === 'bot_fire' && !isHost && msg.botId) {
+                            const b = bots.bots.find(bot => bot.id === msg.botId);
+                            if (b && b.alive) {
+                                const hidden = roofAlphaAt(world, b.x, b.y) > 0.5;
+                                if (!hidden) effects.muzzle(b.x + Math.cos(b.angle) * 20, b.y + Math.sin(b.angle) * 20, b.angle, msg.weaponId || 'ar');
+                                SFX.play('shot', { x: b.x, y: b.y, weapon: msg.weaponId || 'ar' });
+                            }
+                        } else if (msg.action === 'bot_kill' && !isHost && msg.victimId) {
+                            const victim = fighters.find(f => f.id === msg.victimId);
+                            const killer = fighters.find(f => f.id === msg.killerId);
+                            if (victim && victim.alive) {
+                                victim.alive = false;
+                                victim.health = 0;
+                                victim.dbno = false;
+                                effects.death(victim.x, victim.y, victim.colors);
+                                SFX.play('eliminate', { x: victim.x, y: victim.y });
+                                combatHud?.addKill(killer, victim, msg.weaponId || 'ar');
                             }
                         } else if (msg.action === 'revive_done' && msg.targetId) {
                             const target = (msg.targetId === gameConfig.myPlayerId) ? player : fighters.find(f => f.id === msg.targetId);
@@ -1229,6 +1368,33 @@ function start() {
                 dbno: !!player.dbno,
                 dbnoTimer: player.dbnoTimer || 0
             }));
+        }
+
+        // Synchronisation des bots par l'hôte (8 Hz)
+        if (isMultiplayer && isHost && gameWs && gameWs.readyState === WebSocket.OPEN && (now - lastBotSync > 125)) {
+            lastBotSync = now;
+            const bData = [];
+            for (const b of bots.bots) {
+                if (b.alive || b.dbno) {
+                    bData.push([
+                        b.id,
+                        Math.round(b.x),
+                        Math.round(b.y),
+                        Math.round(b.angle * 100) / 100,
+                        Math.round(b.health),
+                        Math.round(b.shield),
+                        b.phase,
+                        b.dbno ? 1 : 0,
+                        b.alive ? 1 : 0
+                    ]);
+                }
+            }
+            if (bData.length > 0) {
+                gameWs.send(JSON.stringify({
+                    type: 'b_sync',
+                    bots: bData
+                }));
+            }
         }
 
         const aim = renderer.screenToWorld(input.mouse.x, input.mouse.y);

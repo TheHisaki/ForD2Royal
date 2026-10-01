@@ -256,7 +256,7 @@ export function roofAlphaAt(world, x, y) {
 /* ===================== GESTIONNAIRE DE BOTS ===================== */
 
 export class BotManager {
-    constructor({ world, drop, loot, combat, fighters, count = 24, corruption, teamSize = 1, player = null }) {
+    constructor({ world, drop, loot, combat, fighters, count = 24, corruption, teamSize = 1, player = null, isGuest = false }) {
         this.world = world;
         this.drop = drop;
         this.loot = loot;
@@ -265,6 +265,7 @@ export class BotManager {
         this.corruption = corruption || null; // peut être absent : tout marche sans zone
         this.player = player || fighters[0];
         this.teamSize = teamSize;
+        this.isGuest = Boolean(isGuest);
         this.bots = [];
         this.playerTeammates = [];
 
@@ -1308,6 +1309,7 @@ export class BotManager {
     /* ----- Tir ----- */
 
     shoot(bot, dt, wantAim) {
+        if (this.isGuest) return; // Seul l'hôte gère les tirs des bots en multijoueur
         const br = bot.brain;
         const t = br.target;
         if (!t || !t.alive || br.react > 0 || br.state === 'flee') return;

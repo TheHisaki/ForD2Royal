@@ -103,6 +103,7 @@ class RoomManager {
         if (candidateId && room.players.has(candidateId)) {
             const existingPlayer = room.players.get(candidateId);
             existingPlayer.ws = ws;
+            existingPlayer.disconnectedAt = null;
             this.playerRooms.set(ws, code);
             ws.playerId = existingPlayer.id;
             console.log(`[Multiplayer] ${existingPlayer.name} (${existingPlayer.id}) reconnecté à la salle ${code} (state: ${room.state})`);
@@ -114,12 +115,52 @@ class RoomManager {
                 mode: room.mode,
                 botFill: room.botFill,
                 slot: existingPlayer.slot,
+                seed: room.seed,
+                state: room.state,
                 players: this.serializePlayers(room)
             });
+
+            if (room.state === 'game') {
+                this.broadcastToRoom(room, {
+                    type: 'player_reconnected',
+                    id: existingPlayer.id,
+                    slot: existingPlayer.slot,
+                    name: existingPlayer.name
+                }, ws);
+            }
             return room;
         }
 
-        if (room.state !== 'lobby') {
+        // Si la partie est déjà lancée : rattachement au slot déconnecté
+        if (room.state === 'game') {
+            const disconnectedPlayer = [...room.players.values()].find(p => (!p.ws || p.ws.readyState !== 1) && (typeof playerData.slot !== 'number' || p.slot === playerData.slot));
+            if (disconnectedPlayer) {
+                console.log(`[Multiplayer] Rattachement au slot ${disconnectedPlayer.slot} (${disconnectedPlayer.name}) pour ${candidateId || 'reconnexion'}`);
+                disconnectedPlayer.ws = ws;
+                disconnectedPlayer.disconnectedAt = null;
+                this.playerRooms.set(ws, code);
+                ws.playerId = disconnectedPlayer.id;
+
+                this.send(ws, {
+                    type: 'room_joined',
+                    roomCode: code,
+                    hostId: room.hostId,
+                    mode: room.mode,
+                    botFill: room.botFill,
+                    slot: disconnectedPlayer.slot,
+                    seed: room.seed,
+                    state: room.state,
+                    players: this.serializePlayers(room)
+                });
+
+                this.broadcastToRoom(room, {
+                    type: 'player_reconnected',
+                    id: disconnectedPlayer.id,
+                    slot: disconnectedPlayer.slot,
+                    name: disconnectedPlayer.name
+                }, ws);
+                return room;
+            }
             return this.send(ws, { type: 'error', message: 'Cette partie a déjà commencé.' });
         }
 
@@ -509,8 +550,33 @@ class RoomManager {
 
         const playerId = ws.playerId;
         const player = room.players.get(playerId);
-        room.players.delete(playerId);
 
+        // IMPORTANT : Si la partie est en cours ('game'), les joueurs changent de page
+        // (index.html -> game.html), ce qui ferme le socket temporairement.
+        // On ne supprime PAS le joueur ni la salle tout de suite pour permettre la reconnexion !
+        if (room.state === 'game') {
+            if (player) {
+                player.ws = null;
+                player.disconnectedAt = Date.now();
+            }
+            console.log(`[Multiplayer] Joueur ${playerId || 'inconnu'} déconnecté temporairement de la partie ${code}`);
+
+            // Si tous les joueurs sont déconnectés pendant plus de 3 minutes, nettoyer la salle
+            if (!room.cleanupTimer) {
+                room.cleanupTimer = setTimeout(() => {
+                    const anyConnected = [...room.players.values()].some(p => p.ws && p.ws.readyState === 1);
+                    if (!anyConnected) {
+                        console.log(`[Multiplayer] Salle ${code} fermée après inactivité prolongée en jeu`);
+                        this.rooms.delete(code);
+                    } else {
+                        room.cleanupTimer = null;
+                    }
+                }, 180000);
+            }
+            return;
+        }
+
+        room.players.delete(playerId);
         console.log(`[Multiplayer] Joueur ${playerId} a quitté la salle ${code}`);
 
         if (room.players.size === 0) {

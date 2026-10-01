@@ -414,6 +414,7 @@ class NetworkManager {
             mySlot: this.slot,
             myPlayerId: this.getPlayerId(),
             myTeam: msg.myTeam || 1,
+            isHost: !!this.isHost,
             roomPlayers: msg.players || this.roomPlayers
         };
 
@@ -427,7 +428,8 @@ class NetworkManager {
         }
 
         setTimeout(() => {
-            window.location.href = `game.html?room=${msg.roomCode}`;
+            const pid = encodeURIComponent(this.getPlayerId());
+            window.location.href = `game.html?room=${msg.roomCode}&slot=${this.slot}&pid=${pid}`;
         }, 1200);
     }
 

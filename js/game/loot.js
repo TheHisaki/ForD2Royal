@@ -176,8 +176,9 @@ class PointGrid {
 /* ===================== BUTIN ===================== */
 
 export class Loot {
-    constructor(world) {
+    constructor(world, seed = null) {
         this.world = world;
+        this.seed = seed;
         this.chests = [];
         this.items = [];
         this._nextItem = 1;
@@ -456,6 +457,17 @@ export class Loot {
         this._opening.push(chest);
         this.onChestOpen?.(chest, f); // effets visuels (branchés par le jeu)
 
+        const prevRand = Math.random;
+        if (this.seed != null) {
+            let _a = ((this.seed + chest.id * 10007) >>> 0) || 1;
+            Math.random = function() {
+                _a = (_a + 0x6D2B79F5) | 0;
+                let t = Math.imul(_a ^ (_a >>> 15), 1 | _a);
+                t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+                return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+            };
+        }
+
         const weapon = this.rollWeapon(1);
         const loot = [weapon, this._ammoFor(weapon.weaponId), this.rollHeal()].filter(Boolean);
         const base = f ? Math.atan2(f.y - chest.y, f.x - chest.x) : chest.rot + Math.PI / 2;
@@ -464,6 +476,11 @@ export class Loot {
             const p = this._spot(chest.x, chest.y, a, chest.r + 34);
             this._spawn(data, p.x, p.y, chest.x, chest.y);
         });
+
+        if (this.seed != null) {
+            Math.random = prevRand;
+        }
+
         return true;
     }
 
