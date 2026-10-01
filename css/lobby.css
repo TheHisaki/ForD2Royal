@@ -1188,19 +1188,34 @@
     display: flex;
 }
 
-/* Couronne animée du chef de groupe */
+/* Boîte pour le nom du joueur et la couronne au-dessus */
+.player-name-box {
+    position: relative;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    max-width: 100%;
+}
+
+/* Couronne animée du chef de groupe : centrée au-dessus du pseudo quelle que soit sa longueur */
 .party-leader-crown {
-    display: inline-block;
-    margin-left: 6px;
-    font-size: 1.15em;
-    filter: drop-shadow(0 0 6px rgba(255, 215, 0, 0.75));
-    vertical-align: middle;
-    animation: crownFloat 2s ease-in-out infinite alternate;
+    position: absolute;
+    bottom: calc(100% + 4px);
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 1.6em;
+    line-height: 1;
+    filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.95)) drop-shadow(0 2px 5px rgba(0, 0, 0, 0.8));
+    pointer-events: none;
+    z-index: 10;
+    user-select: none;
+    animation: crownFloat 2.2s ease-in-out infinite alternate;
 }
 
 @keyframes crownFloat {
-    0% { transform: translateY(0) rotate(-3deg); }
-    100% { transform: translateY(-3px) rotate(3deg); }
+    0% { transform: translateX(-50%) translateY(0) rotate(-4deg) scale(1); }
+    100% { transform: translateX(-50%) translateY(-6px) rotate(4deg) scale(1.08); }
 }
 
 .squad-fill-section { padding: 12px 16px; }

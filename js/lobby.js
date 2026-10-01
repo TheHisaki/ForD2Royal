@@ -966,7 +966,9 @@ class LobbyManager {
                 const nameElement = slot.querySelector('.player-name');
                 const statusElement = slot.querySelector('.player-status');
                 const muteBtn = slot.querySelector('.mute-btn');
+                const crown = slot.querySelector('.party-leader-crown');
                 
+                if (crown) crown.style.display = 'none';
                 if (nameElement) nameElement.textContent = 'Inviter';
                 if (statusElement) {
                     statusElement.textContent = '-';
@@ -994,7 +996,35 @@ class LobbyManager {
                     : (index === 0);
 
                 if (nameElement) {
-                    nameElement.innerHTML = `${player.name}${isLeader ? ' <span class="party-leader-crown" title="Chef du groupe">👑</span>' : ''}`;
+                    nameElement.textContent = player.name;
+                    nameElement.title = player.name;
+
+                    // Assurer l'existence du conteneur .player-name-box
+                    let box = nameElement.parentElement;
+                    if (!box || !box.classList.contains('player-name-box')) {
+                        box = document.createElement('div');
+                        box.className = 'player-name-box';
+                        nameElement.parentNode.insertBefore(box, nameElement);
+                        box.appendChild(nameElement);
+                    }
+
+                    // Couronne du chef de groupe : au-dessus et centrée sur le pseudo
+                    let crown = box.querySelector('.party-leader-crown') || slots[index].querySelector('.party-leader-crown');
+                    if (isLeader) {
+                        if (!crown) {
+                            crown = document.createElement('span');
+                            crown.className = 'party-leader-crown';
+                            crown.setAttribute('title', 'Chef du groupe');
+                            crown.setAttribute('aria-label', 'Chef du groupe');
+                            crown.textContent = '👑';
+                            box.insertBefore(crown, nameElement);
+                        } else if (crown.parentElement !== box) {
+                            box.insertBefore(crown, nameElement);
+                        }
+                        crown.style.display = '';
+                    } else if (crown) {
+                        crown.style.display = 'none';
+                    }
                 }
                 if (statusElement) {
                     statusElement.textContent = player.ready ? 'Prêt' : 'Pas prêt';

@@ -45,14 +45,6 @@ class GameApplication {
             console.error('Erreur globale:', e.error);
         });
 
-        // Prévenir la fermeture accidentelle
-        window.addEventListener('beforeunload', (e) => {
-            if (window.networkManager && window.networkManager.isConnected()) {
-                e.preventDefault();
-                e.returnValue = 'Vous êtes connecté à une partie. Voulez-vous vraiment quitter?';
-            }
-        });
-
         // Raccourcis clavier
         document.addEventListener('keydown', (e) => {
             this.handleGlobalKeyPress(e);
