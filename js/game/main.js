@@ -46,7 +46,7 @@ const FIRE_SHAKE = { pistol: 1.5, smg: 1.2, ar: 2, shotgun: 6, sniper: 8 };
 function start() {
     let gameConfig = { mode: 'solo', modeName: 'SOLO', teamSize: 1, bots: true };
     try {
-        const stored = localStorage.getItem('for2d-game-mode');
+        const stored = sessionStorage.getItem('for2d-game-mode') || localStorage.getItem('for2d-game-mode');
         if (stored) gameConfig = { ...gameConfig, ...JSON.parse(stored) };
     } catch { /* config par défaut */ }
 
@@ -55,6 +55,8 @@ function start() {
     const roomParam = urlParams.get('room');
     const slotParam = urlParams.get('slot');
     const pidParam = urlParams.get('pid');
+    const seedParam = urlParams.get('seed');
+    const modeParam = urlParams.get('mode');
     if (roomParam) {
         gameConfig.isMultiplayer = true;
         gameConfig.roomCode = roomParam;
@@ -64,6 +66,21 @@ function start() {
     }
     if (pidParam) {
         gameConfig.myPlayerId = pidParam;
+    }
+    if (seedParam) {
+        gameConfig.seed = parseInt(seedParam, 10);
+    }
+    if (modeParam) {
+        gameConfig.mode = modeParam;
+        gameConfig.modeName = modeParam.toUpperCase();
+    }
+
+    // Récupérer la liste des joueurs de la salle depuis sessionStorage / localStorage si manquante
+    if (!Array.isArray(gameConfig.roomPlayers) || gameConfig.roomPlayers.length === 0) {
+        try {
+            const rawRP = sessionStorage.getItem('for2d-room-players') || localStorage.getItem('for2d-room-players');
+            if (rawRP) gameConfig.roomPlayers = JSON.parse(rawRP);
+        } catch { /* ignore */ }
     }
 
     // Règle de cohérence stricte : déduire teamSize si mode est duo/trio/section
@@ -404,11 +421,16 @@ function start() {
         else if (type === 'shrink') SFX.play('zoneShrink');
     };
 
+    // En multijoueur : interdire les bots alliés si on a lancé en groupe avec un ami
+    const roomPlayersCount = Array.isArray(gameConfig.roomPlayers) ? gameConfig.roomPlayers.length : 0;
+    const allowBotTeammates = !isMultiplayer || (teamSize > 1 && roomPlayersCount <= 1 && !gameConfig.roomCode);
+
     const bots = new BotManager({
         world, drop, loot, combat, fighters,
         count: teamMode ? 23 : BOT_COUNT,
         corruption, teamSize, player,
-        isGuest: isMultiplayer && !isHost
+        isGuest: isMultiplayer && !isHost,
+        allowBotTeammates
     });
 
     // ----- Fin de l'initialisation déterministe -----
@@ -599,11 +621,74 @@ function start() {
                 }));
             });
 
+            function syncRoomPlayers(playersList) {
+                if (!Array.isArray(playersList)) return;
+                let changed = false;
+                for (const rp of playersList) {
+                    if (!rp || !rp.id || rp.id === gameConfig.myPlayerId) continue;
+                    let mate = remotePlayersMap.get(rp.id);
+                    if (!mate) {
+                        mate = new Player(drop.ship.x, drop.ship.y);
+                        mate.id = rp.id;
+                        mate.name = rp.name || 'Coéquipier';
+                        mate.team = 1;
+                        mate.squadSlot = rp.slot || 2;
+                        mate.isRemote = true;
+                        mate.phase = (player.phase === 'ground') ? 'ground' : 'ship';
+
+                        const skinId = (typeof rp.skin === 'string' ? rp.skin : rp.skin?.id) || 'recrue';
+                        const s = getSkin?.(skinId);
+                        if (s?.game) {
+                            mate.colors = { ...mate.colors, ...s.game };
+                            mate.skinStyle = s.style || 'default';
+                        }
+                        if (rp.colors) {
+                            mate.colors = { ...mate.colors, ...rp.colors };
+                        }
+                        if (rp.backpack) {
+                            const bp = getItem?.(rp.backpack);
+                            if (bp?.color) mate.colors.pack = bp.color;
+                        }
+                        if (rp.pickaxeSkin) {
+                            mate.pickaxeSkin = rp.pickaxeSkin;
+                        }
+
+                        remotePlayersMap.set(rp.id, mate);
+                        fighters.push(mate);
+                        changed = true;
+                        console.log(`[Multiplayer] Coéquipier réel connecté: ${mate.name} (slot ${mate.squadSlot})`);
+                    } else {
+                        if (rp.name && mate.name !== rp.name) { mate.name = rp.name; changed = true; }
+                        if (rp.slot && mate.squadSlot !== rp.slot) { mate.squadSlot = rp.slot; changed = true; }
+                    }
+                }
+
+                // Si nous avons notre coéquipier réel humain dans l'équipe, supprimer tout bot coéquipier parasite
+                const humanTeammates = fighters.filter(f => !f.isBot && f.team === 1);
+                if (humanTeammates.length >= teamSize || humanTeammates.length > 1) {
+                    bots.removePlayerTeammates();
+                    changed = true;
+                }
+
+                if (changed) {
+                    updateSquadHud();
+                }
+            }
+
             gameWs.addEventListener('message', (event) => {
                 try {
                     const msg = JSON.parse(event.data);
                     if (msg.type === 'room_joined') {
                         console.log(`[Multiplayer] Connecté à la salle ${msg.roomCode} (slot ${msg.slot})`);
+                        if (Array.isArray(msg.players)) {
+                            syncRoomPlayers(msg.players);
+                        }
+                    } else if (msg.type === 'player_reconnected' || msg.type === 'player_joined') {
+                        if (msg.player) {
+                            syncRoomPlayers([msg.player]);
+                        } else if (msg.id) {
+                            syncRoomPlayers([msg]);
+                        }
                     } else if (msg.type === 'b_sync' && !isHost && Array.isArray(msg.bots)) {
                         for (const bData of msg.bots) {
                             const [id, bx, by, bangle, hp, sh, bphase, bdbno, balive] = bData;
@@ -632,15 +717,20 @@ function start() {
                             mate.id = msg.id;
                             mate.name = msg.name || 'Coéquipier';
                             mate.team = 1;
-                            mate.squadSlot = msg.slot || 2;
+                            mate.squadSlot = msg.squadSlot || msg.slot || 2;
                             mate.isRemote = true;
                             remotePlayersMap.set(msg.id, mate);
                             fighters.push(mate);
+                            bots.removePlayerTeammates();
+                            updateSquadHud();
                         }
+                        if (msg.name && mate.name !== msg.name) mate.name = msg.name;
+                        if (msg.squadSlot && mate.squadSlot !== msg.squadSlot) mate.squadSlot = msg.squadSlot;
                         if (typeof msg.x === 'number') mate.x = msg.x;
                         if (typeof msg.y === 'number') mate.y = msg.y;
                         if (typeof msg.vx === 'number') mate.vx = msg.vx;
                         if (typeof msg.vy === 'number') mate.vy = msg.vy;
+                        mate.moving = (Math.hypot(msg.vx || 0, msg.vy || 0) > 20);
                         if (typeof msg.angle === 'number') mate.angle = msg.angle;
                         if (msg.phase) mate.phase = msg.phase;
                         if (typeof msg.altitude === 'number') mate.altitude = msg.altitude;
@@ -1355,6 +1445,8 @@ function start() {
             lastNetSync = now;
             gameWs.send(JSON.stringify({
                 type: 'p_state',
+                name: player.name,
+                squadSlot: player.squadSlot,
                 x: Math.round(player.x * 10) / 10,
                 y: Math.round(player.y * 10) / 10,
                 vx: Math.round(player.vx),

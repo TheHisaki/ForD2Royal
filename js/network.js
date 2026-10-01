@@ -9,17 +9,22 @@ const SESSION_KEY = 'for2d-session';
 function getOrInitSession() {
     let session = null;
     try {
-        const raw = localStorage.getItem(SESSION_KEY);
+        const raw = sessionStorage.getItem(SESSION_KEY);
         if (raw) session = JSON.parse(raw);
     } catch { /* parse error */ }
 
     if (!session || !session.playerId) {
+        // Priorité à un ID fourni dans l'URL si présent (ex: game.html?pid=...)
+        const urlPid = (typeof window !== 'undefined') ? new URLSearchParams(window.location.search).get('pid') : null;
         session = {
-            playerId: 'usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36),
+            playerId: urlPid || ('usr_' + Math.random().toString(36).substring(2, 9) + Date.now().toString(36)),
             created: Date.now()
         };
         try {
-            localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+            sessionStorage.setItem(SESSION_KEY, JSON.stringify(session));
+            if (!localStorage.getItem(SESSION_KEY)) {
+                localStorage.setItem(SESSION_KEY, JSON.stringify(session));
+            }
         } catch { /* storage full */ }
     }
     return session;
@@ -401,8 +406,9 @@ class NetworkManager {
             window.lobbyManager.handleMatchmakingStatus?.({ state: 'idle' });
         }
 
-        // Sauvegarder la configuration de la partie dans le localStorage pour game.html
+        // Sauvegarder la configuration de la partie dans sessionStorage ET localStorage pour game.html
         const teamSize = msg.mode === 'duo' ? 2 : msg.mode === 'trio' ? 3 : msg.mode === 'section' ? 4 : 1;
+        const roomPlayers = (Array.isArray(msg.players) && msg.players.length > 0) ? msg.players : this.roomPlayers;
         const config = {
             mode: msg.mode || 'duo',
             modeName: (msg.mode || 'duo').toUpperCase(),
@@ -415,11 +421,14 @@ class NetworkManager {
             myPlayerId: this.getPlayerId(),
             myTeam: msg.myTeam || 1,
             isHost: !!this.isHost,
-            roomPlayers: msg.players || this.roomPlayers
+            roomPlayers
         };
 
         try {
+            sessionStorage.setItem('for2d-game-mode', JSON.stringify(config));
+            sessionStorage.setItem('for2d-room-players', JSON.stringify(roomPlayers));
             localStorage.setItem('for2d-game-mode', JSON.stringify(config));
+            localStorage.setItem('for2d-room-players', JSON.stringify(roomPlayers));
         } catch { /* ignore */ }
 
         if (window.lobbyManager) {
@@ -429,7 +438,9 @@ class NetworkManager {
 
         setTimeout(() => {
             const pid = encodeURIComponent(this.getPlayerId());
-            window.location.href = `game.html?room=${msg.roomCode}&slot=${this.slot}&pid=${pid}`;
+            const seed = encodeURIComponent(msg.seed || '');
+            const mode = encodeURIComponent(msg.mode || 'duo');
+            window.location.href = `game.html?room=${msg.roomCode}&slot=${this.slot}&pid=${pid}&seed=${seed}&mode=${mode}`;
         }, 1200);
     }
 

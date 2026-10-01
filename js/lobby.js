@@ -599,12 +599,36 @@ class LobbyManager {
         try {
             const modeMap = { SOLO: 'solo', DUO: 'duo', TRIO: 'trio', ESCOUADE: 'section' };
             const m = modeMap[this.currentGameMode] || 'solo';
-            localStorage.setItem('for2d-game-mode', JSON.stringify({
+
+            // Préserver la configuration réseau existante si présente
+            let existing = {};
+            try {
+                const s = sessionStorage.getItem('for2d-game-mode') || localStorage.getItem('for2d-game-mode');
+                if (s) existing = JSON.parse(s);
+            } catch { /* parse error */ }
+
+            const cfg = {
+                ...existing,
                 mode: m,
                 modeName: this.currentGameMode,
                 teamSize: this.teamSize,
                 bots: this.botsEnabled
-            }));
+            };
+
+            // Si connecté à une salle réseau, préserver les identifiants et membres
+            if (window.networkManager?.roomCode) {
+                cfg.isMultiplayer = true;
+                cfg.roomCode = window.networkManager.roomCode;
+                cfg.mySlot = window.networkManager.slot;
+                cfg.myPlayerId = window.networkManager.getPlayerId();
+                cfg.isHost = !!window.networkManager.isHost;
+                if (Array.isArray(window.networkManager.roomPlayers) && window.networkManager.roomPlayers.length > 0) {
+                    cfg.roomPlayers = window.networkManager.roomPlayers;
+                }
+            }
+
+            sessionStorage.setItem('for2d-game-mode', JSON.stringify(cfg));
+            localStorage.setItem('for2d-game-mode', JSON.stringify(cfg));
         } catch { /* quota dépassé */ }
     }
 

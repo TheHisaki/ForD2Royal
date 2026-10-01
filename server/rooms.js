@@ -123,6 +123,7 @@ class RoomManager {
             if (room.state === 'game') {
                 this.broadcastToRoom(room, {
                     type: 'player_reconnected',
+                    player: this.serializePlayer(existingPlayer, room),
                     id: existingPlayer.id,
                     slot: existingPlayer.slot,
                     name: existingPlayer.name
@@ -155,6 +156,7 @@ class RoomManager {
 
                 this.broadcastToRoom(room, {
                     type: 'player_reconnected',
+                    player: this.serializePlayer(disconnectedPlayer, room),
                     id: disconnectedPlayer.id,
                     slot: disconnectedPlayer.slot,
                     name: disconnectedPlayer.name

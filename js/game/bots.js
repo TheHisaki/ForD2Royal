@@ -256,7 +256,7 @@ export function roofAlphaAt(world, x, y) {
 /* ===================== GESTIONNAIRE DE BOTS ===================== */
 
 export class BotManager {
-    constructor({ world, drop, loot, combat, fighters, count = 24, corruption, teamSize = 1, player = null, isGuest = false }) {
+    constructor({ world, drop, loot, combat, fighters, count = 24, corruption, teamSize = 1, player = null, isGuest = false, allowBotTeammates = true }) {
         this.world = world;
         this.drop = drop;
         this.loot = loot;
@@ -266,6 +266,7 @@ export class BotManager {
         this.player = player || fighters[0];
         this.teamSize = teamSize;
         this.isGuest = Boolean(isGuest);
+        this.allowBotTeammates = allowBotTeammates !== false;
         this.bots = [];
         this.playerTeammates = [];
 
@@ -281,7 +282,7 @@ export class BotManager {
 
         const myTeam = player ? (player.team || 1) : 1;
         const existingTeammates = fighters.filter(f => f.team === myTeam).length;
-        const teammateCount = Math.max(0, teamSize - existingTeammates);
+        const teammateCount = this.allowBotTeammates ? Math.max(0, teamSize - existingTeammates) : 0;
         const maxHumanTeam = Math.max(1, ...fighters.map(f => f.team || 1));
         let enemySquadId = maxHumanTeam + 1;
         let enemySquadFill = 0;
@@ -455,6 +456,21 @@ export class BotManager {
         const A = drop.pointAt(0);
         const along = (land.x - A.x) * Math.cos(drop.angle) + (land.y - A.y) * Math.sin(drop.angle);
         return clamp(along + rand(-700, 250), enter, exit);
+    }
+
+    removePlayerTeammates() {
+        const myTeam = this.player ? (this.player.team || 1) : 1;
+        const toRemove = this.bots.filter(b => b.team === myTeam);
+        for (const b of toRemove) {
+            b.alive = false;
+            b.health = 0;
+            const idxB = this.bots.indexOf(b);
+            if (idxB >= 0) this.bots.splice(idxB, 1);
+            const idxPT = this.playerTeammates.indexOf(b);
+            if (idxPT >= 0) this.playerTeammates.splice(idxPT, 1);
+            const idxF = this.fighters.indexOf(b);
+            if (idxF >= 0) this.fighters.splice(idxF, 1);
+        }
     }
 
     /* ===================== MISE À JOUR ===================== */
