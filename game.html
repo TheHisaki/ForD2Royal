@@ -19,7 +19,7 @@
     <div id="hud">
         <!-- Haut gauche -->
         <div class="hud-top-left">
-            <a class="hud-btn" href="index.html" aria-label="Retour au lobby" title="Retour au lobby">
+            <a class="hud-btn" id="lobbyBackBtn" href="index.html" aria-label="Retour au lobby" title="Retour au lobby">
                 <span class="hud-ico" data-icon="back" aria-hidden="true"></span>
             </a>
             <button class="hud-btn" id="fullscreenBtn" type="button" aria-label="Plein écran" title="Plein écran">
@@ -308,7 +308,7 @@
         <div class="es-actions es-panel es-from-bottom" style="--i: 6">
             <button type="button" id="replayBtn" class="es-btn es-btn-primary"><span class="es-btn-text">Rejouer</span></button>
             <button type="button" id="esWatchBtn" class="es-btn" hidden title="Regarder la partie (Échap)"><span class="es-btn-text">Regarder</span><kbd class="es-key" aria-hidden="true">Échap</kbd></button>
-            <a href="index.html" class="es-btn"><span class="es-btn-text">Lobby</span></a>
+            <a id="esLobbyBtn" href="index.html" class="es-btn"><span class="es-btn-text">Lobby</span></a>
         </div>
 
         <!-- Anciens champs lus par CombatHud.showEnd (plus appelé) : gardés pour ne rien casser -->
@@ -376,6 +376,67 @@
         <p class="loading-text">Génération de la carte…</p>
         <div class="loading-spinner" aria-hidden="true"></div>
     </div>
+
+    <!-- Script de préservation du groupe : injecte le code de salle dans les liens retour lobby -->
+    <script>
+    (function() {
+        function lobbyUrl() {
+            // Récupérer le roomCode depuis l'URL ou le sessionStorage
+            const urlParams = new URLSearchParams(window.location.search);
+            let room = urlParams.get('room');
+            if (!room) {
+                try {
+                    const cfg = JSON.parse(sessionStorage.getItem('for2d-game-mode') || '{}');
+                    room = cfg.roomCode;
+                } catch {}
+            }
+            if (room) {
+                return 'index.html#party=' + encodeURIComponent(room);
+            }
+            return 'index.html';
+        }
+
+        // Intercepter les clics sur les liens retour lobby
+        document.addEventListener('click', function(e) {
+            const link = e.target.closest('#lobbyBackBtn, #esLobbyBtn');
+            if (link) {
+                e.preventDefault();
+                // Préserver la config pour que le lobby sache qu'on revient d'une partie en groupe
+                try {
+                    const cfg = JSON.parse(sessionStorage.getItem('for2d-game-mode') || '{}');
+                    if (cfg.roomCode) {
+                        // Marquer qu'on revient d'une partie (pas une déconnexion)
+                        cfg.returningFromGame = true;
+                        sessionStorage.setItem('for2d-game-mode', JSON.stringify(cfg));
+                        localStorage.setItem('for2d-game-mode', JSON.stringify(cfg));
+                    }
+                } catch {}
+                window.location.href = lobbyUrl();
+            }
+        });
+
+        // Aussi intercepter le bouton Rejouer pour préserver le groupe
+        document.addEventListener('click', function(e) {
+            const btn = e.target.closest('#replayBtn');
+            if (btn) {
+                e.preventDefault();
+                // Relancer une partie dans le même groupe
+                try {
+                    const cfg = JSON.parse(sessionStorage.getItem('for2d-game-mode') || '{}');
+                    if (cfg.roomCode) {
+                        // Retourner au lobby avec le groupe pour relancer
+                        cfg.returningFromGame = true;
+                        sessionStorage.setItem('for2d-game-mode', JSON.stringify(cfg));
+                        localStorage.setItem('for2d-game-mode', JSON.stringify(cfg));
+                        window.location.href = 'index.html#party=' + encodeURIComponent(cfg.roomCode);
+                        return;
+                    }
+                } catch {}
+                window.location.href = 'game.html';
+            }
+        });
+    })();
+    </script>
 
     <script type="module" src="js/game/main.js?v=7"></script>
 </body>

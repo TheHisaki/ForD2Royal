@@ -181,6 +181,12 @@ function start() {
                     mate.pickaxeSkin = rp.pickaxeSkin;
                 }
 
+                // Propriétés d'interpolation pour un mouvement fluide
+                mate._targetX = mate.x;
+                mate._targetY = mate.y;
+                mate._targetAngle = mate.angle;
+                mate._targetAlt = mate.altitude || 0;
+
                 remotePlayersMap.set(rp.id, mate);
                 fighters.push(mate);
             }
@@ -212,6 +218,7 @@ function start() {
     let gameWs = null;
     let lastNetSync = 0;
     let lastBotSync = 0;
+    let corruptionStarted = false;
 
     // Volume des sons d'action : plein pour le joueur, un peu moins pour les bots
     const actionVol = (f) => (f === player ? 1 : BOT_VOL);
@@ -653,6 +660,12 @@ function start() {
                             mate.pickaxeSkin = rp.pickaxeSkin;
                         }
 
+                        // Propriétés d'interpolation
+                        mate._targetX = mate.x;
+                        mate._targetY = mate.y;
+                        mate._targetAngle = mate.angle;
+                        mate._targetAlt = mate.altitude || 0;
+
                         remotePlayersMap.set(rp.id, mate);
                         fighters.push(mate);
                         changed = true;
@@ -691,17 +704,32 @@ function start() {
                         }
                     } else if (msg.type === 'b_sync' && !isHost && Array.isArray(msg.bots)) {
                         for (const bData of msg.bots) {
-                            const [id, bx, by, bangle, hp, sh, bphase, bdbno, balive] = bData;
+                            const [id, bx, by, bangle, hp, sh, bphase, bdbno, balive, balt] = bData;
                             const b = bots.bots.find(bot => bot.id === id);
                             if (b) {
-                                if (bphase && b.phase !== bphase) b.phase = bphase;
-                                b.x = bx;
-                                b.y = by;
-                                b.angle = bangle;
+                                if (bphase && b.phase !== bphase) {
+                                    b.phase = bphase;
+                                    // Synchroniser immédiatement en cas de saut ou d'atterrissage
+                                    if (bphase === 'air' || bphase === 'ground') {
+                                        b.x = bx;
+                                        b.y = by;
+                                    }
+                                }
+                                // Stocker les cibles d'interpolation pour un rendu 60 FPS fluide
+                                b._targetX = bx;
+                                b._targetY = by;
+                                b._targetAngle = bangle;
+                                if (typeof balt === 'number') b._targetAlt = balt;
                                 b.health = hp;
                                 b.shield = sh;
                                 b.dbno = Boolean(bdbno);
                                 b.alive = Boolean(balive);
+
+                                if (typeof b.x !== 'number') {
+                                    b.x = bx;
+                                    b.y = by;
+                                    b.angle = bangle;
+                                }
                             }
                         }
                     } else if (msg.type === 'p_hit' && isHost && msg.targetId) {
@@ -709,6 +737,13 @@ function start() {
                         if (victim && victim.alive) {
                             const mate = remotePlayersMap.get(msg.id) || player;
                             combat.damage(victim, msg.damage || 20, mate, false, msg.weaponId || 'ar');
+                        }
+                    } else if (msg.type === 'corruption_start' && !isHost) {
+                        // Synchronisation de la corruption : tous les clients démarrent ensemble
+                        if (corruption.state === 'idle') {
+                            corruption.start();
+                            corruptionStarted = true;
+                            console.log('[Multiplayer] Corruption démarrée (sync serveur)');
                         }
                     } else if (msg.type === 'p_state' && msg.id && msg.id !== gameConfig.myPlayerId) {
                         let mate = remotePlayersMap.get(msg.id);
@@ -719,6 +754,11 @@ function start() {
                             mate.team = 1;
                             mate.squadSlot = msg.squadSlot || msg.slot || 2;
                             mate.isRemote = true;
+                            // Propriétés d'interpolation
+                            mate._targetX = mate.x;
+                            mate._targetY = mate.y;
+                            mate._targetAngle = mate.angle;
+                            mate._targetAlt = mate.altitude || 0;
                             remotePlayersMap.set(msg.id, mate);
                             fighters.push(mate);
                             bots.removePlayerTeammates();
@@ -726,14 +766,15 @@ function start() {
                         }
                         if (msg.name && mate.name !== msg.name) mate.name = msg.name;
                         if (msg.squadSlot && mate.squadSlot !== msg.squadSlot) mate.squadSlot = msg.squadSlot;
-                        if (typeof msg.x === 'number') mate.x = msg.x;
-                        if (typeof msg.y === 'number') mate.y = msg.y;
+                        // Interpolation douce : on stocke la cible, la boucle de frame s'en rapproche
+                        if (typeof msg.x === 'number') mate._targetX = msg.x;
+                        if (typeof msg.y === 'number') mate._targetY = msg.y;
                         if (typeof msg.vx === 'number') mate.vx = msg.vx;
                         if (typeof msg.vy === 'number') mate.vy = msg.vy;
                         mate.moving = (Math.hypot(msg.vx || 0, msg.vy || 0) > 20);
-                        if (typeof msg.angle === 'number') mate.angle = msg.angle;
+                        if (typeof msg.angle === 'number') mate._targetAngle = msg.angle;
                         if (msg.phase) mate.phase = msg.phase;
-                        if (typeof msg.altitude === 'number') mate.altitude = msg.altitude;
+                        if (typeof msg.altitude === 'number') mate._targetAlt = msg.altitude;
                         if (typeof msg.health === 'number') mate.health = msg.health;
                         if (typeof msg.shield === 'number') mate.shield = msg.shield;
                         if (typeof msg.slot === 'number') mate.slot = msg.slot;
@@ -1462,8 +1503,8 @@ function start() {
             }));
         }
 
-        // Synchronisation des bots par l'hôte (8 Hz)
-        if (isMultiplayer && isHost && gameWs && gameWs.readyState === WebSocket.OPEN && (now - lastBotSync > 125)) {
+        // Synchronisation des bots par l'hôte (10 Hz + interpolation client 60 FPS)
+        if (isMultiplayer && isHost && gameWs && gameWs.readyState === WebSocket.OPEN && (now - lastBotSync > 100)) {
             lastBotSync = now;
             const bData = [];
             for (const b of bots.bots) {
@@ -1477,7 +1518,8 @@ function start() {
                         Math.round(b.shield),
                         b.phase,
                         b.dbno ? 1 : 0,
-                        b.alive ? 1 : 0
+                        b.alive ? 1 : 0,
+                        Math.round((b.altitude || 0) * 100) / 100
                     ]);
                 }
             }
@@ -1491,8 +1533,65 @@ function start() {
 
         const aim = renderer.screenToWorld(input.mouse.x, input.mouse.y);
         drop.update(dt, player, input, aim.x, aim.y);
-        // Premier cycle de corruption : vaisseau arrivé au bout OU joueur au sol (le premier des deux)
-        if (corruption.state === 'idle' && (!drop.ship.active || player.phase === 'ground')) corruption.start();
+
+        // Éjection automatique du bus : forcer le saut un peu AVANT la fin de la map
+        // (le joueur est éjecté quand il reste ~10% du trajet au-dessus de l'île)
+        if (player.phase === 'ship' && drop.canJump) {
+            const timeLeftBus = drop.timeLeft;
+            if (timeLeftBus <= 1.5) {
+                // Force le saut + notification réseau
+                if (drop.jump(player) && isMultiplayer && gameWs?.readyState === WebSocket.OPEN) {
+                    gameWs.send(JSON.stringify({ type: 'p_action', action: 'jump' }));
+                }
+            }
+        }
+
+        // Corruption synchronisée : l'hôte démarre et diffuse, les guests attendent le message
+        if (corruption.state === 'idle' && !corruptionStarted) {
+            const shouldStart = !drop.ship.active || player.phase === 'ground';
+            if (shouldStart) {
+                if (!isMultiplayer || isHost) {
+                    corruption.start();
+                    corruptionStarted = true;
+                    // Diffuser aux guests
+                    if (isMultiplayer && gameWs?.readyState === WebSocket.OPEN) {
+                        gameWs.send(JSON.stringify({ type: 'corruption_start' }));
+                    }
+                }
+                // Les guests ne démarrent PAS ici : ils attendent le message corruption_start
+            }
+        }
+
+        // Interpolation douce des joueurs distants (empêche les rollbacks/freezes)
+        if (isMultiplayer) {
+            const lerpSpeed = Math.min(1, dt * 15); // ~15x par seconde = très fluide
+            for (const mate of remotePlayersMap.values()) {
+                if (!mate.alive) continue;
+                if (typeof mate._targetX === 'number') {
+                    // Téléportation si trop loin (changement de phase, respawn, etc.)
+                    const dx = mate._targetX - mate.x;
+                    const dy = mate._targetY - mate.y;
+                    if (dx * dx + dy * dy > 500 * 500) {
+                        mate.x = mate._targetX;
+                        mate.y = mate._targetY;
+                    } else {
+                        mate.x += dx * lerpSpeed;
+                        mate.y += dy * lerpSpeed;
+                    }
+                }
+                if (typeof mate._targetAngle === 'number') {
+                    // Interpolation angulaire (gère le wrap-around -PI/+PI)
+                    let da = mate._targetAngle - mate.angle;
+                    if (da > Math.PI) da -= Math.PI * 2;
+                    if (da < -Math.PI) da += Math.PI * 2;
+                    mate.angle += da * lerpSpeed;
+                }
+                if (typeof mate._targetAlt === 'number') {
+                    mate.altitude += (mate._targetAlt - (mate.altitude || 0)) * lerpSpeed;
+                }
+            }
+        }
+
         if (player.phase === 'ground' && player.alive) {
             player.update(dt, input, world, aim.x, aim.y);
             // Munitions ramassées en passant dessus (désactivable dans les paramètres)

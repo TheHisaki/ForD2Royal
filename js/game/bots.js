@@ -325,6 +325,11 @@ export class BotManager {
             bot.phase = 'ship';
             bot.altitude = 1;
             bot.angle = drop.angle;
+            // Propriétés d'interpolation pour le réseau
+            bot._targetX = bot.x;
+            bot._targetY = bot.y;
+            bot._targetAngle = bot.angle;
+            bot._targetAlt = bot.altitude;
 
             // Attribution des équipes
             if (i < teammateCount) {
@@ -476,6 +481,11 @@ export class BotManager {
     /* ===================== MISE À JOUR ===================== */
 
     update(dt, time) {
+        if (this.isGuest) {
+            this.updateGuest(dt, time);
+            return;
+        }
+
         // Zone de référence commune à tous les bots pour cette image
         this._ref = this.zoneRef();
         const st = this.corruption ? this.corruption.state : 'idle';
@@ -489,6 +499,59 @@ export class BotManager {
         }
     }
 
+    updateGuest(dt, time) {
+        const lerpSpeed = Math.min(1, dt * 15);
+        for (const bot of this.bots) {
+            if (!bot.alive && !bot.dbno) continue;
+
+            if (bot.phase === 'ship') {
+                bot.x = clamp(this.drop.ship.x, 0, WORLD_SIZE);
+                bot.y = clamp(this.drop.ship.y, 0, WORLD_SIZE);
+                bot.angle = this.drop.angle;
+                continue;
+            }
+
+            if (typeof bot._targetX === 'number' && typeof bot._targetY === 'number') {
+                const dx = bot._targetX - bot.x;
+                const dy = bot._targetY - bot.y;
+                const distSq = dx * dx + dy * dy;
+
+                if (distSq > 500 * 500) {
+                    bot.x = bot._targetX;
+                    bot.y = bot._targetY;
+                    bot.vx = 0;
+                    bot.vy = 0;
+                } else {
+                    bot.x += dx * lerpSpeed;
+                    bot.y += dy * lerpSpeed;
+                    bot.vx = dt > 0 ? (dx * lerpSpeed) / dt : 0;
+                    bot.vy = dt > 0 ? (dy * lerpSpeed) / dt : 0;
+                }
+
+                bot.moving = distSq > 4;
+                if (bot.moving) {
+                    const speed = bot.dbno ? 40 : 120;
+                    bot.walkTime = (bot.walkTime || 0) + dt * (speed / 100);
+                }
+            }
+
+            if (typeof bot._targetAngle === 'number') {
+                let da = bot._targetAngle - bot.angle;
+                if (da > Math.PI) da -= Math.PI * 2;
+                if (da < -Math.PI) da += Math.PI * 2;
+                bot.angle += da * lerpSpeed;
+            }
+
+            if (typeof bot._targetAlt === 'number') {
+                bot.altitude += (bot._targetAlt - (bot.altitude || 0)) * lerpSpeed;
+            }
+
+            if (bot.fireCooldown > 0) bot.fireCooldown -= dt;
+            if (bot.reloadTimer > 0) bot.reloadTimer -= dt;
+            if (bot.swingT > 0) bot.swingT -= dt;
+        }
+    }
+
     updateShip(bot) {
         const drop = this.drop;
         bot.x = clamp(drop.ship.x, 0, WORLD_SIZE);
@@ -498,15 +561,16 @@ export class BotManager {
         // Saut synchronisé pour les escouades
         let squadJump = false;
         if (bot.team === 1) {
-            // Coéquipier du joueur : saute UNIQUEMENT quand le joueur saute !
-            if (this.player && this.player.phase !== 'ship') {
+            // Coéquipier du joueur : saute quand n'importe quel joueur humain de l'équipe a sauté
+            const leadPlayer = this.fighters.find(f => !f.isBot && f.team === 1 && f.phase !== 'ship') || this.player;
+            if (leadPlayer && leadPlayer.phase !== 'ship') {
                 squadJump = true;
                 const slotIdx = (bot.squadSlot || 2) - 1;
                 const side = slotIdx % 2 === 1 ? 1 : -1;
                 const offsetAng = (drop.angle || 0) + side * 1.5;
                 bot.brain.land = {
-                    x: clamp(this.player.x + Math.cos(offsetAng) * 60, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN),
-                    y: clamp(this.player.y + Math.sin(offsetAng) * 60, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN)
+                    x: clamp(leadPlayer.x + Math.cos(offsetAng) * 60, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN),
+                    y: clamp(leadPlayer.y + Math.sin(offsetAng) * 60, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN)
                 };
             }
         } else if (bot.team > 1) {
@@ -539,22 +603,25 @@ export class BotManager {
     updateAir(bot, dt) {
         const br = bot.brain;
 
-        // Si le bot est coéquipier du joueur : plane EN FORMATION à côté du joueur !
-        if (bot.team === 1 && this.player) {
-            const slotIdx = (bot.squadSlot || 2) - 1;
-            const side = (slotIdx % 2 === 1 ? 1 : -1);
-            const distSide = 55 + slotIdx * 15;
-            const pAngle = this.player.angle || this.drop.angle || 0;
-            const sideAng = pAngle + side * 1.57;
-            const targetX = this.player.x + Math.cos(sideAng) * distSide;
-            const targetY = this.player.y + Math.sin(sideAng) * distSide;
-            br.land = { x: targetX, y: targetY };
+        // Si le bot est coéquipier du joueur : plane EN FORMATION à côté du joueur humain le plus proche
+        if (bot.team === 1) {
+            const squadTarget = this.fighters.find(f => !f.isBot && f.team === 1 && f.alive) || this.player;
+            if (squadTarget) {
+                const slotIdx = (bot.squadSlot || 2) - 1;
+                const side = (slotIdx % 2 === 1 ? 1 : -1);
+                const distSide = 55 + slotIdx * 15;
+                const pAngle = squadTarget.angle || this.drop.angle || 0;
+                const sideAng = pAngle + side * 1.57;
+                const targetX = squadTarget.x + Math.cos(sideAng) * distSide;
+                const targetY = squadTarget.y + Math.sin(sideAng) * distSide;
+                br.land = { x: targetX, y: targetY };
 
-            // Synchronise l'altitude avec le joueur
-            if (this.player.phase === 'air') {
-                bot.altitude = Math.max(0.02, this.player.altitude);
-            } else if (this.player.phase === 'ground') {
-                bot.altitude = Math.max(0, bot.altitude - dt * 3.5); // touche terre immédiatement
+                // Synchronise l'altitude avec le joueur
+                if (squadTarget.phase === 'air') {
+                    bot.altitude = Math.max(0.02, squadTarget.altitude);
+                } else if (squadTarget.phase === 'ground') {
+                    bot.altitude = Math.max(0, bot.altitude - dt * 3.5); // touche terre immédiatement
+                }
             }
         }
 

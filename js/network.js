@@ -283,13 +283,30 @@ class NetworkManager {
                 this.hostId = msg.hostId;
                 this.isHost = (msg.hostId === this.getPlayerId());
                 this.roomCode = msg.roomCode;
-                this.slot = msg.slot || 2;
+                this.slot = msg.slot || this.slot || 2;
                 this.roomPlayers = msg.players || [];
                 this.updateRoomCodeUI(this.roomCode);
                 this.updateConnectionStatus(this.isHost ? `Chef du groupe (Salle ${this.roomCode})` : `Membre du groupe (Salle ${this.roomCode})`, '#00ff88');
 
                 if (window.lobbyManager) {
-                    window.lobbyManager.addChatMessage(`Connecté à la salle ${this.roomCode} !`);
+                    // Si on revient d'une partie, afficher un message adapté
+                    let returning = false;
+                    try {
+                        const cfg = JSON.parse(sessionStorage.getItem('for2d-game-mode') || '{}');
+                        if (cfg.returningFromGame) {
+                            returning = true;
+                            // Nettoyer le flag
+                            delete cfg.returningFromGame;
+                            sessionStorage.setItem('for2d-game-mode', JSON.stringify(cfg));
+                            localStorage.setItem('for2d-game-mode', JSON.stringify(cfg));
+                        }
+                    } catch {}
+
+                    if (returning) {
+                        window.lobbyManager.addChatMessage(`Retour dans le groupe (Salle ${this.roomCode}) !`);
+                    } else {
+                        window.lobbyManager.addChatMessage(`Connecté à la salle ${this.roomCode} !`);
+                    }
                     if (msg.mode) window.lobbyManager.setGameModeSilently?.(msg.mode);
                     window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
                     window.lobbyManager.updateLeaderPermissions?.();

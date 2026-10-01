@@ -258,6 +258,7 @@ wss.on('connection', (ws) => {
             case 'chest_open':
             case 'loot_pickup':
             case 'game_sync':
+            case 'corruption_start':
                 roomManager.relayGameMessage(ws, msg);
                 break;
         }

@@ -128,6 +128,34 @@ class RoomManager {
                     slot: existingPlayer.slot,
                     name: existingPlayer.name
                 }, ws);
+
+                // Si TOUS les joueurs sont reconnectés après une partie,
+                // remettre la salle en état 'lobby' pour pouvoir relancer
+                const allConnected = [...room.players.values()].every(p => p.ws && p.ws.readyState === 1);
+                if (allConnected) {
+                    console.log(`[Multiplayer] Tous les joueurs reconnectés dans ${code} : retour en lobby`);
+                    room.state = 'lobby';
+                    room.seed = Math.floor(Math.random() * 1000000);
+                    // Réinitialiser l'état "prêt" de tout le monde
+                    for (const p of room.players.values()) {
+                        p.ready = false;
+                    }
+                    // Informer les clients que la salle est de retour en lobby
+                    this.broadcastToRoom(room, {
+                        type: 'room_joined',
+                        roomCode: code,
+                        hostId: room.hostId,
+                        mode: room.mode,
+                        botFill: room.botFill,
+                        state: 'lobby',
+                        players: this.serializePlayers(room)
+                    });
+                    // Nettoyer le timer de cleanup si actif
+                    if (room.cleanupTimer) {
+                        clearTimeout(room.cleanupTimer);
+                        room.cleanupTimer = null;
+                    }
+                }
             }
             return room;
         }
