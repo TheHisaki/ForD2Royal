@@ -3,26 +3,27 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-import { generateWorld } from './world.js?v=6';
-import { Player } from './player.js?v=6';
-import { Renderer } from './renderer.js?v=6';
-import { Hud } from './hud.js?v=6';
-import { Input } from './input.js?v=6';
-import { Drop, drawFalling } from './drop.js?v=6';
-import { Combat } from './combat.js?v=6';
-import { Loot } from './loot.js?v=6';
-import { BotManager, roofAlphaAt } from './bots.js?v=6';
-import { Corruption } from './corruption.js?v=7';
-import { CombatHud } from './combat-hud.js?v=7';
-import { Effects } from './effects.js?v=7';
-import { HEALS } from './weapons.js?v=7';
-import { drawPlayer, drawDying } from './draw.js?v=7';
-import { SFX } from '../sfx.js?v=7';
-import { Settings } from '../settings.js?v=7';
-import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=7';
-import { InventoryUI } from './inventory-ui.js?v=7';
-import { EndScreen, Spectator } from './end-screen.js?v=7';
-import { mountHudIcons, setHudIcon } from './hud-icons.js?v=7';
+// ?v=8 : force le navigateur à recharger les modules changés (synchro multijoueur)
+import { generateWorld } from './world.js?v=8';
+import { Player } from './player.js?v=8';
+import { Renderer } from './renderer.js?v=8';
+import { Hud } from './hud.js?v=8';
+import { Input } from './input.js?v=8';
+import { Drop, drawFalling } from './drop.js?v=8';
+import { Combat } from './combat.js?v=8';
+import { Loot } from './loot.js?v=8';
+import { BotManager, roofAlphaAt } from './bots.js?v=8';
+import { Corruption } from './corruption.js?v=8';
+import { CombatHud } from './combat-hud.js?v=8';
+import { Effects } from './effects.js?v=8';
+import { HEALS, WEAPONS } from './weapons.js?v=8';
+import { drawPlayer, drawDying } from './draw.js?v=8';
+import { SFX } from '../sfx.js?v=8';
+import { Settings } from '../settings.js?v=8';
+import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=8';
+import { InventoryUI } from './inventory-ui.js?v=8';
+import { EndScreen, Spectator } from './end-screen.js?v=8';
+import { mountHudIcons, setHudIcon } from './hud-icons.js?v=8';
 
 const BOT_COUNT = 24;
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -57,6 +58,14 @@ function start() {
     const pidParam = urlParams.get('pid');
     const seedParam = urlParams.get('seed');
     const modeParam = urlParams.get('mode');
+    // Config enregistrée pour une AUTRE partie (autre onglet, ancienne partie) : on n'en
+    // garde rien de ce qui concerne la salle (liste des joueurs, hôte...)
+    if (roomParam && (gameConfig.roomCode !== roomParam || (seedParam && String(gameConfig.seed) !== seedParam))) {
+        gameConfig.roomPlayers = null;
+        gameConfig.authorityId = null;
+        gameConfig.isHost = false;
+        gameConfig.myTeam = 1;
+    }
     if (roomParam) {
         gameConfig.isMultiplayer = true;
         gameConfig.roomCode = roomParam;
@@ -74,9 +83,11 @@ function start() {
         gameConfig.mode = modeParam;
         gameConfig.modeName = modeParam.toUpperCase();
     }
+    const authParam = urlParams.get('auth');
+    if (authParam) gameConfig.authorityId = authParam;
 
     // Récupérer la liste des joueurs de la salle depuis sessionStorage / localStorage si manquante
-    if (!Array.isArray(gameConfig.roomPlayers) || gameConfig.roomPlayers.length === 0) {
+    if (gameConfig.roomPlayers !== null && (!Array.isArray(gameConfig.roomPlayers) || gameConfig.roomPlayers.length === 0)) {
         try {
             const rawRP = sessionStorage.getItem('for2d-room-players') || localStorage.getItem('for2d-room-players');
             if (rawRP) gameConfig.roomPlayers = JSON.parse(rawRP);
@@ -147,49 +158,30 @@ function start() {
     const fighters = [player];
 
     // Multijoueur WebSocket : détection et initialisation des coéquipiers réels
-    const isMultiplayer = Boolean(gameConfig.isMultiplayer && gameConfig.roomCode);
-    const isHost = Boolean(gameConfig.isHost || gameConfig.mySlot === 1 || (gameConfig.roomPlayers && gameConfig.roomPlayers[0]?.id === gameConfig.myPlayerId));
+    const isMultiplayer = Boolean(gameConfig.isMultiplayer && gameConfig.roomCode && gameConfig.myPlayerId);
+    /*
+       Hôte (« autorité ») : UN seul joueur de la partie simule les bots, la corruption
+       et le vaisseau. C'est le serveur qui le désigne (authorityId) ; l'ancienne
+       règle (slot 1 / chef du groupe) ne sert que si l'information manque.
+       Peut changer en cours de partie si l'hôte se déconnecte (message 'authority').
+    */
+    let isHost = !isMultiplayer || (gameConfig.authorityId
+        ? gameConfig.authorityId === gameConfig.myPlayerId
+        : Boolean(gameConfig.isHost));
     const remotePlayersMap = new Map();
     const myTeam = gameConfig.myTeam || 1;
     player.team = myTeam;
+    // En multijoueur, le joueur porte son identifiant de salle (le même sur toutes les machines)
+    if (isMultiplayer) player.id = gameConfig.myPlayerId;
+    const meInRoom = isMultiplayer && Array.isArray(gameConfig.roomPlayers)
+        ? gameConfig.roomPlayers.find(rp => rp && rp.id === gameConfig.myPlayerId) : null;
+    if (meInRoom?.name) player.name = String(meInRoom.name).slice(0, 16);
+    if (meInRoom?.slot) player.squadSlot = meInRoom.slot;
 
     if (isMultiplayer && Array.isArray(gameConfig.roomPlayers)) {
         for (const rp of gameConfig.roomPlayers) {
-            if (rp.id && rp.id !== gameConfig.myPlayerId) {
-                const mate = new Player(drop.ship.x, drop.ship.y);
-                mate.id = rp.id;
-                mate.name = rp.name || 'Coéquipier';
-                mate.team = rp.team || 1;
-                mate.squadSlot = rp.slot || 2;
-                mate.isRemote = true;
-                mate.phase = 'ship';
-
-                const skinId = (typeof rp.skin === 'string' ? rp.skin : rp.skin?.id) || 'recrue';
-                const s = getSkin?.(skinId);
-                if (s?.game) {
-                    mate.colors = { ...mate.colors, ...s.game };
-                    mate.skinStyle = s.style || 'default';
-                }
-                if (rp.colors) {
-                    mate.colors = { ...mate.colors, ...rp.colors };
-                }
-                if (rp.backpack) {
-                    const bp = getItem?.(rp.backpack);
-                    if (bp?.color) mate.colors.pack = bp.color;
-                }
-                if (rp.pickaxeSkin) {
-                    mate.pickaxeSkin = rp.pickaxeSkin;
-                }
-
-                // Propriétés d'interpolation pour un mouvement fluide
-                mate._targetX = mate.x;
-                mate._targetY = mate.y;
-                mate._targetAngle = mate.angle;
-                mate._targetAlt = mate.altitude || 0;
-
-                remotePlayersMap.set(rp.id, mate);
-                fighters.push(mate);
-            }
+            // Même ordre (celui du serveur) sur toutes les machines
+            if (rp && rp.id && rp.id !== gameConfig.myPlayerId && !remotePlayersMap.has(rp.id)) makeRemote(rp);
         }
     }
     const corpses = [];                        // personnages en train de disparaître
@@ -218,7 +210,29 @@ function start() {
     let gameWs = null;
     let lastNetSync = 0;
     let lastBotSync = 0;
-    let corruptionStarted = false;
+    let lastWorldSync = 0;
+
+    /* ----- Réseau : envoi + propriété des combattants -----
+       Chaque combattant a un seul propriétaire : le joueur pour lui-même, l'hôte pour
+       les bots. Seul le propriétaire applique les dégâts, le K.O. et la mort ;
+       les autres machines lui signalent les coups (p_hit) puis reçoivent le résultat. */
+    const netOpen = () => isMultiplayer && gameWs && gameWs.readyState === WebSocket.OPEN;
+    const netSend = (msg) => {
+        if (!netOpen()) return;
+        try { gameWs.send(JSON.stringify(msg)); } catch { /* socket fermée : la reconnexion gère */ }
+    };
+    const owns = (f) => !isMultiplayer || f === player || (f?.isBot === true && isHost);
+    const fighterById = (id) => {
+        if (id === null || id === undefined) return null;
+        if (id === player.id) return player;
+        return remotePlayersMap.get(id) || fighters.find(f => f.id === id) || null;
+    };
+    const netItem = (s) => (s ? {
+        kind: s.kind, weaponId: s.weaponId || '', itemId: s.itemId || '',
+        rarity: s.rarity || 0, count: s.count || 0, pickaxeSkin: s.pickaxeSkin || ''
+    } : null);
+    // Butin créé ici pendant l'image : envoyé en un seul message (voir flushLootSpawns)
+    const pendingSpawns = [];
 
     // Volume des sons d'action : plein pour le joueur, un peu moins pour les bots
     const actionVol = (f) => (f === player ? 1 : BOT_VOL);
@@ -235,24 +249,14 @@ function start() {
                 if (!hidden) effects.muzzle(mx, my, f.angle, w.id);
                 SFX.play('shot', { x: f.x, y: f.y, weapon: w.id });
             }
-            if (f === player) {
-                renderer?.shake(FIRE_SHAKE[w.id] || 1);
-                if (isMultiplayer && gameWs && gameWs.readyState === WebSocket.OPEN) {
-                    gameWs.send(JSON.stringify({
-                        type: 'p_action',
-                        action: 'fire',
-                        weaponId: w.id,
-                        mx, my
-                    }));
-                }
-            } else if (isMultiplayer && isHost && f.isBot && gameWs && gameWs.readyState === WebSocket.OPEN) {
-                gameWs.send(JSON.stringify({
-                    type: 'p_action',
-                    action: 'bot_fire',
-                    botId: f.id,
-                    weaponId: w.id,
-                    mx, my
-                }));
+            if (f === player) renderer?.shake(FIRE_SHAKE[w.id] || 1);
+            // Les autres machines rejouent le tir (balles visuelles, sans dégâts)
+            if (isMultiplayer && owns(f)) {
+                netSend({
+                    type: 'p_fire', s: f.id, w: w.id,
+                    a: Math.round(f.angle * 1000) / 1000,
+                    x: Math.round(f.x), y: Math.round(f.y)
+                });
             }
         },
         onImpact(x, y, angle, kind, target) {
@@ -288,15 +292,6 @@ function start() {
                 pendingDamage.set(victim, d);
                 hitmarker.t = 1;
                 hitmarker.kill = false;
-
-                if (isMultiplayer && !isHost && gameWs && gameWs.readyState === WebSocket.OPEN) {
-                    gameWs.send(JSON.stringify({
-                        type: 'p_hit',
-                        targetId: victim.id,
-                        damage: amount,
-                        weaponId
-                    }));
-                }
             }
             if (victim === player) {
                 SFX.play('hurt');
@@ -304,67 +299,33 @@ function start() {
                 renderer?.shake(3 + amount / 8);
             }
         },
-        onKill(killer, victim, weaponId) {
-            // Photo du personnage pour l'animation de mort (avant que son inventaire tombe)
-            corpses.push({
-                x: victim.x, y: victim.y, r: victim.r, angle: victim.angle,
-                colors: victim.colors, skinStyle: victim.skinStyle,
-                inventory: victim.inventory.slice(), slot: victim.slot, t: 0
-            });
-            effects.death(victim.x, victim.y, victim.colors);
-            SFX.play('eliminate', { x: victim.x, y: victim.y });
-            if (killer && killer !== victim && weaponId !== 'corruption') killerOf.set(victim, killer);
-            if (victim === player) {
-                // Arme du tueur et sa rareté, lues AVANT que quoi que ce soit ne change
-                stats.endT = time;
-                stats.byCorruption = weaponId === 'corruption';
-                if (!stats.byCorruption && killer && killer !== player) {
-                    const held = killer.inventory?.[killer.slot];
-                    const it = held?.weaponId === weaponId ? held : killer.inventory?.find((s) => s?.weaponId === weaponId);
-                    stats.killer = killer;
-                    stats.killerName = killer.name;
-                    stats.weaponId = weaponId || '';
-                    stats.weaponRarity = it?.rarity || 0;
-                }
-            }
-            loot.dropAll(victim);
-            combatHud?.addKill(killer, victim, weaponId);
-
-            if (isMultiplayer && isHost && gameWs && gameWs.readyState === WebSocket.OPEN) {
-                gameWs.send(JSON.stringify({
-                    type: 'p_action',
-                    action: 'bot_kill',
-                    victimId: victim.id,
-                    killerId: killer ? killer.id : null,
-                    weaponId
-                }));
-            }
-
-            if (killer === player && victim !== player) {
-                SFX.play('killConfirm');
-                combatHud?.killBanner(victim.name);
+        // Coup sur un combattant géré par une autre machine : on le lui signale
+        onRemoteHit(victim, amount, attacker, weaponId) {
+            // Seul celui qui a vraiment tiré envoie le coup (jamais une balle « visuelle »)
+            if (!attacker || !owns(attacker)) return;
+            victim.hitFlash = 1;
+            if (attacker === player) {
+                // Retour immédiat pour le tireur (le résultat exact arrive ensuite)
+                stats.damage += Math.min(amount, Math.max(0, victim.health) + Math.max(0, victim.shield));
+                SFX.play('hitmarker', { shield: victim.shield > 0 });
+                const d = pendingDamage.get(victim) || { amount: 0, shield: false };
+                d.amount += amount;
+                d.shield = d.shield || victim.shield > 0;
+                pendingDamage.set(victim, d);
                 hitmarker.t = 1;
-                hitmarker.kill = true;
-                renderer?.shake(6);
+                hitmarker.kill = false;
             }
-            if (victim === player) {
-                SFX.play('playerDown');
-                renderer?.shake(14);
-            }
+            netSend({ type: 'p_hit', t: victim.id, s: attacker.id, d: Math.round(amount * 10) / 10, w: weaponId || '' });
+        },
+        onKill(killer, victim, weaponId) {
+            // Appelé seulement chez le propriétaire de la victime (voir Combat.owns)
+            showDeath(killer, victim, weaponId);
+            loot.dropAll(victim); // les objets créés sont diffusés (loot.onSpawn)
+            if (isMultiplayer) netSend({ type: 'kill', v: victim.id, k: killer ? killer.id : null, w: weaponId || '' });
         },
         onDBNO(victim, attacker, weaponId) {
-            effects.death(victim.x, victim.y, victim.colors);
-            SFX.play('playerDown', { x: victim.x, y: victim.y });
-            combatHud?.addKill(attacker, victim, 'knockout');
-            if (victim === player) {
-                SFX.play('playerDown');
-                renderer?.shake(12);
-            }
-            if (attacker === player) {
-                SFX.play('killConfirm');
-                combatHud?.killBanner(`K.O. - ${victim.name}`);
-                renderer?.shake(5);
-            }
+            showDbno(victim, attacker);
+            if (isMultiplayer) netSend({ type: 'dbno', v: victim.id, k: attacker ? attacker.id : null, w: weaponId || '' });
         },
         onRevive(reviver, target) {
             effects.healDone(target.x, target.y, false);
@@ -394,31 +355,89 @@ function start() {
         }
     });
     combat.teamMode = teamMode;
+    combat.owns = owns;
 
-    loot.onChestOpen = (c, f) => {
-        effects.chestOpen(c.x, c.y);
-        SFX.play('chest', { x: c.x, y: c.y });
-        if (f === player) {
-            stats.chests++;
-            if (isMultiplayer && gameWs && gameWs.readyState === WebSocket.OPEN) {
-                gameWs.send(JSON.stringify({
-                    type: 'p_action',
-                    action: 'chest_open',
-                    chestId: c.id
-                }));
+    // Mort d'un combattant (ici ou sur une autre machine) : animation, fil des éliminations, stats
+    function showDeath(killer, victim, weaponId) {
+        // Photo du personnage pour l'animation de mort (avant que son inventaire tombe)
+        corpses.push({
+            x: victim.x, y: victim.y, r: victim.r, angle: victim.angle,
+            colors: victim.colors, skinStyle: victim.skinStyle,
+            inventory: victim.inventory.slice(), slot: victim.slot, t: 0
+        });
+        effects.death(victim.x, victim.y, victim.colors);
+        SFX.play('eliminate', { x: victim.x, y: victim.y });
+        if (killer && killer !== victim && weaponId !== 'corruption') killerOf.set(victim, killer);
+        if (victim === player) {
+            // Arme du tueur et sa rareté, lues AVANT que quoi que ce soit ne change
+            stats.endT = time;
+            stats.byCorruption = weaponId === 'corruption';
+            if (!stats.byCorruption && killer && killer !== player) {
+                const held = killer.inventory?.[killer.slot];
+                const it = held?.weaponId === weaponId ? held : killer.inventory?.find((s) => s?.weaponId === weaponId);
+                stats.killer = killer;
+                stats.killerName = killer.name;
+                stats.weaponId = weaponId || '';
+                stats.weaponRarity = it?.rarity || 0;
             }
         }
+        combatHud?.addKill(killer, victim, weaponId);
+
+        if (killer === player && victim !== player) {
+            SFX.play('killConfirm');
+            combatHud?.killBanner(victim.name);
+            hitmarker.t = 1;
+            hitmarker.kill = true;
+            renderer?.shake(6);
+        }
+        if (victim === player) {
+            SFX.play('playerDown');
+            renderer?.shake(14);
+        }
+    }
+
+    // K.O. d'un combattant (ici ou sur une autre machine)
+    function showDbno(victim, attacker) {
+        effects.death(victim.x, victim.y, victim.colors);
+        SFX.play('playerDown', { x: victim.x, y: victim.y });
+        combatHud?.addKill(attacker, victim, 'knockout');
+        if (victim === player) {
+            SFX.play('playerDown');
+            renderer?.shake(12);
+        }
+        if (attacker === player) {
+            SFX.play('killConfirm');
+            combatHud?.killBanner(`K.O. - ${victim.name}`);
+            renderer?.shake(5);
+        }
+    }
+
+    /* ----- Butin : chaque changement fait ici est diffusé aux autres joueurs ----- */
+    if (isMultiplayer) {
+        // Préfixe unique par joueur : les objets créés en partie ne se mélangent jamais
+        loot.idPrefix = `${String(gameConfig.myPlayerId).slice(-6)}:`;
+        loot.onSpawn = (it) => pendingSpawns.push(loot.serialize(it));
+        loot.onTake = (f, item) => {
+            if (!owns(f)) return;
+            const left = item.gone ? 0 : (item.kind === 'ammo' ? item.amount : item.count);
+            netSend({ type: 'loot_take', i: item.id, l: left, s: f.id });
+        };
+    }
+    function flushLootSpawns() {
+        if (!pendingSpawns.length) return;
+        netSend({ type: 'loot_spawn', items: pendingSpawns.splice(0) });
+    }
+
+    loot.onChestOpen = (c, f, local = true) => {
+        effects.chestOpen(c.x, c.y);
+        SFX.play('chest', { x: c.x, y: c.y });
+        if (f === player) stats.chests++;
+        // Ouvert ici par un combattant qu'on gère : les autres l'ouvrent aussi (sans butin)
+        if (local && isMultiplayer && owns(f)) netSend({ type: 'chest_open', c: c.id, s: f?.id ?? null });
     };
     loot.onPickup = (f, item, color) => {
         effects.pickup(item.x, item.y, color);
         SFX.play('pickup', { x: item.x, y: item.y, kind: item.kind });
-        if (f === player && isMultiplayer && gameWs && gameWs.readyState === WebSocket.OPEN && typeof item.id === 'number') {
-            gameWs.send(JSON.stringify({
-                type: 'p_action',
-                action: 'loot_pickup',
-                itemId: item.id
-            }));
-        }
     };
 
     // La corruption (zone qui rétrécit) : démarre quand le vaisseau a fini ou que le joueur a atterri
@@ -432,9 +451,11 @@ function start() {
     const roomPlayersCount = Array.isArray(gameConfig.roomPlayers) ? gameConfig.roomPlayers.length : 0;
     const allowBotTeammates = !isMultiplayer || (teamSize > 1 && roomPlayersCount <= 1 && !gameConfig.roomCode);
 
+    // Partie « sans bots » (matchmaking entre groupes) : seulement les vrais joueurs
+    const botCount = isMultiplayer && gameConfig.bots === false ? 0 : (teamMode ? 23 : BOT_COUNT);
     const bots = new BotManager({
         world, drop, loot, combat, fighters,
-        count: teamMode ? 23 : BOT_COUNT,
+        count: botCount,
         corruption, teamSize, player,
         isGuest: isMultiplayer && !isHost,
         allowBotTeammates
@@ -523,13 +544,8 @@ function start() {
         },
         onSlot: (i) => { if (!player.dbno) selectSlot(i); },
         onZoom: (f) => renderer.zoomBy(f),
-        onJump: () => {
-            if (!player.dbno) {
-                if (drop.jump(player) && isMultiplayer && gameWs?.readyState === WebSocket.OPEN) {
-                    gameWs.send(JSON.stringify({ type: 'p_action', action: 'jump' }));
-                }
-            }
-        },
+        // Le saut est transmis par p_state (changement de phase)
+        onJump: () => { if (!player.dbno) drop.jump(player); },
         onInteract: interact,
         onReload: () => { if (!player.dbno) combat.startReload(player); },
         onInventory: () => {
@@ -542,11 +558,7 @@ function start() {
     // Inventaire détaillé (clic molette / I) : déplacer, jeter, statistiques
     const inventoryUI = new InventoryUI({ player, loot, onSelect: selectSlot, sfx: SFX });
     canvas.addEventListener('click', () => {
-        if (!player.dbno) {
-            if (drop.jump(player) && isMultiplayer && gameWs?.readyState === WebSocket.OPEN) {
-                gameWs.send(JSON.stringify({ type: 'p_action', action: 'jump' }));
-            }
-        }
+        if (!player.dbno) drop.jump(player);
     });
 
     addEventListener('resize', () => {
@@ -607,252 +619,382 @@ function start() {
 
     document.getElementById('loading')?.classList.add('done');
 
-    /* ----- Connexion WebSocket Multijoueur en jeu ----- */
-    if (isMultiplayer) {
-        try {
-            const loc = window.location;
-            const proto = (loc.protocol === 'https:') ? 'wss:' : 'ws:';
-            const wsHost = (loc.port === '8080' || loc.port === '5500') ? `${loc.hostname}:3000` : loc.host;
-            const wsUrl = `${proto}//${wsHost}`;
-            gameWs = new WebSocket(wsUrl);
+    /* ===================== MULTIJOUEUR EN PARTIE =====================
+       Messages (relayés par le serveur à tous les joueurs de la partie, avec id = émetteur) :
+       - p_state    (20/s)  position, visée, vie, inventaire, K.O. de chaque joueur
+       - p_fire             un tir (joueur ou bot de l'hôte) rejoué en balles visuelles
+       - p_hit              « j'ai touché ton combattant » -> appliqué par son propriétaire
+       - kill / dbno        mort / K.O. décidés par le propriétaire de la victime
+       - revive             réanimation terminée (appliquée par le joueur réanimé)
+       - b_sync     (10/s)  état des bots (hôte seulement)
+       - world_sync (1/s)   vaisseau + corruption (hôte seulement)
+       - chest_open / loot_spawn / loot_take : coffres et objets au sol
+       - authority          (serveur) nouvel hôte si l'ancien est parti
+       - player_gone        (serveur) un joueur a quitté la partie pour de bon
+    */
+    let reconnectDelay = 1000;
+    let reviveSeenAt = 0;            // dernière fois qu'un coéquipier nous réanimait (p_state.rv)
+    let lastBotSeen = new Map();     // bot -> nombre de b_sync consécutifs sans lui
 
-            gameWs.addEventListener('open', () => {
-                gameWs.send(JSON.stringify({
-                    type: 'join_room',
-                    code: gameConfig.roomCode,
-                    player: {
-                        id: gameConfig.myPlayerId,
-                        name: player.name,
-                        slot: player.squadSlot
-                    }
-                }));
-            });
+    function makeRemote(rp) {
+        const mate = new Player(drop.ship.x, drop.ship.y);
+        mate.id = rp.id;
+        mate.name = String(rp.name || 'Joueur').slice(0, 16);
+        mate.team = rp.team || myTeam;
+        mate.squadSlot = rp.slot || 2;
+        mate.isRemote = true;
+        mate.phase = 'ship';
+        const skinId = (typeof rp.skin === 'string' ? rp.skin : rp.skin?.id) || 'recrue';
+        const s = getSkin?.(skinId);
+        if (s?.game) {
+            mate.colors = { ...mate.colors, ...s.game };
+            mate.skinStyle = s.style || 'default';
+        }
+        if (rp.colors) mate.colors = { ...mate.colors, ...rp.colors };
+        if (rp.backpack) {
+            const bp = getItem?.(rp.backpack);
+            if (bp?.color && !bp.none) mate.colors.pack = bp.color;
+        }
+        if (rp.pickaxeSkin) mate.pickaxeSkin = rp.pickaxeSkin;
+        mate._targetX = mate.x;
+        mate._targetY = mate.y;
+        mate._targetAngle = mate.angle;
+        mate._targetAlt = 1;
+        remotePlayersMap.set(rp.id, mate);
+        fighters.push(mate);
+        return mate;
+    }
 
-            function syncRoomPlayers(playersList) {
-                if (!Array.isArray(playersList)) return;
-                let changed = false;
-                for (const rp of playersList) {
-                    if (!rp || !rp.id || rp.id === gameConfig.myPlayerId) continue;
-                    let mate = remotePlayersMap.get(rp.id);
-                    if (!mate) {
-                        mate = new Player(drop.ship.x, drop.ship.y);
-                        mate.id = rp.id;
-                        mate.name = rp.name || 'Coéquipier';
-                        mate.team = 1;
-                        mate.squadSlot = rp.slot || 2;
-                        mate.isRemote = true;
-                        mate.phase = (player.phase === 'ground') ? 'ground' : 'ship';
-
-                        const skinId = (typeof rp.skin === 'string' ? rp.skin : rp.skin?.id) || 'recrue';
-                        const s = getSkin?.(skinId);
-                        if (s?.game) {
-                            mate.colors = { ...mate.colors, ...s.game };
-                            mate.skinStyle = s.style || 'default';
-                        }
-                        if (rp.colors) {
-                            mate.colors = { ...mate.colors, ...rp.colors };
-                        }
-                        if (rp.backpack) {
-                            const bp = getItem?.(rp.backpack);
-                            if (bp?.color) mate.colors.pack = bp.color;
-                        }
-                        if (rp.pickaxeSkin) {
-                            mate.pickaxeSkin = rp.pickaxeSkin;
-                        }
-
-                        // Propriétés d'interpolation
-                        mate._targetX = mate.x;
-                        mate._targetY = mate.y;
-                        mate._targetAngle = mate.angle;
-                        mate._targetAlt = mate.altitude || 0;
-
-                        remotePlayersMap.set(rp.id, mate);
-                        fighters.push(mate);
-                        changed = true;
-                        console.log(`[Multiplayer] Coéquipier réel connecté: ${mate.name} (slot ${mate.squadSlot})`);
-                    } else {
-                        if (rp.name && mate.name !== rp.name) { mate.name = rp.name; changed = true; }
-                        if (rp.slot && mate.squadSlot !== rp.slot) { mate.squadSlot = rp.slot; changed = true; }
-                    }
-                }
-
-                // Si nous avons notre coéquipier réel humain dans l'équipe, supprimer tout bot coéquipier parasite
-                const humanTeammates = fighters.filter(f => !f.isBot && f.team === 1);
-                if (humanTeammates.length >= teamSize || humanTeammates.length > 1) {
-                    bots.removePlayerTeammates();
-                    changed = true;
-                }
-
-                if (changed) {
-                    updateSquadHud();
-                }
+    function syncRoomPlayers(list) {
+        if (!Array.isArray(list)) return;
+        let changed = false;
+        for (const rp of list) {
+            if (!rp || !rp.id || rp.id === player.id) continue;
+            const mate = remotePlayersMap.get(rp.id);
+            if (!mate) {
+                makeRemote(rp);
+                changed = true;
+                console.log(`[Multijoueur] ${rp.name || rp.id} est dans la partie`);
+            } else {
+                if (rp.name && mate.name !== rp.name) { mate.name = String(rp.name).slice(0, 16); changed = true; }
+                if (rp.slot && mate.squadSlot !== rp.slot) { mate.squadSlot = rp.slot; changed = true; }
+                if (rp.team && mate.team !== rp.team) { mate.team = rp.team; changed = true; }
             }
+        }
+        if (changed) updateSquadHud();
+    }
 
-            gameWs.addEventListener('message', (event) => {
-                try {
-                    const msg = JSON.parse(event.data);
-                    if (msg.type === 'room_joined') {
-                        console.log(`[Multiplayer] Connecté à la salle ${msg.roomCode} (slot ${msg.slot})`);
-                        if (Array.isArray(msg.players)) {
-                            syncRoomPlayers(msg.players);
-                        }
-                    } else if (msg.type === 'player_reconnected' || msg.type === 'player_joined') {
-                        if (msg.player) {
-                            syncRoomPlayers([msg.player]);
-                        } else if (msg.id) {
-                            syncRoomPlayers([msg]);
-                        }
-                    } else if (msg.type === 'b_sync' && !isHost && Array.isArray(msg.bots)) {
-                        for (const bData of msg.bots) {
-                            const [id, bx, by, bangle, hp, sh, bphase, bdbno, balive, balt] = bData;
-                            const b = bots.bots.find(bot => bot.id === id);
-                            if (b) {
-                                if (bphase && b.phase !== bphase) {
-                                    b.phase = bphase;
-                                    // Synchroniser immédiatement en cas de saut ou d'atterrissage
-                                    if (bphase === 'air' || bphase === 'ground') {
-                                        b.x = bx;
-                                        b.y = by;
-                                    }
-                                }
-                                // Stocker les cibles d'interpolation pour un rendu 60 FPS fluide
-                                b._targetX = bx;
-                                b._targetY = by;
-                                b._targetAngle = bangle;
-                                if (typeof balt === 'number') b._targetAlt = balt;
-                                b.health = hp;
-                                b.shield = sh;
-                                b.dbno = Boolean(bdbno);
-                                b.alive = Boolean(balive);
-
-                                if (typeof b.x !== 'number') {
-                                    b.x = bx;
-                                    b.y = by;
-                                    b.angle = bangle;
-                                }
-                            }
-                        }
-                    } else if (msg.type === 'p_hit' && isHost && msg.targetId) {
-                        const victim = fighters.find(f => f.id === msg.targetId);
-                        if (victim && victim.alive) {
-                            const mate = remotePlayersMap.get(msg.id) || player;
-                            combat.damage(victim, msg.damage || 20, mate, false, msg.weaponId || 'ar');
-                        }
-                    } else if (msg.type === 'corruption_start' && !isHost) {
-                        // Synchronisation de la corruption : tous les clients démarrent ensemble
-                        if (corruption.state === 'idle') {
-                            corruption.start();
-                            corruptionStarted = true;
-                            console.log('[Multiplayer] Corruption démarrée (sync serveur)');
-                        }
-                    } else if (msg.type === 'p_state' && msg.id && msg.id !== gameConfig.myPlayerId) {
-                        let mate = remotePlayersMap.get(msg.id);
-                        if (!mate) {
-                            mate = new Player(msg.x || drop.ship.x, msg.y || drop.ship.y);
-                            mate.id = msg.id;
-                            mate.name = msg.name || 'Coéquipier';
-                            mate.team = 1;
-                            mate.squadSlot = msg.squadSlot || msg.slot || 2;
-                            mate.isRemote = true;
-                            // Propriétés d'interpolation
-                            mate._targetX = mate.x;
-                            mate._targetY = mate.y;
-                            mate._targetAngle = mate.angle;
-                            mate._targetAlt = mate.altitude || 0;
-                            remotePlayersMap.set(msg.id, mate);
-                            fighters.push(mate);
-                            bots.removePlayerTeammates();
-                            updateSquadHud();
-                        }
-                        if (msg.name && mate.name !== msg.name) mate.name = msg.name;
-                        if (msg.squadSlot && mate.squadSlot !== msg.squadSlot) mate.squadSlot = msg.squadSlot;
-                        // Interpolation douce : on stocke la cible, la boucle de frame s'en rapproche
-                        if (typeof msg.x === 'number') mate._targetX = msg.x;
-                        if (typeof msg.y === 'number') mate._targetY = msg.y;
-                        if (typeof msg.vx === 'number') mate.vx = msg.vx;
-                        if (typeof msg.vy === 'number') mate.vy = msg.vy;
-                        mate.moving = (Math.hypot(msg.vx || 0, msg.vy || 0) > 20);
-                        if (typeof msg.angle === 'number') mate._targetAngle = msg.angle;
-                        if (msg.phase) mate.phase = msg.phase;
-                        if (typeof msg.altitude === 'number') mate._targetAlt = msg.altitude;
-                        if (typeof msg.health === 'number') mate.health = msg.health;
-                        if (typeof msg.shield === 'number') mate.shield = msg.shield;
-                        if (typeof msg.slot === 'number') mate.slot = msg.slot;
-                        if (typeof msg.dbno === 'boolean') {
-                            if (!mate.dbno && msg.dbno) {
-                                mate.dbno = true;
-                                effects.death(mate.x, mate.y, mate.colors);
-                                SFX.play('playerDown', { x: mate.x, y: mate.y });
-                                combatHud?.addKill(null, mate, 'knockout');
-                            } else if (mate.dbno && !msg.dbno) {
-                                mate.dbno = false;
-                                effects.healDone(mate.x, mate.y, false);
-                                SFX.play('healDone', { x: mate.x, y: mate.y });
-                            }
-                        }
-                        if (typeof msg.dbnoTimer === 'number') mate.dbnoTimer = msg.dbnoTimer;
-                        if (mate.health <= 0 && !mate.dbno) mate.alive = false;
-                    } else if (msg.type === 'p_action' && msg.id && msg.id !== gameConfig.myPlayerId) {
-                        const mate = remotePlayersMap.get(msg.id);
-                        if (msg.action === 'jump' && mate) {
-                            drop.jump(mate);
-                            SFX.play('jump', { x: mate.x, y: mate.y });
-                        } else if (msg.action === 'fire' && mate) {
-                            const hidden = roofAlphaAt(world, mate.x, mate.y) > 0.5;
-                            if (msg.weaponId === 'melee' || msg.weaponId === 'pickaxe') {
-                                if (!hidden) effects.swing(mate.x, mate.y, mate.angle, mate.r);
-                                SFX.play('swing', { x: mate.x, y: mate.y });
-                            } else {
-                                if (!hidden) effects.muzzle(mate.x + Math.cos(mate.angle) * 20, mate.y + Math.sin(mate.angle) * 20, mate.angle, msg.weaponId || 'ar');
-                                SFX.play('shot', { x: mate.x, y: mate.y, weapon: msg.weaponId || 'ar' });
-                            }
-                        } else if (msg.action === 'chest_open' && typeof msg.chestId === 'number') {
-                            const c = loot.chests[msg.chestId];
-                            if (c && !c.opened) {
-                                loot.openChest(c, mate || null);
-                            }
-                        } else if (msg.action === 'loot_pickup' && typeof msg.itemId === 'number') {
-                            const it = loot.items.find(item => item.id === msg.itemId);
-                            if (it && !it.gone) {
-                                loot._remove(it);
-                                effects.pickup(it.x, it.y, loot._itemColor(it));
-                            }
-                        } else if (msg.action === 'bot_fire' && !isHost && msg.botId) {
-                            const b = bots.bots.find(bot => bot.id === msg.botId);
-                            if (b && b.alive) {
-                                const hidden = roofAlphaAt(world, b.x, b.y) > 0.5;
-                                if (!hidden) effects.muzzle(b.x + Math.cos(b.angle) * 20, b.y + Math.sin(b.angle) * 20, b.angle, msg.weaponId || 'ar');
-                                SFX.play('shot', { x: b.x, y: b.y, weapon: msg.weaponId || 'ar' });
-                            }
-                        } else if (msg.action === 'bot_kill' && !isHost && msg.victimId) {
-                            const victim = fighters.find(f => f.id === msg.victimId);
-                            const killer = fighters.find(f => f.id === msg.killerId);
-                            if (victim && victim.alive) {
-                                victim.alive = false;
-                                victim.health = 0;
-                                victim.dbno = false;
-                                effects.death(victim.x, victim.y, victim.colors);
-                                SFX.play('eliminate', { x: victim.x, y: victim.y });
-                                combatHud?.addKill(killer, victim, msg.weaponId || 'ar');
-                            }
-                        } else if (msg.action === 'revive_done' && msg.targetId) {
-                            const target = (msg.targetId === gameConfig.myPlayerId) ? player : fighters.find(f => f.id === msg.targetId);
-                            if (target && target.dbno) {
-                                target.dbno = false;
-                                target.health = 30;
-                                target.reviveProgress = 0;
-                                combat.onRevive?.(mate || player, target);
-                            }
-                        }
-                    }
-                } catch (err) {
-                    console.warn('[WS Msg error]', err);
-                }
-            });
-        } catch (err) {
-            console.warn('[WS Connect error]', err);
+    // Changement d'hôte : celui qui le devient reprend la simulation des bots là où elle en est
+    function setAuthority(id) {
+        if (!isMultiplayer || !id) return;
+        const was = isHost;
+        isHost = id === player.id;
+        bots.isGuest = !isHost;
+        if (isHost === was) return;
+        for (const b of bots.bots) {
+            if (isHost) {
+                if (Number.isFinite(b._targetX)) { b.x = b._targetX; b.y = b._targetY; }
+                if (Number.isFinite(b._targetAngle)) b.angle = b._targetAngle;
+                if (Number.isFinite(b._targetAlt)) b.altitude = b._targetAlt;
+            } else {
+                b._targetX = b.x;
+                b._targetY = b.y;
+                b._targetAngle = b.angle;
+                b._targetAlt = b.altitude;
+            }
+        }
+        console.log(isHost ? '[Multijoueur] Tu es maintenant l\'hôte de la partie' : '[Multijoueur] Nouvel hôte de la partie');
+        if (isHost) {
+            lastBotSync = 0;
+            lastWorldSync = 0;
         }
     }
+
+    // Effets d'un tir rejoué (même rendu que onFire)
+    function remoteFireFx(f, w) {
+        const hidden = roofAlphaAt(world, f.x, f.y) > 0.5;
+        if (w.type === 'melee') {
+            if (!hidden) effects.swing(f.x, f.y, f.angle, f.r);
+            SFX.play('swing', { x: f.x, y: f.y });
+        } else {
+            const muzzle = f.r + w.length * 0.8;
+            if (!hidden) effects.muzzle(f.x + Math.cos(f.angle) * muzzle, f.y + Math.sin(f.angle) * muzzle, f.angle, w.id);
+            SFX.play('shot', { x: f.x, y: f.y, weapon: w.id, vol: actionVol(f) });
+        }
+    }
+
+    // Arme visible dans les mains d'une copie (si l'état n'est pas encore arrivé)
+    function showHeld(f, weaponId, rarity) {
+        if (!f.inventory) f.inventory = [null, null, null, null, null];
+        const slot = Number.isInteger(f.slot) ? f.slot : 0;
+        const held = f.inventory[slot];
+        if (held?.kind === 'weapon' && held.weaponId === weaponId) return;
+        f.inventory[slot] = {
+            kind: 'weapon', weaponId, rarity: rarity ?? held?.rarity ?? 0,
+            mag: 0, pickaxeSkin: f.pickaxeSkin
+        };
+    }
+
+    // Mort silencieuse (état reçu sans le message de mort, ou joueur parti)
+    function quietDeath(f) {
+        if (!f.alive) return;
+        corpses.push({
+            x: f.x, y: f.y, r: f.r, angle: f.angle, colors: f.colors, skinStyle: f.skinStyle,
+            inventory: (f.inventory || []).slice(), slot: f.slot, t: 0
+        });
+        f.alive = false;
+        f.dbno = false;
+        f.health = 0;
+    }
+
+    function applyRemoteState(mate, m) {
+        if (Number.isFinite(m.x)) mate._targetX = m.x;
+        if (Number.isFinite(m.y)) mate._targetY = m.y;
+        if (Number.isFinite(m.a)) mate._targetAngle = m.a;
+        if (Number.isFinite(m.alt)) mate._targetAlt = m.alt;
+        mate.vx = m.vx || 0;
+        mate.vy = m.vy || 0;
+        mate.moving = Math.hypot(mate.vx, mate.vy) > 20;
+        if (typeof m.ph === 'string' && m.ph !== mate.phase) {
+            // Saut / atterrissage : on recale tout de suite (pas de glissade depuis le vaisseau)
+            mate.phase = m.ph;
+            mate.x = mate._targetX;
+            mate.y = mate._targetY;
+            if (m.ph === 'air') SFX.play('jump', { x: mate.x, y: mate.y });
+        }
+        if (Array.isArray(m.inv)) {
+            mate.inventory = m.inv.map(s => (s && s.kind ? { ...s, mag: 0 } : null));
+        }
+        if (Number.isInteger(m.sl)) mate.slot = m.sl;
+        if (Number.isFinite(m.hp)) mate.health = m.hp;
+        if (Number.isFinite(m.sh)) mate.shield = m.sh;
+        if (typeof m.db === 'boolean') {
+            if (mate.dbno && !m.db && mate.alive) {
+                mate.dbno = false;
+                mate.speedMul = 1;
+            } else if (!mate.dbno && m.db && mate.alive) {
+                mate.dbno = true; // l'effet a été joué par le message 'dbno'
+            }
+        }
+        if (Number.isFinite(m.dt)) mate.dbnoTimer = m.dt;
+        // Soin en cours (affichage seulement : total infini, la copie ne se soigne jamais elle-même)
+        if (m.use && !mate.usingItem) mate.usingItem = { slot: mate.slot, t: 0, total: Infinity };
+        else if (!m.use) mate.usingItem = null;
+        // Un coéquipier nous réanime
+        if (Array.isArray(m.rv) && m.rv[0] === player.id && player.dbno) {
+            player.reviveProgress = Math.max(0, Math.min(5, Number(m.rv[1]) || 0));
+            reviveSeenAt = performance.now();
+        }
+        if (m.al === false && mate.alive) quietDeath(mate);
+    }
+
+    function applyBotSync(list) {
+        const seen = new Set();
+        for (const e of list) {
+            if (!Array.isArray(e)) continue;
+            const [id, x, y, a, hp, sh, ph, db, alt, wId, wR] = e;
+            const b = fighterById(id);
+            if (!b || !b.isBot) continue;
+            seen.add(b);
+            if (!b.alive) continue; // mort ici : on ne la ressuscite pas
+            if (ph && b.phase !== ph) {
+                b.phase = ph;
+                b.x = x;
+                b.y = y;
+            }
+            b._targetX = x;
+            b._targetY = y;
+            b._targetAngle = a;
+            if (Number.isFinite(alt)) b._targetAlt = alt;
+            b.health = hp;
+            b.shield = sh;
+            if (db && !b.dbno) { b.dbno = true; b.dbnoTimer = 35; }
+            else if (!db && b.dbno) b.dbno = false;
+            if (wId) {
+                b.slot = 0;
+                showHeld(b, wId, wR || 0);
+            } else if (b.inventory) {
+                b.inventory[0] = null;
+            }
+        }
+        // Un bot vivant ici mais absent deux fois de suite chez l'hôte est mort là-bas
+        for (const b of bots.bots) {
+            if (!b.alive || seen.has(b)) {
+                lastBotSeen.delete(b);
+                continue;
+            }
+            const n = (lastBotSeen.get(b) || 0) + 1;
+            lastBotSeen.set(b, n);
+            if (n >= 2) {
+                quietDeath(b);
+                lastBotSeen.delete(b);
+            }
+        }
+    }
+
+    function handleNet(msg) {
+        if (!msg || typeof msg.type !== 'string') return;
+        // L'émetteur (msg.id) est ajouté par le serveur ; on ignore nos propres messages
+        if (msg.id && msg.id === player.id && msg.type !== 'room_joined') return;
+        switch (msg.type) {
+            case 'room_joined':
+                if (Array.isArray(msg.players)) syncRoomPlayers(msg.players);
+                if (msg.authorityId) setAuthority(msg.authorityId);
+                break;
+            case 'player_joined':
+            case 'player_reconnected':
+                if (msg.player) syncRoomPlayers([msg.player]);
+                break;
+            case 'authority':
+                setAuthority(msg.authorityId);
+                break;
+            case 'player_gone': {
+                // Joueur parti pour de bon : l'hôte fait tomber son butin et l'élimine
+                const mate = remotePlayersMap.get(msg.playerId);
+                if (!mate || !mate.alive) break;
+                if (isHost) {
+                    showDeath(null, mate, '');
+                    mate.alive = false;
+                    mate.dbno = false;
+                    mate.health = 0;
+                    loot.dropAll(mate);
+                    netSend({ type: 'kill', v: mate.id, k: null, w: '' });
+                }
+                break;
+            }
+            case 'p_state': {
+                if (!msg.id) break;
+                let mate = remotePlayersMap.get(msg.id);
+                if (!mate) mate = makeRemote({ id: msg.id, name: msg.n, slot: msg.ss, team: msg.tm });
+                if (msg.n && mate.name !== msg.n) mate.name = String(msg.n).slice(0, 16);
+                applyRemoteState(mate, msg);
+                break;
+            }
+            case 'p_fire': {
+                const f = fighterById(msg.s);
+                const w = WEAPONS[msg.w];
+                if (!f || !w || owns(f) || !f.alive) break;
+                showHeld(f, msg.w);
+                f.angle = Number.isFinite(msg.a) ? msg.a : f.angle;
+                combat.ghostFire(f, msg.w, msg.a);
+                remoteFireFx(f, w);
+                break;
+            }
+            case 'p_hit': {
+                const victim = fighterById(msg.t);
+                if (!victim || !owns(victim) || !victim.alive) break;
+                const attacker = fighterById(msg.s);
+                const amount = Math.max(0, Math.min(250, Number(msg.d) || 0));
+                if (amount > 0) combat.damage(victim, amount, attacker, msg.w || 'ar');
+                break;
+            }
+            case 'kill': {
+                const victim = fighterById(msg.v);
+                if (!victim || owns(victim) || !victim.alive) break;
+                const killer = fighterById(msg.k);
+                victim.alive = false;
+                victim.dbno = false;
+                victim.health = 0;
+                victim.usingItem = null;
+                if (killer && killer !== victim) killer.kills = (killer.kills || 0) + 1;
+                showDeath(killer, victim, msg.w || '');
+                break;
+            }
+            case 'dbno': {
+                const victim = fighterById(msg.v);
+                if (!victim || owns(victim) || !victim.alive || victim.dbno) break;
+                const attacker = fighterById(msg.k);
+                victim.dbno = true;
+                victim.dbnoTimer = 35;
+                victim.health = 100;
+                victim.shield = 0;
+                victim.speedMul = 0.35;
+                victim.usingItem = null;
+                victim.dbnoAttacker = attacker;
+                showDbno(victim, attacker);
+                break;
+            }
+            case 'revive': {
+                const target = fighterById(msg.t);
+                const reviver = fighterById(msg.id) || player;
+                if (!target || !target.alive || !target.dbno) break;
+                target.dbno = false;
+                target.health = 30;
+                target.speedMul = 1;
+                target.reviveProgress = 0;
+                target.dbnoAttacker = null;
+                target.dbnoWeapon = null;
+                combat.events.onRevive?.(reviver, target);
+                break;
+            }
+            case 'b_sync':
+                if (!isHost && Array.isArray(msg.bots)) applyBotSync(msg.bots);
+                break;
+            case 'world_sync':
+                if (isHost) break;
+                // ~50 ms de trajet réseau compensés
+                if (Number.isFinite(msg.c) && msg.c >= 0) corruption.syncTo(msg.c + 0.05);
+                if (Number.isFinite(msg.d)) drop.syncTo(msg.d);
+                break;
+            case 'chest_open': {
+                const c = loot.chests[msg.c];
+                if (c && !c.opened) loot.openChest(c, fighterById(msg.s), false);
+                break;
+            }
+            case 'loot_spawn':
+                if (Array.isArray(msg.items)) for (const d of msg.items) loot.addRemote(d);
+                break;
+            case 'loot_take': {
+                const it = loot.takeRemote(msg.i, Number(msg.l) || 0);
+                if (it?.gone) effects.pickup(it.x, it.y, loot._itemColor(it));
+                break;
+            }
+        }
+    }
+
+    function connectGame() {
+        const loc = window.location;
+        const proto = loc.protocol === 'https:' ? 'wss:' : 'ws:';
+        const wsHost = (loc.port === '8080' || loc.port === '5500') ? `${loc.hostname}:3000` : loc.host;
+        let ws;
+        try {
+            ws = new WebSocket(`${proto}//${wsHost}`);
+        } catch (err) {
+            console.warn('[Multijoueur] Connexion impossible', err);
+            setTimeout(connectGame, reconnectDelay);
+            return;
+        }
+        gameWs = ws;
+        ws.addEventListener('open', () => {
+            reconnectDelay = 1000;
+            ws.send(JSON.stringify({
+                type: 'join_room',
+                code: gameConfig.roomCode,
+                player: { id: player.id, name: player.name, slot: player.squadSlot, inGame: true }
+            }));
+        });
+        ws.addEventListener('message', (event) => {
+            let msg;
+            try {
+                msg = JSON.parse(event.data);
+            } catch {
+                return;
+            }
+            try {
+                handleNet(msg);
+            } catch (err) {
+                console.warn('[Multijoueur] Message ignoré', msg?.type, err);
+            }
+        });
+        ws.addEventListener('close', () => {
+            if (gameWs === ws) gameWs = null;
+            // Coupure (wifi, serveur relancé...) : on se reconnecte à la même partie
+            setTimeout(connectGame, reconnectDelay);
+            reconnectDelay = Math.min(5000, reconnectDelay * 1.5);
+        });
+    }
+
+    if (isMultiplayer) connectGame();
 
     /* ----- Actions du joueur (tir, soin) ----- */
     function playerActions() {
@@ -874,15 +1016,20 @@ function start() {
     const reviveLabel = document.getElementById('reviveLabel');
     const reviveFill = document.getElementById('reviveFill');
     const interactPrompt = document.getElementById('interactPrompt');
+    let reviving = null; // coéquipier qu'on est en train de réanimer
 
     function updateRevive(dt) {
         if (!player.alive || player.phase !== 'ground') {
+            reviving = null;
             if (revivePrompt) revivePrompt.hidden = true;
             return;
         }
 
         // Si le joueur est lui-même K.O. :
         if (player.dbno) {
+            reviving = null;
+            // Multijoueur : la progression vient du coéquipier ; plus de nouvelles = il a lâché E
+            if (isMultiplayer && performance.now() - reviveSeenAt > 400) player.reviveProgress = 0;
             if ((player.reviveProgress || 0) > 0) {
                 if (revivePrompt) revivePrompt.hidden = false;
                 if (reviveLabel) reviveLabel.textContent = 'UN COÉQUIPIER VOUS RÉANIME...';
@@ -904,20 +1051,17 @@ function start() {
                 if (revivePrompt) revivePrompt.hidden = false;
                 if (reviveLabel) reviveLabel.textContent = `RÉANIMATION DE ${downed.name.toUpperCase()}...`;
                 const done = combat.revive(player, downed, dt);
+                reviving = done ? null : downed; // progression envoyée dans p_state (rv)
                 if (reviveFill) reviveFill.style.width = `${Math.min(100, Math.round((downed.reviveProgress || 0) / 5 * 100))}%`;
                 if (done) {
                     if (revivePrompt) revivePrompt.hidden = true;
                     if (interactPrompt) interactPrompt.hidden = true;
-                    if (isMultiplayer && gameWs?.readyState === WebSocket.OPEN) {
-                        gameWs.send(JSON.stringify({
-                            type: 'p_action',
-                            action: 'revive_done',
-                            targetId: downed.id
-                        }));
-                    }
+                    // Le joueur réanimé applique la réanimation chez lui (il en est le propriétaire)
+                    if (isMultiplayer) netSend({ type: 'revive', t: downed.id });
                 }
             } else {
                 // Pas en train de maintenir E : afficher consigne
+                reviving = null;
                 if (downed.reviveProgress > 0) downed.reviveProgress = 0;
                 if (revivePrompt) revivePrompt.hidden = true;
                 if (interactPrompt) {
@@ -929,6 +1073,7 @@ function start() {
                 }
             }
         } else {
+            reviving = null;
             if (revivePrompt && !player.dbno) revivePrompt.hidden = true;
             if (interactPrompt && interactPrompt.querySelector('.interact-text')?.textContent?.includes('réanimer')) {
                 interactPrompt.hidden = true;
@@ -970,7 +1115,7 @@ function start() {
         if (weaponInfoEl) weaponInfoEl.classList.toggle('is-disabled', isDbno);
 
         // Membres de l'équipe (joueur + bots alliés)
-        const squad = fighters.filter(f => f.team === 1);
+        const squad = fighters.filter(f => f.team === player.team);
         const SQUAD_SLOT_COLORS = { 1: '#00e5ff', 2: '#ffd21e', 3: '#ff4fd8', 4: '#00ff88' };
         let html = '';
         for (const m of squad) {
@@ -1069,9 +1214,9 @@ function start() {
         if (gameOver) return;
 
         if (teamMode) {
-            const teamAlive = fighters.filter(f => f.alive && f.team === 1);
+            const teamAlive = fighters.filter(f => f.alive && f.team === player.team);
             const allStandingInTeam = teamAlive.filter(f => !f.dbno);
-            const otherTeamsAlive = fighters.filter(f => f.alive && f.team !== 1);
+            const otherTeamsAlive = fighters.filter(f => f.alive && f.team !== player.team);
 
             // Dès que le joueur meurt (éliminé), afficher l'écran de mort avec la possibilité
             // de cliquer sur "Regarder la partie" (ou Échap) pour suivre son coéquipier
@@ -1293,7 +1438,7 @@ function start() {
     /* ----- Indicateurs de coéquipiers hors écran ----- */
     function drawTeammateOffscreen(ctx) {
         if (!teamMode || !player.alive) return;
-        const teammates = fighters.filter(f => f !== player && f.alive && f.team === 1);
+        const teammates = fighters.filter(f => f !== player && f.alive && f.team === player.team);
         if (!teammates.length) return;
 
         const sw = renderer.cssW;
@@ -1476,119 +1621,117 @@ function start() {
     let last = performance.now();
     let time = 0;
 
-    function frame(now) {
-        const dt = Math.min(0.05, (now - last) / 1000); // évite les grands sauts après un onglet en pause
-        last = now;
-        time += dt;
+    const STEP = 0.05;          // pas de simulation maximal (s)
+    // Multijoueur : après un gel de l'onglet, on rattrape le temps perdu (au plus 15 s),
+    // sinon le vaisseau et la corruption prendraient du retard sur les autres joueurs.
+    // En solo, un gel met simplement le jeu en pause (comme avant).
+    const MAX_CATCHUP = isMultiplayer ? 15 : STEP;
 
-        // Synchronisation réseau (20 Hz)
-        if (isMultiplayer && gameWs && gameWs.readyState === WebSocket.OPEN && (now - lastNetSync > 50)) {
+    /* ----- Envois réseau périodiques ----- */
+    function netTick(now) {
+        if (!netOpen()) return;
+
+        // Notre joueur (20 / s)
+        if (now - lastNetSync > 50) {
             lastNetSync = now;
-            gameWs.send(JSON.stringify({
+            netSend({
                 type: 'p_state',
-                name: player.name,
-                squadSlot: player.squadSlot,
+                n: player.name, ss: player.squadSlot, tm: player.team,
                 x: Math.round(player.x * 10) / 10,
                 y: Math.round(player.y * 10) / 10,
-                vx: Math.round(player.vx),
-                vy: Math.round(player.vy),
-                angle: Math.round(player.angle * 100) / 100,
-                phase: player.phase,
-                altitude: Math.round((player.altitude || 0) * 100) / 100,
-                health: Math.round(player.health),
-                shield: Math.round(player.shield),
-                slot: player.slot,
-                dbno: !!player.dbno,
-                dbnoTimer: player.dbnoTimer || 0
-            }));
+                vx: Math.round(player.vx || 0),
+                vy: Math.round(player.vy || 0),
+                a: Math.round(player.angle * 1000) / 1000,
+                ph: player.phase,
+                alt: Math.round((player.altitude || 0) * 100) / 100,
+                hp: Math.round(player.health * 10) / 10,
+                sh: Math.round(player.shield * 10) / 10,
+                sl: player.slot,
+                inv: player.inventory.map(netItem),
+                db: !!player.dbno,
+                dt: Math.round((player.dbnoTimer || 0) * 10) / 10,
+                al: player.alive,
+                use: !!player.usingItem,
+                rv: reviving ? [reviving.id, Math.round((reviving.reviveProgress || 0) * 100) / 100] : null
+            });
         }
+        if (!isHost) return;
 
-        // Synchronisation des bots par l'hôte (10 Hz + interpolation client 60 FPS)
-        if (isMultiplayer && isHost && gameWs && gameWs.readyState === WebSocket.OPEN && (now - lastBotSync > 100)) {
+        // Bots (10 / s) : tous les vivants (un bot absent = mort chez l'hôte)
+        if (now - lastBotSync > 100) {
             lastBotSync = now;
-            const bData = [];
+            const list = [];
             for (const b of bots.bots) {
-                if (b.alive || b.dbno) {
-                    bData.push([
-                        b.id,
-                        Math.round(b.x),
-                        Math.round(b.y),
-                        Math.round(b.angle * 100) / 100,
-                        Math.round(b.health),
-                        Math.round(b.shield),
-                        b.phase,
-                        b.dbno ? 1 : 0,
-                        b.alive ? 1 : 0,
-                        Math.round((b.altitude || 0) * 100) / 100
-                    ]);
-                }
+                if (!b.alive) continue;
+                const held = b.inventory?.[b.slot || 0];
+                list.push([
+                    b.id, Math.round(b.x), Math.round(b.y), Math.round(b.angle * 100) / 100,
+                    Math.round(b.health), Math.round(b.shield), b.phase, b.dbno ? 1 : 0,
+                    Math.round((b.altitude || 0) * 100) / 100,
+                    held?.kind === 'weapon' ? held.weaponId : '', held?.rarity || 0
+                ]);
             }
-            if (bData.length > 0) {
-                gameWs.send(JSON.stringify({
-                    type: 'b_sync',
-                    bots: bData
-                }));
-            }
+            netSend({ type: 'b_sync', bots: list });
         }
 
+        // Vaisseau + corruption (1 / s) : les autres s'y recalent
+        if (now - lastWorldSync > 1000) {
+            lastWorldSync = now;
+            netSend({
+                type: 'world_sync',
+                c: corruption.state === 'idle' ? -1 : Math.round(corruption.elapsed * 1000) / 1000,
+                d: Math.round(drop.dist)
+            });
+        }
+    }
+
+    /* ----- Une étape de simulation (dt <= STEP) ----- */
+    function simulate(dt, withInput) {
+        time += dt;
         const aim = renderer.screenToWorld(input.mouse.x, input.mouse.y);
         drop.update(dt, player, input, aim.x, aim.y);
 
-        // Éjection automatique du bus : forcer le saut un peu AVANT la fin de la map
-        // (le joueur est éjecté quand il reste ~10% du trajet au-dessus de l'île)
-        if (player.phase === 'ship' && drop.canJump) {
-            const timeLeftBus = drop.timeLeft;
-            if (timeLeftBus <= 1.5) {
-                // Force le saut + notification réseau
-                if (drop.jump(player) && isMultiplayer && gameWs?.readyState === WebSocket.OPEN) {
-                    gameWs.send(JSON.stringify({ type: 'p_action', action: 'jump' }));
-                }
-            }
+        // Éjection automatique du vaisseau un peu AVANT la fin de l'île
+        if (player.phase === 'ship' && drop.canJump && drop.timeLeft <= 1.5) drop.jump(player);
+
+        // Corruption : démarrée par l'hôte (les autres se calent sur world_sync)
+        if (corruption.state === 'idle' && isHost && (!drop.ship.active || player.phase === 'ground' ||
+            (isMultiplayer && bots.bots.every(b => b.phase !== 'ship')))) {
+            corruption.start();
+            lastWorldSync = 0; // annonce tout de suite
         }
 
-        // Corruption synchronisée : l'hôte démarre et diffuse, les guests attendent le message
-        if (corruption.state === 'idle' && !corruptionStarted) {
-            const shouldStart = !drop.ship.active || player.phase === 'ground';
-            if (shouldStart) {
-                if (!isMultiplayer || isHost) {
-                    corruption.start();
-                    corruptionStarted = true;
-                    // Diffuser aux guests
-                    if (isMultiplayer && gameWs?.readyState === WebSocket.OPEN) {
-                        gameWs.send(JSON.stringify({ type: 'corruption_start' }));
-                    }
-                }
-                // Les guests ne démarrent PAS ici : ils attendent le message corruption_start
-            }
-        }
-
-        // Interpolation douce des joueurs distants (empêche les rollbacks/freezes)
+        // Joueurs distants : on glisse vers la dernière position reçue
         if (isMultiplayer) {
-            const lerpSpeed = Math.min(1, dt * 15); // ~15x par seconde = très fluide
+            const k = Math.min(1, dt * 15);
             for (const mate of remotePlayersMap.values()) {
                 if (!mate.alive) continue;
-                if (typeof mate._targetX === 'number') {
-                    // Téléportation si trop loin (changement de phase, respawn, etc.)
+                if (mate.phase === 'ship') {
+                    mate.x = drop.ship.x;
+                    mate.y = drop.ship.y;
+                    mate.angle = drop.angle;
+                    continue;
+                }
+                if (Number.isFinite(mate._targetX)) {
                     const dx = mate._targetX - mate.x;
                     const dy = mate._targetY - mate.y;
-                    if (dx * dx + dy * dy > 500 * 500) {
+                    if (dx * dx + dy * dy > 400 * 400) {
                         mate.x = mate._targetX;
                         mate.y = mate._targetY;
                     } else {
-                        mate.x += dx * lerpSpeed;
-                        mate.y += dy * lerpSpeed;
+                        // Petite avance avec la vitesse reçue : moins de retard à l'écran
+                        mate.x += dx * k + (mate.vx || 0) * dt * 0.5;
+                        mate.y += dy * k + (mate.vy || 0) * dt * 0.5;
                     }
                 }
-                if (typeof mate._targetAngle === 'number') {
-                    // Interpolation angulaire (gère le wrap-around -PI/+PI)
+                if (Number.isFinite(mate._targetAngle)) {
                     let da = mate._targetAngle - mate.angle;
                     if (da > Math.PI) da -= Math.PI * 2;
                     if (da < -Math.PI) da += Math.PI * 2;
-                    mate.angle += da * lerpSpeed;
+                    mate.angle += da * k;
                 }
-                if (typeof mate._targetAlt === 'number') {
-                    mate.altitude += (mate._targetAlt - (mate.altitude || 0)) * lerpSpeed;
-                }
+                if (Number.isFinite(mate._targetAlt)) mate.altitude += (mate._targetAlt - (mate.altitude || 0)) * k;
+                if (mate.moving) mate.walkTime = (mate.walkTime || 0) + dt;
             }
         }
 
@@ -1596,9 +1739,8 @@ function start() {
             player.update(dt, input, world, aim.x, aim.y);
             // Munitions ramassées en passant dessus (désactivable dans les paramètres)
             if (Settings.get('autoAmmo')) loot.autoPickupAmmo(player);
-            playerActions();
+            if (withInput) playerActions();
         }
-        updateSquadHud();
         bots.update(dt, time);
         combat.update(dt);
         corruption.update(dt, fighters, combat);
@@ -1606,8 +1748,29 @@ function start() {
         fighterEffects(dt);
         effects.update(dt);
         if (stats.startT === null && player.phase === 'ground') stats.startT = time; // atterrissage
+        updateRevive(dt);
         checkEnd();
+    }
 
+    // Avance le jeu jusqu'à "now" ; render = false quand l'onglet est caché
+    function tick(now, render) {
+        let elapsed = Math.max(0, (now - last) / 1000);
+        last = now;
+        elapsed = Math.min(elapsed, MAX_CATCHUP);
+        let dt = Math.min(STEP, elapsed);
+        let first = true;
+        do {
+            const s = Math.min(STEP, elapsed);
+            dt = s;
+            simulate(s, first && render);
+            first = false;
+            elapsed -= s;
+        } while (elapsed > 1e-6);
+        flushLootSpawns();
+        netTick(now);
+        if (!render) return;
+
+        updateSquadHud();
         // Spectateur : la caméra, le son et les feuillages / toits suivent la cible
         const watched = spectator.update() || player;
         updateAudio(dt, watched);
@@ -1629,11 +1792,21 @@ function start() {
         hud.update(dt, time);
         inventoryUI.update();
         combatHud.update(dt);
-        updateRevive(dt);
+    }
 
+    function frame(now) {
+        tick(now, true);
         requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
+
+    // Onglet caché en multijoueur : le navigateur coupe requestAnimationFrame, mais la
+    // partie continue (surtout chez l'hôte, qui fait vivre les bots pour tout le monde)
+    if (isMultiplayer) {
+        setInterval(() => {
+            if (document.hidden) tick(performance.now(), false);
+        }, 250);
+    }
 
     // Accès depuis la console du navigateur pour tester (ex : FOR2D_GAME.player.x = 1500)
     window.FOR2D_GAME = {

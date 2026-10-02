@@ -116,8 +116,19 @@ export class Corruption {
         this.onEvent = null;      // callback optionnel (type, data)
 
         // RNG seeded pour que tous les joueurs aient les mêmes zones (multijoueur)
-        if (seed != null) {
-            let _a = ((seed + 77777) >>> 0) || 1;
+        this.seed = seed;
+        this._resetRng();
+
+        this._from = { x: this.cur.x, y: this.cur.y, r: this.cur.r }; // cercle au début de l'avancée
+        this._timers = new WeakMap(); // minuteur de tick par combattant
+        // Tableaux de travail du rendu, réutilisés à chaque image (pas d'allocation)
+        this._veins = [];
+        this._sparks = [[], [], []];
+    }
+
+    _resetRng() {
+        if (this.seed != null) {
+            let _a = ((this.seed + 77777) >>> 0) || 1;
             this._rng = function () {
                 _a = (_a + 0x6D2B79F5) | 0;
                 let t = Math.imul(_a ^ (_a >>> 15), 1 | _a);
@@ -127,12 +138,40 @@ export class Corruption {
         } else {
             this._rng = Math.random;
         }
+    }
 
-        this._from = { x: this.cur.x, y: this.cur.y, r: this.cur.r }; // cercle au début de l'avancée
-        this._timers = new WeakMap(); // minuteur de tick par combattant
-        // Tableaux de travail du rendu, réutilisés à chaque image (pas d'allocation)
-        this._veins = [];
-        this._sparks = [[], [], []];
+    /*
+       Multijoueur : se cale sur le temps écoulé de l'hôte. Le déroulement ne dépend
+       que de la graine et du temps : on avance d'un coup (sans dégâts ni sons), ou,
+       si on est en avance, on rejoue depuis le début. tolerance en secondes.
+    */
+    syncTo(elapsed, tolerance = 0.25) {
+        if (!Number.isFinite(elapsed) || elapsed < 0) return;
+        const onEvent = this.onEvent;
+        this.onEvent = null;
+        if (this.state === 'idle' || elapsed < this.elapsed - tolerance) {
+            // Départ (ou retour en arrière) : on repart de zéro avec la même graine
+            this.state = 'idle';
+            this.phase = 0;
+            Object.assign(this.cur, { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, r: START_RADIUS });
+            this.next = null;
+            this.timeLeft = 0;
+            this._resetRng();
+            this.start();
+            this._fastForward(elapsed);
+        } else if (elapsed > this.elapsed + tolerance) {
+            this._fastForward(elapsed - this.elapsed);
+        }
+        this.onEvent = onEvent;
+    }
+
+    // Avance par pas d'1 s au plus (l'interpolation de l'avancée reste juste)
+    _fastForward(dt) {
+        while (dt > 0) {
+            const s = Math.min(1, dt);
+            this.update(s, null, null);
+            dt -= s;
+        }
     }
 
     /* ----- Déroulement ----- */

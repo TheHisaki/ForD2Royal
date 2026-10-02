@@ -438,6 +438,8 @@ class NetworkManager {
             myPlayerId: this.getPlayerId(),
             myTeam: msg.myTeam || 1,
             isHost: !!this.isHost,
+            // Joueur qui simule les bots / la corruption pour toute la partie (désigné par le serveur)
+            authorityId: msg.authorityId || null,
             roomPlayers
         };
 
@@ -457,7 +459,8 @@ class NetworkManager {
             const pid = encodeURIComponent(this.getPlayerId());
             const seed = encodeURIComponent(msg.seed || '');
             const mode = encodeURIComponent(msg.mode || 'duo');
-            window.location.href = `game.html?room=${msg.roomCode}&slot=${this.slot}&pid=${pid}&seed=${seed}&mode=${mode}`;
+            const auth = encodeURIComponent(msg.authorityId || '');
+            window.location.href = `game.html?room=${msg.roomCode}&slot=${this.slot}&pid=${pid}&seed=${seed}&mode=${mode}&auth=${auth}`;
         }, 1200);
     }
 

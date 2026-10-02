@@ -182,6 +182,19 @@ export class Loot {
         this.chests = [];
         this.items = [];
         this._nextItem = 1;
+        /*
+           Multijoueur (branché par main.js) :
+           - idPrefix : préfixe propre à ce joueur, pour que les objets créés en cours de
+             partie aient un identifiant unique sur toutes les machines (le butin du
+             début de partie, tiré avec la graine commune, garde des numéros identiques) ;
+           - onSpawn(item) : un objet vient d'apparaître ici (à diffuser) ;
+           - onTake(f, item) : f vient de ramasser tout ou partie de l'objet (à diffuser).
+           Les objets reçus du réseau passent par addRemote / takeRemote (pas de rediffusion).
+        */
+        this.idPrefix = null;
+        this.onSpawn = null;
+        this.onTake = null;
+        this._byId = new Map();
         this._tmp = [];
         this._q = [];                    // tableau temporaire des recherches
         this._chestGrid = new PointGrid();
@@ -394,10 +407,11 @@ export class Loot {
     }
 
     // Crée un objet au sol ; (fromX, fromY) = point de départ de l'animation d'apparition
-    _spawn(data, x, y, fromX, fromY) {
+    _spawn(data, x, y, fromX, fromY, forcedId) {
         const animate = fromX !== undefined;
+        const n = this._nextItem++;
         const it = {
-            id: this._nextItem++,
+            id: forcedId ?? (this.idPrefix ? `${this.idPrefix}${n}` : n),
             x, y,
             kind: data.kind,
             weaponId: data.weaponId ?? null,
@@ -416,7 +430,9 @@ export class Loot {
         };
         this.items.push(it);
         this._itemGrid.add(it);
+        this._byId.set(it.id, it);
         if (animate) this._popping.push(it);
+        if (forcedId === undefined) this.onSpawn?.(it);
         return it;
     }
 
@@ -425,7 +441,42 @@ export class Loot {
         if (i < 0) return;
         this.items.splice(i, 1);
         this._itemGrid.remove(item);
+        this._byId.delete(item.id);
         item.gone = true;
+    }
+
+    /* ----- Multijoueur ----- */
+
+    getItem(id) {
+        return this._byId.get(id) || null;
+    }
+
+    // Données à envoyer pour recréer l'objet à l'identique sur une autre machine
+    serialize(it) {
+        return {
+            id: it.id, x: Math.round(it.x), y: Math.round(it.y),
+            sx: Math.round(it.sx), sy: Math.round(it.sy), pop: it.pop < 1 ? 0 : 1,
+            kind: it.kind, weaponId: it.weaponId, rarity: it.rarity, mag: it.mag,
+            ammoType: it.ammoType, amount: it.amount, itemId: it.itemId, count: it.count
+        };
+    }
+
+    // Objet apparu chez un autre joueur (coffre ouvert, mort, objet jeté...)
+    addRemote(d) {
+        if (!d || d.id == null || this._byId.has(d.id)) return null;
+        if (!['weapon', 'heal', 'ammo'].includes(d.kind)) return null;
+        const animate = d.pop === 0;
+        return this._spawn(d, d.x, d.y, animate ? d.sx : undefined, animate ? d.sy : undefined, d.id);
+    }
+
+    // Objet ramassé chez un autre joueur : left = quantité restée au sol (0 = disparu)
+    takeRemote(id, left) {
+        const it = this._byId.get(id);
+        if (!it || it.gone) return null;
+        if (left > 0 && it.kind === 'heal') it.count = left;
+        else if (left > 0 && it.kind === 'ammo') it.amount = left;
+        else this._remove(it);
+        return it;
     }
 
     /* ----- Recherche rapide (grille) ----- */
@@ -450,12 +501,14 @@ export class Loot {
     /* ----- Interactions ----- */
 
     // Ouvre un coffre : arme, munitions et soin en éventail (vers celui qui l'ouvre)
-    openChest(chest, f = null) {
+    // spawn = false : coffre ouvert chez un autre joueur (son butin arrive par le réseau)
+    openChest(chest, f = null, spawn = true) {
         if (!chest || chest.opened) return false;
         chest.opened = true;
         chest.openT = 0;
         this._opening.push(chest);
-        this.onChestOpen?.(chest, f); // effets visuels (branchés par le jeu)
+        this.onChestOpen?.(chest, f, spawn); // effets visuels (branchés par le jeu)
+        if (!spawn) return true;
 
         const prevRand = Math.random;
         if (this.seed != null) {
@@ -565,6 +618,12 @@ export class Loot {
     }
 
     pickUp(f, item) {
+        const ok = this._pickUp(f, item);
+        if (ok) this.onTake?.(f, item);
+        return ok;
+    }
+
+    _pickUp(f, item) {
         if (!f || !item || !f.inventory) return false;
         const inv = f.inventory;
 

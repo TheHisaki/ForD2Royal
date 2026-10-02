@@ -74,6 +74,14 @@ export class Drop {
         return Math.max(0, (this.exitAt - this.dist) / SHIP_SPEED);
     }
 
+    // Multijoueur : recale le vaisseau sur la distance parcourue chez l'hôte
+    syncTo(dist, tolerance = 40) {
+        if (!Number.isFinite(dist) || Math.abs(dist - this.dist) <= tolerance) return;
+        this.dist = Math.max(0, dist);
+        Object.assign(this.ship, this.pointAt(this.dist));
+        this.ship.active = this.dist <= this.length;
+    }
+
     jump(player) {
         if (player.phase !== 'ship' || !this.canJump) return false;
         player.phase = 'air';

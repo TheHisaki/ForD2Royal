@@ -1,0 +1,49 @@
+--- TEST 1: Création salle par Hôte (Alice) ---
+[Multiplayer] Salle créée: 6KXW3G par Alice (usr_alice) [botFill: true]
+Room code: 6KXW3G
+Alice received: room_created [
+  {
+    id: 'usr_alice',
+    name: 'Alice',
+    skin: 'recrue',
+    backpack: null,
+    colors: null,
+    pickaxeSkin: 'pioche-defaut',
+    ready: false,
+    slot: 1,
+    team: 1,
+    isHost: true
+  }
+]
+
+--- TEST 2: Rejoint par Ami (Bob) ---
+[Multiplayer] Bob a rejoint la salle 6KXW3G (slot 2)
+Bob received: room_joined slot: 2
+Alice received update: player_joined Bob
+
+--- TEST 3: Bob se met prêt ---
+Bob ready. Room state: lobby
+
+--- TEST 4: Alice se met prête -> Lancement automatique ---
+[Multiplayer] Tous prêts dans 6KXW3G (Avec bots) : lancement immédiat !
+[Multiplayer] Lancement de la partie pour la salle 6KXW3G (seed: 916813)
+Room state after both ready: game
+Alice game_start msg: game_start seed: 916813 players: [
+  { id: 'usr_alice', name: 'Alice', slot: 1, team: 1 },
+  { id: 'usr_bob', name: 'Bob', slot: 2, team: 1 }
+]
+Bob game_start msg: game_start seed: 916813 players: [
+  { id: 'usr_alice', name: 'Alice', slot: 1, team: 1 },
+  { id: 'usr_bob', name: 'Bob', slot: 2, team: 1 }
+]
+
+--- TEST 5: Reconnexion en jeu (game.html) ---
+[Multiplayer] Joueur usr_alice déconnecté temporairement de la partie 6KXW3G
+[Multiplayer] Joueur usr_bob déconnecté temporairement de la partie 6KXW3G
+[Multiplayer] Alice (usr_alice) reconnecté à la salle 6KXW3G (state: game)
+Alice in game.html received: room_joined slot: 1 seed: 916813 players: 2
+[Multiplayer] Bob (usr_bob) reconnecté à la salle 6KXW3G (state: game)
+Bob in game.html received: room_joined slot: 2 seed: 916813 players: 2
+Alice received reconnect notification: player_reconnected Bob
+
+TOUS LES TESTS SONT PASSES AVEC SUCCES !

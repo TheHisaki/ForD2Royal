@@ -195,9 +195,12 @@ function serveFile(req, res) {
             else sendText(res, 500, 'Erreur serveur');
             return;
         }
+        const ext = path.extname(filePath).toLowerCase();
         res.writeHead(200, {
-            'Content-Type': mimeTypes[path.extname(filePath).toLowerCase()],
-            'X-Content-Type-Options': 'nosniff'
+            'Content-Type': mimeTypes[ext],
+            'X-Content-Type-Options': 'nosniff',
+            // Code du jeu : toujours la dernière version (tous les joueurs doivent avoir la même)
+            ...(['.html', '.js', '.css', '.json'].includes(ext) ? { 'Cache-Control': 'no-cache' } : {})
         });
         res.end(req.method === 'HEAD' ? undefined : content);
     });
@@ -211,7 +214,14 @@ const server = http.createServer((req, res) => {
 });
 
 // Créer le serveur WebSocket pour le multijoueur temps-réel
-const wss = new WebSocketServer({ server });
+// Messages de partie relayés tels quels aux autres joueurs (l'émetteur est ajouté par le serveur)
+const GAME_MESSAGES = new Set([
+    'p_state', 'p_fire', 'p_hit', 'kill', 'dbno', 'revive',
+    'b_sync', 'world_sync', 'chest_open', 'loot_spawn', 'loot_take'
+]);
+
+// 256 Ko par message au plus (les plus gros, b_sync, font quelques Ko)
+const wss = new WebSocketServer({ server, maxPayload: 256 * 1024 });
 const roomManager = new RoomManager();
 
 wss.on('connection', (ws) => {
@@ -248,18 +258,9 @@ wss.on('connection', (ws) => {
             case 'leave_room':
                 roomManager.leaveCurrentRoom(ws);
                 break;
-            // Événements de synchronisation en partie
-            case 'p_state':
-            case 'p_action':
-            case 'p_hit':
-            case 'p_revive':
-            case 'p_kill':
-            case 'b_sync':
-            case 'chest_open':
-            case 'loot_pickup':
-            case 'game_sync':
-            case 'corruption_start':
-                roomManager.relayGameMessage(ws, msg);
+            default:
+                // Événements de synchronisation en partie (voir js/game/main.js)
+                if (GAME_MESSAGES.has(msg.type)) roomManager.relayGameMessage(ws, msg);
                 break;
         }
     });

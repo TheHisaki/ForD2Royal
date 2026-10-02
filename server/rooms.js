@@ -108,90 +108,49 @@ class RoomManager {
             ws.playerId = existingPlayer.id;
             console.log(`[Multiplayer] ${existingPlayer.name} (${existingPlayer.id}) reconnecté à la salle ${code} (state: ${room.state})`);
 
+            // Page de jeu (inGame) ou retour au lobby après la partie
+            existingPlayer.inLobby = room.state === 'game' ? !playerData.inGame : false;
+            if (existingPlayer.goneTimer) clearTimeout(existingPlayer.goneTimer);
+            existingPlayer.goneTimer = null;
+            if (room.cleanupTimer) {
+                clearTimeout(room.cleanupTimer);
+                room.cleanupTimer = null;
+            }
+
             this.send(ws, {
                 type: 'room_joined',
                 roomCode: code,
                 hostId: room.hostId,
+                authorityId: room.authorityId || null,
                 mode: room.mode,
                 botFill: room.botFill,
                 slot: existingPlayer.slot,
                 seed: room.seed,
                 state: room.state,
-                players: this.serializePlayers(room)
+                players: room.state === 'game' ? this.matchPlayers(room) : this.serializePlayers(room)
             });
 
             if (room.state === 'game') {
-                this.broadcastToRoom(room, {
-                    type: 'player_reconnected',
-                    player: this.serializePlayer(existingPlayer, room),
-                    id: existingPlayer.id,
-                    slot: existingPlayer.slot,
-                    name: existingPlayer.name
-                }, ws);
-
-                // Si TOUS les joueurs sont reconnectés après une partie,
-                // remettre la salle en état 'lobby' pour pouvoir relancer
-                const allConnected = [...room.players.values()].every(p => p.ws && p.ws.readyState === 1);
-                if (allConnected) {
-                    console.log(`[Multiplayer] Tous les joueurs reconnectés dans ${code} : retour en lobby`);
-                    room.state = 'lobby';
-                    room.seed = Math.floor(Math.random() * 1000000);
-                    // Réinitialiser l'état "prêt" de tout le monde
-                    for (const p of room.players.values()) {
-                        p.ready = false;
-                    }
-                    // Informer les clients que la salle est de retour en lobby
-                    this.broadcastToRoom(room, {
-                        type: 'room_joined',
-                        roomCode: code,
-                        hostId: room.hostId,
-                        mode: room.mode,
-                        botFill: room.botFill,
-                        state: 'lobby',
-                        players: this.serializePlayers(room)
-                    });
-                    // Nettoyer le timer de cleanup si actif
-                    if (room.cleanupTimer) {
-                        clearTimeout(room.cleanupTimer);
-                        room.cleanupTimer = null;
-                    }
+                if (existingPlayer.inLobby) {
+                    // Revenu au lobby : s'il menait la partie, un autre joueur prend le relais
+                    if (room.authorityId === existingPlayer.id) this.migrateAuthority(room);
+                    this.maybeReturnToLobby(room);
+                } else {
+                    this.broadcastToMatch(room, {
+                        type: 'player_reconnected',
+                        player: this.serializePlayer(existingPlayer, room)
+                    }, ws);
+                    // L'hôte de la partie est parti depuis un moment : ce joueur peut prendre le relais
+                    if (this.authorityLost(room)) this.migrateAuthority(room);
                 }
             }
             return room;
         }
 
-        // Si la partie est déjà lancée : rattachement au slot déconnecté
+        // Partie en cours : seuls ses joueurs (même identifiant) peuvent y revenir.
+        // (Prendre la place d'un autre mélangerait les identifiants entre les machines.)
         if (room.state === 'game') {
-            const disconnectedPlayer = [...room.players.values()].find(p => (!p.ws || p.ws.readyState !== 1) && (typeof playerData.slot !== 'number' || p.slot === playerData.slot));
-            if (disconnectedPlayer) {
-                console.log(`[Multiplayer] Rattachement au slot ${disconnectedPlayer.slot} (${disconnectedPlayer.name}) pour ${candidateId || 'reconnexion'}`);
-                disconnectedPlayer.ws = ws;
-                disconnectedPlayer.disconnectedAt = null;
-                this.playerRooms.set(ws, code);
-                ws.playerId = disconnectedPlayer.id;
-
-                this.send(ws, {
-                    type: 'room_joined',
-                    roomCode: code,
-                    hostId: room.hostId,
-                    mode: room.mode,
-                    botFill: room.botFill,
-                    slot: disconnectedPlayer.slot,
-                    seed: room.seed,
-                    state: room.state,
-                    players: this.serializePlayers(room)
-                });
-
-                this.broadcastToRoom(room, {
-                    type: 'player_reconnected',
-                    player: this.serializePlayer(disconnectedPlayer, room),
-                    id: disconnectedPlayer.id,
-                    slot: disconnectedPlayer.slot,
-                    name: disconnectedPlayer.name
-                }, ws);
-                return room;
-            }
-            return this.send(ws, { type: 'error', message: 'Cette partie a déjà commencé.' });
+            return this.send(ws, { type: 'error', message: 'Cette partie a déjà commencé. Réessaie à la fin de la partie.' });
         }
 
         if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
@@ -481,11 +440,16 @@ class RoomManager {
             }
         });
 
+        // Un seul hôte pour toute la partie : le chef de la première salle
+        const authorityId = validRooms[0].hostId;
+
         // Relier les salles pour que les messages en cours de partie soient partagés
         validRooms.forEach((r, teamIdx) => {
             r.state = 'game';
             r.seed = sharedSeed;
             r.matchedRooms = validRooms;
+            r.authorityId = authorityId;
+            this.resetGameFlags(r, teamIdx + 1);
 
             this.broadcastToRoom(r, {
                 type: 'game_start',
@@ -494,9 +458,168 @@ class RoomManager {
                 mode: r.mode,
                 botFill: false,
                 myTeam: teamIdx + 1,
+                authorityId,
                 players: allMatchPlayers
             });
         });
+    }
+
+    // Début de partie : tout le monde « en jeu », équipe notée sur chaque joueur
+    resetGameFlags(room, team) {
+        for (const p of room.players.values()) {
+            p.inLobby = false;
+            p.team = team;
+            if (p.goneTimer) clearTimeout(p.goneTimer);
+            p.goneTimer = null;
+        }
+        if (room.authorityTimer) clearTimeout(room.authorityTimer);
+        room.authorityTimer = null;
+        room.startedAt = Date.now();
+    }
+
+    /* ===== PARTIE EN COURS : joueurs, hôte, retour au lobby ===== */
+
+    // Salles qui jouent la même partie (une seule, sauf matchmaking entre groupes)
+    matchRooms(room) {
+        if (room.matchedRooms && room.matchedRooms.length > 1) {
+            return room.matchedRooms.filter(r => r.state === 'game' && this.rooms.get(r.code) === r);
+        }
+        return [room];
+    }
+
+    matchPlayers(room) {
+        return this.matchRooms(room).flatMap(r => this.serializePlayers(r));
+    }
+
+    findMatchPlayer(room, id) {
+        if (!id) return null;
+        for (const r of this.matchRooms(room)) {
+            const p = r.players.get(id);
+            if (p) return p;
+        }
+        return null;
+    }
+
+    // Connecté ET sur la page de jeu
+    isPlaying(p) {
+        return !!p && !!p.ws && p.ws.readyState === 1 && !p.inLobby;
+    }
+
+    broadcastToMatch(room, data, excludeWs = null) {
+        const msg = JSON.stringify(data);
+        for (const r of this.matchRooms(room)) {
+            for (const p of r.players.values()) {
+                if (p.ws && p.ws !== excludeWs && p.ws.readyState === 1 && !p.inLobby) {
+                    try { p.ws.send(msg); } catch { /* socket coupée */ }
+                }
+            }
+        }
+    }
+
+    // Délai avant de remplacer un hôte absent (plus long au lancement : chargement de la carte)
+    authorityGrace(room) {
+        return Date.now() - (room.startedAt || 0) < 30000 ? 12000 : 4000;
+    }
+
+    authorityLost(room) {
+        const p = this.findMatchPlayer(room, room.authorityId);
+        if (!p || p.inLobby) return true;
+        if (this.isPlaying(p)) return false;
+        return !!p.disconnectedAt && Date.now() - p.disconnectedAt > this.authorityGrace(room);
+    }
+
+    // Nouvel hôte de la partie : le premier joueur encore en jeu (chef de salle d'abord)
+    migrateAuthority(room) {
+        const rooms = this.matchRooms(room);
+        const current = this.findMatchPlayer(room, room.authorityId);
+        if (this.isPlaying(current)) return;
+        let next = null;
+        for (const r of rooms) {
+            const h = r.players.get(r.hostId);
+            if (this.isPlaying(h)) { next = h; break; }
+        }
+        if (!next) {
+            for (const r of rooms) {
+                next = [...r.players.values()].find(p => this.isPlaying(p)) || null;
+                if (next) break;
+            }
+        }
+        if (!next) return;
+        for (const r of rooms) r.authorityId = next.id;
+        console.log(`[Multiplayer] Nouvel hôte de partie : ${next.name} (${next.id})`);
+        this.broadcastToMatch(room, { type: 'authority', authorityId: next.id });
+    }
+
+    // Plus aucun joueur de la salle sur la page de jeu : la salle redevient un lobby
+    maybeReturnToLobby(room) {
+        if (room.state !== 'game') return;
+        if ([...room.players.values()].some(p => this.isPlaying(p))) return;
+        console.log(`[Multiplayer] Salle ${room.code} : retour au lobby`);
+        room.state = 'lobby';
+        room.matchedRooms = null;
+        room.authorityId = null;
+        room.seed = Math.floor(Math.random() * 1000000);
+        if (room.authorityTimer) clearTimeout(room.authorityTimer);
+        room.authorityTimer = null;
+        for (const p of room.players.values()) {
+            p.ready = false;
+            p.inLobby = false;
+            p.team = 1;
+            if (p.goneTimer) clearTimeout(p.goneTimer);
+            p.goneTimer = null;
+        }
+        for (const p of room.players.values()) {
+            if (!p.ws || p.ws.readyState !== 1) continue;
+            this.send(p.ws, {
+                type: 'room_joined',
+                roomCode: room.code,
+                hostId: room.hostId,
+                mode: room.mode,
+                botFill: room.botFill,
+                slot: p.slot,
+                state: 'lobby',
+                players: this.serializePlayers(room)
+            });
+        }
+        // Joueurs qui ne sont jamais revenus (onglet fermé) : retirés après un court délai
+        for (const p of room.players.values()) {
+            if (p.ws && p.ws.readyState === 1) continue;
+            setTimeout(() => {
+                const still = room.players.get(p.id);
+                if (still && (!still.ws || still.ws.readyState !== 1) && room.state === 'lobby') this.removePlayer(room, p.id);
+            }, 20000);
+        }
+    }
+
+    // Retire un joueur d'une salle en lobby (élit un nouveau chef si besoin)
+    removePlayer(room, playerId) {
+        const player = room.players.get(playerId);
+        if (!player) return;
+        room.players.delete(playerId);
+        console.log(`[Multiplayer] Joueur ${playerId} a quitté la salle ${room.code}`);
+
+        if (room.players.size === 0) {
+            console.log(`[Multiplayer] Salle ${room.code} fermée (vide)`);
+            this.dequeueMatchmaking(room);
+            this.rooms.delete(room.code);
+            return;
+        }
+
+        if (room.hostId === playerId) {
+            const nextHost = [...room.players.values()].find(p => p.ws && p.ws.readyState === 1) || room.players.values().next().value;
+            if (nextHost) {
+                room.hostId = nextHost.id;
+                console.log(`[Multiplayer] Nouvel hôte pour ${room.code} : ${nextHost.name}`);
+                this.broadcastToRoom(room, { type: 'new_host', hostId: nextHost.id });
+            }
+        }
+
+        this.broadcastToRoom(room, {
+            type: 'player_left',
+            playerId,
+            playerName: player.name
+        });
+        this.checkRoomReadyState(room);
     }
 
     startGameForRoom(room) {
@@ -504,13 +627,12 @@ class RoomManager {
         this.dequeueMatchmaking(room);
         room.state = 'game';
         room.seed = Math.floor(Math.random() * 1000000);
+        room.matchedRooms = null;
+        // L'hôte de la partie (bots, corruption, vaisseau) : le chef du groupe
+        room.authorityId = room.hostId;
+        this.resetGameFlags(room, 1); // Tous dans la même équipe
 
         console.log(`[Multiplayer] Lancement de la partie pour la salle ${room.code} (seed: ${room.seed})`);
-
-        const players = this.serializePlayers(room).map(p => ({
-            ...p,
-            team: 1 // Tous dans la même équipe
-        }));
 
         this.broadcastToRoom(room, {
             type: 'game_start',
@@ -519,7 +641,8 @@ class RoomManager {
             mode: room.mode,
             botFill: room.botFill !== false,
             myTeam: 1,
-            players
+            authorityId: room.authorityId,
+            players: this.serializePlayers(room)
         });
     }
 
@@ -557,17 +680,16 @@ class RoomManager {
         const room = this.rooms.get(code);
         if (!room) return;
 
-        // Attacher l'id du joueur émetteur s'il n'est pas déjà précisé
-        if (!data.id && ws.playerId) data.id = ws.playerId;
+        // Seulement pendant une partie, et seulement depuis la socket actuelle du joueur
+        if (room.state !== 'game' || !ws.playerId) return;
+        const sender = room.players.get(ws.playerId);
+        if (!sender || sender.ws !== ws || sender.inLobby) return;
 
-        // Relayer aux joueurs de la salle et des salles matchées (si matchmaking multi-équipes)
-        if (room.matchedRooms && room.matchedRooms.length > 1) {
-            for (const r of room.matchedRooms) {
-                this.broadcastToRoom(r, data, ws);
-            }
-        } else {
-            this.broadcastToRoom(room, data, ws);
-        }
+        // L'émetteur est toujours celui de la socket (impossible de se faire passer pour un autre)
+        data.id = ws.playerId;
+
+        // Relayer aux joueurs en jeu de la partie (toutes les salles en cas de matchmaking)
+        this.broadcastToMatch(room, data, ws);
     }
 
     leaveCurrentRoom(ws) {
@@ -581,6 +703,10 @@ class RoomManager {
         const playerId = ws.playerId;
         const player = room.players.get(playerId);
 
+        // Ancienne socket du joueur (ex : celle du lobby, fermée APRÈS que la page de jeu
+        // s'est reconnectée) : on l'ignore, sinon le joueur ne recevrait plus rien.
+        if (player && player.ws && player.ws !== ws) return;
+
         // IMPORTANT : Si la partie est en cours ('game'), les joueurs changent de page
         // (index.html -> game.html), ce qui ferme le socket temporairement.
         // On ne supprime PAS le joueur ni la salle tout de suite pour permettre la reconnexion !
@@ -588,8 +714,30 @@ class RoomManager {
             if (player) {
                 player.ws = null;
                 player.disconnectedAt = Date.now();
+                const wasPlaying = !player.inLobby;
+                console.log(`[Multiplayer] Joueur ${playerId} déconnecté de la partie ${code}`);
+
+                if (wasPlaying) {
+                    // L'hôte de la partie a coupé : un autre prend le relais s'il ne revient pas vite
+                    if (room.authorityId === playerId) {
+                        if (room.authorityTimer) clearTimeout(room.authorityTimer);
+                        room.authorityTimer = setTimeout(() => {
+                            room.authorityTimer = null;
+                            if (room.state === 'game') this.migrateAuthority(room);
+                        }, this.authorityGrace(room));
+                    }
+                    // Toujours absent après 20 s : il a quitté la partie pour de bon
+                    if (player.goneTimer) clearTimeout(player.goneTimer);
+                    player.goneTimer = setTimeout(() => {
+                        player.goneTimer = null;
+                        if (room.state === 'game' && !player.ws && !player.inLobby) {
+                            player.inLobby = true; // ne compte plus parmi les joueurs en jeu
+                            this.broadcastToMatch(room, { type: 'player_gone', playerId });
+                            this.maybeReturnToLobby(room);
+                        }
+                    }, 20000);
+                }
             }
-            console.log(`[Multiplayer] Joueur ${playerId || 'inconnu'} déconnecté temporairement de la partie ${code}`);
 
             // Si tous les joueurs sont déconnectés pendant plus de 3 minutes, nettoyer la salle
             if (!room.cleanupTimer) {
@@ -606,36 +754,7 @@ class RoomManager {
             return;
         }
 
-        room.players.delete(playerId);
-        console.log(`[Multiplayer] Joueur ${playerId} a quitté la salle ${code}`);
-
-        if (room.players.size === 0) {
-            console.log(`[Multiplayer] Salle ${code} fermée (vide)`);
-            this.dequeueMatchmaking(room);
-            this.rooms.delete(code);
-            return;
-        }
-
-        // Si l'hôte part, élire le joueur suivant comme hôte
-        if (room.hostId === playerId) {
-            const nextHost = room.players.values().next().value;
-            if (nextHost) {
-                room.hostId = nextHost.id;
-                console.log(`[Multiplayer] Nouvel hôte pour ${code} : ${nextHost.name}`);
-                this.broadcastToRoom(room, {
-                    type: 'new_host',
-                    hostId: nextHost.id
-                });
-            }
-        }
-
-        this.broadcastToRoom(room, {
-            type: 'player_left',
-            playerId,
-            playerName: player ? player.name : 'Un joueur'
-        });
-
-        this.checkRoomReadyState(room);
+        if (player) this.removePlayer(room, playerId);
     }
 
     serializePlayer(p, room = null) {

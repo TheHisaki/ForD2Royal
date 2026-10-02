@@ -31,6 +31,14 @@ export class Combat {
         this._walls = [];   // obstacles proches de la trajectoire (réutilisé)
         this._targets = []; // combattants proches de la trajectoire (réutilisé)
         this.teamMode = false; // set by main.js for duo/trio/section
+        /*
+           Multijoueur : chaque combattant a UN seul « propriétaire » qui décide de
+           ses dégâts, de son K.O. et de sa mort (le joueur pour lui-même, l'hôte pour
+           les bots). Ailleurs, un coup sur ce combattant est seulement signalé
+           (events.onRemoteHit) au propriétaire, qui l'applique puis le diffuse.
+           En solo, tout est possédé localement.
+        */
+        this.owns = () => true;
     }
 
     // Arme de la case choisie (ou null) ; l'objet d'inventaire est f.inventory[f.slot]
@@ -44,7 +52,7 @@ export class Combat {
     _newBullet() {
         return this._free.pop() || {
             x: 0, y: 0, vx: 0, vy: 0, ux: 0, uy: 0, speed: 0,
-            dist: 0, range: 0, damage: 0, owner: null, weaponId: null
+            dist: 0, range: 0, damage: 0, owner: null, weaponId: null, visual: false
         };
     }
 
@@ -90,6 +98,7 @@ export class Combat {
             b.damage = dmg;
             b.owner = f;
             b.weaponId = w.id;
+            b.visual = false;
             // La balle part du centre et va jusqu'au bout du canon en vérifiant
             // les collisions : pas de tir à travers un mur collé, et on touche à bout portant.
             if (this._travel(b, muzzle)) this.bullets.push(b);
@@ -102,6 +111,43 @@ export class Combat {
         const my = f.y + Math.sin(f.angle) * muzzle;
         this.events.onFire?.(f, w, mx, my);
         return true;
+    }
+
+    /*
+       Tir d'un combattant simulé sur une autre machine (coéquipier distant, bot de
+       l'hôte) : mêmes balles à l'écran, mais SANS dégâts (le tireur les calcule
+       chez lui). Pas de munitions ni de cadence : on rejoue juste ce qui a été tiré.
+    */
+    ghostFire(f, weaponId, angle) {
+        const w = WEAPONS[weaponId];
+        if (!w || !f) return;
+        if (Number.isFinite(angle)) f.angle = angle;
+        if (w.type === 'melee') {
+            f.swingT = 1;
+            return;
+        }
+        const muzzle = f.r + w.length * 0.8;
+        const n = w.pellets || 1;
+        for (let i = 0; i < n; i++) {
+            const a = f.angle + (Math.random() - 0.5) * 2 * (w.spread || 0);
+            const b = this._newBullet();
+            b.x = f.x;
+            b.y = f.y;
+            b.ux = Math.cos(a);
+            b.uy = Math.sin(a);
+            b.speed = w.bulletSpeed;
+            b.vx = b.ux * w.bulletSpeed;
+            b.vy = b.uy * w.bulletSpeed;
+            b.dist = 0;
+            b.range = w.range;
+            b.damage = 0;
+            b.owner = f;
+            b.weaponId = w.id;
+            b.visual = true;
+            if (this._travel(b, muzzle)) this.bullets.push(b);
+            else this._recycle(b);
+        }
+        f.usingItem = null;
     }
 
     // Coup de pioche : touche tout ce qui est devant, à portée
@@ -163,6 +209,15 @@ export class Combat {
         if (!victim.alive || !(amount > 0)) return;
         // Teammates can't hurt each other
         if (attacker && attacker.team && victim.team && attacker.team === victim.team) return;
+
+        // Combattant géré par une autre machine : on lui signale le coup, il l'appliquera.
+        // (corruption et hémorragie : chaque propriétaire les calcule déjà lui-même)
+        if (!this.owns(victim)) {
+            if (weaponId !== 'corruption' && weaponId !== 'bleedout') {
+                this.events.onRemoteHit?.(victim, amount, attacker, weaponId);
+            }
+            return;
+        }
 
         // Downed player taking damage (can be finished off by enemies or corruption)
         if (victim.dbno) {
@@ -229,7 +284,8 @@ export class Combat {
                 if (!remainingStanding) {
                     // Squad wipe: kill all remaining DBNO teammates of this squad
                     for (const f of this.fighters) {
-                        if (f.alive && f.dbno && f.team === victim.team) {
+                        // Les coéquipiers gérés ailleurs s'éliminent chez eux (même règle)
+                        if (f.alive && f.dbno && f.team === victim.team && this.owns(f)) {
                             f.alive = false;
                             f.dbno = false;
                             f.health = 0;
@@ -275,7 +331,10 @@ export class Combat {
 
     _updateFighter(f, dt) {
         // ----- DBNO bleedout & squad wipe check -----
-        if (f.dbno && f.alive) {
+        if (f.dbno && f.alive && !this.owns(f)) {
+            // Copie d'un combattant distant : seul le compte à rebours avance (affichage)
+            f.dbnoTimer = Math.max(0, (f.dbnoTimer || 0) - dt);
+        } else if (f.dbno && f.alive) {
             f.dbnoTimer = Math.max(0, (f.dbnoTimer || 35) - dt);
             f.health = Math.max(0, f.health - (100 / 35) * dt);
             const hasStandingTeammate = this.fighters.some(t => t !== f && t.alive && !t.dbno && t.team === f.team);
@@ -407,8 +466,8 @@ export class Combat {
                 const dx = b.x - t.x;
                 const dy = b.y - t.y;
                 if (dx * dx + dy * dy < rr * rr) {
-                    this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), t.shield > 0 ? 'shield' : 'health', t);
-                    this.damage(t, b.damage, b.owner, b.weaponId);
+                    this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), t.shield > 0 ? 'shield' : 'health', b.visual ? null : t);
+                    if (!b.visual) this.damage(t, b.damage, b.owner, b.weaponId);
                     return false;
                 }
             }
