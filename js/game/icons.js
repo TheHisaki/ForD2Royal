@@ -9,6 +9,7 @@
 
 import { WEAPONS, HEALS, RARITIES } from './weapons.js';
 import { shadeHex } from './utils.js';
+import { pickaxeCanvas, pickaxeUrl } from '../pickaxe-art.js';
 
 const OUTLINE = '#0a1030';
 const TAU = Math.PI * 2;
@@ -88,36 +89,8 @@ function triggerGuard(ctx, x0, x1, y) {
 /* ===================== ARMES (profil, canon vers la droite) ===================== */
 
 // box = [x0, y0, x1, y1] : zone occupée par le dessin (pour le cadrage de l'icône)
+// (la pioche est dessinée par js/pickaxe-art.js, selon la pioche équipée)
 const WEAPON_ART = {
-    pickaxe: {
-        box: [-2, -27, 70, 27],
-        tilt: -0.75,
-        draw(ctx, a) {
-            // Manche en bois + poignée enroulée
-            box(ctx, 0, -3.5, 58, 7, 3.5, '#9a6a3a');
-            shine(ctx, 3, -2.5, 52, 1.8);
-            box(ctx, -2, -4.5, 18, 9, 4, '#4a2e1a');
-            ridges(ctx, 2, 14, 4, -4, 4, 'rgba(255, 255, 255, 0.18)', 1.5);
-            // Bague de rareté
-            box(ctx, 42, -4.5, 5, 9, 1, a.color, 2);
-            // Tête en croissant
-            ctx.beginPath();
-            ctx.moveTo(53, -25);
-            ctx.quadraticCurveTo(80, 0, 53, 25);
-            ctx.lineTo(48, 19);
-            ctx.quadraticCurveTo(61, 0, 48, -19);
-            ctx.closePath();
-            paint(ctx, '#c9d2dc');
-            ctx.beginPath();
-            ctx.moveTo(56, -15);
-            ctx.quadraticCurveTo(67, 0, 56, 15);
-            ctx.strokeStyle = '#f1f5f9';
-            ctx.lineWidth = 2.5;
-            ctx.stroke();
-            box(ctx, 50, -7, 10, 14, 2, M1);
-        }
-    },
-
     pistol: {
         box: [6, -19, 65, 25],
         tilt: -0.25,
@@ -457,7 +430,10 @@ function sparkles(ctx, size) {
    kind = 'weapon' | 'heal', id = weaponId / itemId, rarity pour les armes.
    fx = false : sans lueur ni étoiles (le butin au sol a déjà sa propre lueur).
 */
-export function iconCanvas(kind, id, rarity = 0, size = 96, fx = true) {
+export function iconCanvas(kind, id, rarity = 0, size = 96, fx = true, skin = null) {
+    // Pioche : le dessin de la pioche équipée (le même qu'en main et dans le casier)
+    if (kind === 'weapon' && WEAPONS[id]?.type === 'melee') return pickaxeCanvas(skin, size, 0.9);
+
     const key = `${kind}|${id}|${rarity}|${size}|${fx ? 1 : 0}`;
     const cached = canvasCache.get(key);
     if (cached) return cached;
@@ -504,7 +480,9 @@ export function iconCanvas(kind, id, rarity = 0, size = 96, fx = true) {
 }
 
 // Image (data URL PNG) pour la hotbar / l'inventaire
-export function makeIcon(weaponId, rarity = 0, size = 96) {
+// skin = pioche équipée (ignoré pour les autres armes)
+export function makeIcon(weaponId, rarity = 0, size = 96, skin = null) {
+    if (WEAPONS[weaponId]?.type === 'melee') return pickaxeUrl(skin, size, 0.9);
     return iconUrl('weapon', weaponId, rarity, size);
 }
 

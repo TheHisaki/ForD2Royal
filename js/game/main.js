@@ -382,6 +382,7 @@ function start() {
                 stats.killerName = killer.name;
                 stats.weaponId = weaponId || '';
                 stats.weaponRarity = it?.rarity || 0;
+                stats.weaponSkin = it?.pickaxeSkin || killer.pickaxeSkin || '';
             }
         }
         combatHud?.addKill(killer, victim, weaponId);
@@ -875,14 +876,17 @@ function start() {
                 setAuthority(msg.authorityId);
                 break;
             case 'player_gone': {
-                // Joueur parti pour de bon : l'hôte fait tomber son butin et l'élimine
+                // Joueur parti pour de bon (retour au lobby, onglet fermé) : éliminé sur TOUTES
+                // les machines (pas seulement chez l'hôte, qui est peut-être celui qui part).
+                // S'il restait la dernière équipe adverse, checkEnd donne la victoire.
                 const mate = remotePlayersMap.get(msg.playerId);
                 if (!mate || !mate.alive) break;
+                showDeath(null, mate, '');
+                mate.alive = false;
+                mate.dbno = false;
+                mate.health = 0;
+                // Son butin tombe une seule fois : c'est l'hôte de la partie qui s'en charge
                 if (isHost) {
-                    showDeath(null, mate, '');
-                    mate.alive = false;
-                    mate.dbno = false;
-                    mate.health = 0;
                     loot.dropAll(mate);
                     netSend({ type: 'kill', v: mate.id, k: null, w: '' });
                 }
@@ -1351,7 +1355,8 @@ function start() {
             killerName: stats.killerName,
             byCorruption: stats.byCorruption,
             weaponId: stats.weaponId,
-            weaponRarity: stats.weaponRarity
+            weaponRarity: stats.weaponRarity,
+            weaponSkin: stats.weaponSkin || ''
         };
     }
 

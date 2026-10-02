@@ -366,7 +366,7 @@ export class InventoryUI {
             if (s?.kind === 'weapon') {
                 const w = WEAPONS[s.weaponId];
                 const img = document.createElement('img');
-                img.src = makeIcon(s.weaponId, s.rarity, 96);
+                img.src = makeIcon(s.weaponId, s.rarity, 96, s.pickaxeSkin || p.pickaxeSkin);
                 img.alt = '';
                 img.draggable = false;
                 icon.appendChild(img);

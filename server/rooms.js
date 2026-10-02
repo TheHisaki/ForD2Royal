@@ -8,6 +8,7 @@ const ROOM_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MAX_PLAYERS_PER_ROOM = 4; // Escouade max par lobby
 const MAX_FIGHTERS = 24;        // places sur la carte (même valeur que js/game/main.js)
 const FLIGHT_DELAY = 6000;      // ms entre le lancement et le départ du vaisseau (chargement des pages)
+const PLAYER_GONE_DELAY = 10000; // ms sans connexion avant qu'un joueur soit éliminé (parti pour de bon)
 
 function generateRoomCode() {
     let code = '';
@@ -118,7 +119,11 @@ class RoomManager {
             console.log(`[Multiplayer] ${existingPlayer.name} (${existingPlayer.id}) reconnecté à la salle ${code} (state: ${room.state})`);
 
             // Page de jeu (inGame) ou retour au lobby après la partie
+            const wasPlaying = room.state === 'game' && !existingPlayer.inLobby;
             existingPlayer.inLobby = room.state === 'game' ? !playerData.inGame : false;
+            // Il a quitté la partie pour revenir au lobby : il est éliminé tout de suite
+            // (sinon les autres attendent un joueur qui ne reviendra pas et personne ne gagne)
+            const leftMatch = wasPlaying && existingPlayer.inLobby;
             if (existingPlayer.goneTimer) clearTimeout(existingPlayer.goneTimer);
             existingPlayer.goneTimer = null;
             if (room.cleanupTimer) {
@@ -149,7 +154,9 @@ class RoomManager {
             if (room.state === 'game') {
                 if (existingPlayer.inLobby) {
                     // Revenu au lobby : s'il menait la partie, un autre joueur prend le relais
+                    // (AVANT d'annoncer son départ : le nouvel hôte fait tomber son butin)
                     if (room.authorityId === existingPlayer.id) this.migrateAuthority(room);
+                    if (leftMatch) this.broadcastToMatch(room, { type: 'player_gone', playerId: existingPlayer.id });
                     this.maybeReturnToLobby(room);
                 } else {
                     this.broadcastToMatch(room, {
@@ -769,16 +776,19 @@ class RoomManager {
                             if (room.state === 'game') this.migrateAuthority(room);
                         }, this.authorityGrace(room));
                     }
-                    // Toujours absent après 20 s : il a quitté la partie pour de bon
+                    // Toujours absent après 10 s (onglet fermé, connexion perdue) : il a quitté
+                    // la partie pour de bon. Un rechargement de page revient bien avant.
                     if (player.goneTimer) clearTimeout(player.goneTimer);
                     player.goneTimer = setTimeout(() => {
                         player.goneTimer = null;
                         if (room.state === 'game' && !player.ws && !player.inLobby) {
                             player.inLobby = true; // ne compte plus parmi les joueurs en jeu
+                            // Nouvel hôte d'abord : c'est lui qui fait tomber le butin du partant
+                            if (room.authorityId === playerId) this.migrateAuthority(room);
                             this.broadcastToMatch(room, { type: 'player_gone', playerId });
                             this.maybeReturnToLobby(room);
                         }
-                    }, 20000);
+                    }, PLAYER_GONE_DELAY);
                 }
             }
 

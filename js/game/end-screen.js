@@ -299,7 +299,7 @@ export class EndScreen {
         }
         const melee = w.type === 'melee';
         const rarity = RARITIES[r.weaponRarity] ? r.weaponRarity : 0;
-        const url = makeIcon(r.weaponId, rarity, 96);
+        const url = makeIcon(r.weaponId, rarity, 96, r.weaponSkin);
         e.weaponIcon.hidden = !url;
         if (url) e.weaponIcon.src = url;
         e.weaponName.textContent = melee ? w.name : `${w.name} · ${RARITIES[rarity].name}`;

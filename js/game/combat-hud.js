@@ -251,7 +251,8 @@ export class CombatHud {
             }
 
             // Contenu de la case (le nombre de soins fait partie de l'étiquette accessible)
-            const sig = s ? `${s.kind}|${s.weaponId || s.itemId}|${s.rarity || 0}|${s.kind === 'heal' ? s.count : ''}` : '-';
+            const skin = w?.type === 'melee' ? (s.pickaxeSkin || p.pickaxeSkin || '') : '';
+            const sig = s ? `${s.kind}|${s.weaponId || s.itemId}|${s.rarity || 0}|${s.kind === 'heal' ? s.count : ''}|${skin}` : '-';
             if (sig === se.sig) continue;
             se.sig = sig;
             this.fillSlot(se, i, s, w);
@@ -316,7 +317,8 @@ export class CombatHud {
         }
         if (s.kind === 'weapon') {
             const img = document.createElement('img');
-            img.src = makeIcon(s.weaponId, s.rarity, 96);
+            // Pioche : celle équipée dans le casier (la même que celle tenue en main)
+            img.src = makeIcon(s.weaponId, s.rarity, 96, s.pickaxeSkin || this.player?.pickaxeSkin);
             img.alt = '';
             img.draggable = false;          // pas de glisser natif : c'est inventory-ui.js qui gère
             icon.appendChild(img);
