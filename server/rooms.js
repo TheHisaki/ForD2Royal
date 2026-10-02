@@ -7,6 +7,7 @@
 const ROOM_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MAX_PLAYERS_PER_ROOM = 4; // Escouade max par lobby
 const MAX_FIGHTERS = 24;        // places sur la carte (même valeur que js/game/main.js)
+const FLIGHT_DELAY = 6000;      // ms entre le lancement et le départ du vaisseau (chargement des pages)
 
 function generateRoomCode() {
     let code = '';
@@ -130,6 +131,8 @@ class RoomManager {
                 roomCode: code,
                 hostId: room.hostId,
                 authorityId: room.authorityId || null,
+                // Horloge de la partie : ms écoulées depuis le départ du vaisseau (négatif avant)
+                clock: room.state === 'game' && room.flightAt ? Date.now() - room.flightAt : undefined,
                 mode: room.mode,
                 ...this.fillInfo(room),
                 slot: existingPlayer.slot,
@@ -462,6 +465,7 @@ class RoomManager {
 
         // Un seul hôte pour toute la partie : le chef de la première salle
         const authorityId = validRooms[0].hostId;
+        const flightAt = Date.now() + FLIGHT_DELAY; // même départ du vaisseau pour toutes les équipes
 
         // Chaque équipe garde son choix « Remplir l'équipe » (sinon elle joue en sous-nombre)
         const teams = validRooms.map((r, i) => ({ team: i + 1, humans: r.players.size, fillTeam: r.fillTeam !== false }));
@@ -472,7 +476,7 @@ class RoomManager {
             r.seed = sharedSeed;
             r.matchedRooms = validRooms;
             r.authorityId = authorityId;
-            this.resetGameFlags(r, teamIdx + 1);
+            this.resetGameFlags(r, teamIdx + 1, flightAt);
 
             this.broadcastToRoom(r, {
                 type: 'game_start',
@@ -492,7 +496,7 @@ class RoomManager {
     }
 
     // Début de partie : tout le monde « en jeu », équipe notée sur chaque joueur
-    resetGameFlags(room, team) {
+    resetGameFlags(room, team, flightAt = null) {
         for (const p of room.players.values()) {
             p.inLobby = false;
             p.team = team;
@@ -502,6 +506,9 @@ class RoomManager {
         if (room.authorityTimer) clearTimeout(room.authorityTimer);
         room.authorityTimer = null;
         room.startedAt = Date.now();
+        // Heure commune de départ du vaisseau : le temps que tout le monde charge la carte.
+        // Chaque page de jeu reçoit « clock » (ms depuis ce départ) et se cale dessus.
+        room.flightAt = flightAt || room.startedAt + FLIGHT_DELAY;
     }
 
     /* ===== PARTIE EN COURS : joueurs, hôte, retour au lobby ===== */

@@ -3,27 +3,27 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=8 : force le navigateur à recharger les modules changés (synchro multijoueur)
-import { generateWorld } from './world.js?v=8';
-import { Player } from './player.js?v=8';
-import { Renderer } from './renderer.js?v=8';
-import { Hud } from './hud.js?v=8';
-import { Input } from './input.js?v=8';
-import { Drop, drawFalling } from './drop.js?v=8';
-import { Combat } from './combat.js?v=8';
-import { Loot } from './loot.js?v=8';
-import { BotManager, roofAlphaAt } from './bots.js?v=8';
-import { Corruption } from './corruption.js?v=8';
-import { CombatHud } from './combat-hud.js?v=8';
-import { Effects } from './effects.js?v=8';
-import { HEALS, WEAPONS } from './weapons.js?v=8';
-import { drawPlayer, drawDying } from './draw.js?v=8';
-import { SFX } from '../sfx.js?v=8';
-import { Settings } from '../settings.js?v=8';
-import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=8';
-import { InventoryUI } from './inventory-ui.js?v=8';
-import { EndScreen, Spectator } from './end-screen.js?v=8';
-import { mountHudIcons, setHudIcon } from './hud-icons.js?v=8';
+// ?v=9 : force le navigateur à recharger les modules changés (synchro multijoueur)
+import { generateWorld } from './world.js?v=9';
+import { Player } from './player.js?v=9';
+import { Renderer } from './renderer.js?v=9';
+import { Hud } from './hud.js?v=9';
+import { Input } from './input.js?v=9';
+import { Drop, drawFalling } from './drop.js?v=9';
+import { Combat } from './combat.js?v=9';
+import { Loot } from './loot.js?v=9';
+import { BotManager, roofAlphaAt } from './bots.js?v=9';
+import { Corruption } from './corruption.js?v=9';
+import { CombatHud } from './combat-hud.js?v=9';
+import { Effects } from './effects.js?v=9';
+import { HEALS, WEAPONS } from './weapons.js?v=9';
+import { drawPlayer, drawDying } from './draw.js?v=9';
+import { SFX } from '../sfx.js?v=9';
+import { Settings } from '../settings.js?v=9';
+import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=9';
+import { InventoryUI } from './inventory-ui.js?v=9';
+import { EndScreen, Spectator } from './end-screen.js?v=9';
+import { mountHudIcons, setHudIcon } from './hud-icons.js?v=9';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -863,6 +863,8 @@ function start() {
             case 'room_joined':
                 if (Array.isArray(msg.players)) syncRoomPlayers(msg.players);
                 if (msg.authorityId) setAuthority(msg.authorityId);
+                // Heure commune de la partie (départ du vaisseau)
+                if (Number.isFinite(msg.clock)) setGameClock(msg.clock);
                 break;
             case 'player_joined':
             case 'player_reconnected':
@@ -1645,14 +1647,48 @@ function start() {
     let time = 0;
 
     const STEP = 0.05;          // pas de simulation maximal (s)
-    // Multijoueur : après un gel de l'onglet, on rattrape le temps perdu (au plus 15 s),
-    // sinon le vaisseau et la corruption prendraient du retard sur les autres joueurs.
-    // En solo, un gel met simplement le jeu en pause (comme avant).
-    const MAX_CATCHUP = isMultiplayer ? 15 : STEP;
+    /*
+       Horloge commune (multijoueur) : le serveur donne à chaque page l'heure de départ du
+       vaisseau (room_joined.clock = ms écoulées depuis le départ, négatif avant). Chaque
+       machine simule exactement jusqu'à cette heure : une page restée en arrière-plan ou
+       arrivée en retard RATTRAPE le temps perdu (au lieu de repartir de son ancien état et
+       de faire reculer les autres). En solo, un gel met simplement le jeu en pause.
+    */
+    const MAX_CATCHUP = 180;    // au plus 3 min rattrapées d'un coup (au-delà : on saute)
+    let clockBase = null;       // performance.now() au départ du vaisseau (null = pas encore connu)
+    let simClock = 0;           // secondes simulées depuis le départ
+    function setGameClock(msSinceFlight) {
+        if (!Number.isFinite(msSinceFlight)) return;
+        const base = performance.now() - msSinceFlight;
+        if (clockBase === null || Math.abs(base - clockBase) > 400) clockBase = base;
+    }
+    // Serveur muet (ancien serveur, coupure) : on ne bloque pas la partie
+    if (isMultiplayer) setTimeout(() => { if (clockBase === null) clockBase = performance.now(); }, 10000);
+
+    // Petit compte à rebours avant le départ du vaisseau (le temps que tout le monde charge)
+    let waitEl = null;
+    function showFlightWait(sec) {
+        if (sec === null) {
+            waitEl?.remove();
+            waitEl = null;
+            return;
+        }
+        if (!waitEl) {
+            waitEl = document.createElement('div');
+            waitEl.setAttribute('role', 'status');
+            waitEl.style.cssText = 'position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:30;' +
+                'padding:10px 22px;border-radius:8px;background:rgba(4,10,32,.8);border:2px solid #ffe03d;' +
+                'color:#fff;font:400 26px "Bebas Neue",Impact,sans-serif;letter-spacing:2px;pointer-events:none';
+            document.body.appendChild(waitEl);
+        }
+        const txt = sec > 0 ? `Départ du vaisseau dans ${sec}…` : 'En attente des autres joueurs…';
+        if (waitEl.textContent !== txt) waitEl.textContent = txt;
+    }
 
     /* ----- Envois réseau périodiques ----- */
     function netTick(now) {
-        if (!netOpen()) return;
+        // Rien à envoyer tant que l'heure de la partie n'est pas connue (état pas encore à jour)
+        if (!netOpen() || clockBase === null) return;
 
         // Notre joueur (20 / s)
         if (now - lastNetSync > 50) {
@@ -1709,6 +1745,13 @@ function start() {
     }
 
     /* ----- Une étape de simulation (dt <= STEP) ----- */
+    // Avant le départ du vaisseau : tout le monde attend à bord (rien ne bouge)
+    function waitOnBoard(dt) {
+        time += dt;
+        fighterEffects(dt);
+        effects.update(dt);
+    }
+
     function simulate(dt, withInput) {
         time += dt;
         const aim = renderer.screenToWorld(input.mouse.x, input.mouse.y);
@@ -1776,19 +1819,55 @@ function start() {
     }
 
     // Avance le jeu jusqu'à "now" ; render = false quand l'onglet est caché
-    function tick(now, render) {
-        let elapsed = Math.max(0, (now - last) / 1000);
-        last = now;
-        elapsed = Math.min(elapsed, MAX_CATCHUP);
-        let dt = Math.min(STEP, elapsed);
+    // Simule "total" secondes en petits pas ; renvoie la durée du dernier pas
+    function advance(total, render) {
+        // Gros retard (onglet en arrière-plan) : pas un peu plus grands pour rattraper vite
+        const step = total > 3 ? 0.1 : STEP;
+        // Rattrapage de plus d'1 s : sans les sons (sinon des dizaines de tirs d'un coup)
+        const quiet = total > 1;
+        const play = SFX.play;
+        if (quiet) SFX.play = () => {};
+        let dt = 0;
         let first = true;
-        do {
-            const s = Math.min(STEP, elapsed);
-            dt = s;
-            simulate(s, first && render);
-            first = false;
-            elapsed -= s;
-        } while (elapsed > 1e-6);
+        try {
+            while (total > 1e-6) {
+                dt = Math.min(step, total);
+                simulate(dt, first && render);
+                first = false;
+                total -= dt;
+            }
+        } finally {
+            if (quiet) SFX.play = play;
+        }
+        return dt;
+    }
+
+    function tick(now, render) {
+        const real = Math.max(0, (now - last) / 1000);
+        last = now;
+        let dt = Math.min(STEP, real);
+        if (!isMultiplayer) {
+            // Solo : un gel (onglet caché) met le jeu en pause
+            advance(dt, render);
+        } else if (clockBase === null || now < clockBase) {
+            // Le vaisseau n'est pas encore parti (ou l'heure n'est pas encore connue)
+            waitOnBoard(dt);
+            showFlightWait(clockBase === null ? 0 : Math.ceil((clockBase - now) / 1000));
+        } else {
+            if (waitEl) showFlightWait(null);
+            let behind = (now - clockBase) / 1000 - simClock;
+            if (behind > MAX_CATCHUP) {
+                // Trop loin derrière : le vaisseau et la corruption se recaleront sur l'hôte
+                simClock += behind - MAX_CATCHUP;
+                behind = MAX_CATCHUP;
+            }
+            if (behind > 0) {
+                dt = advance(behind, render);
+                simClock += behind;
+            } else {
+                dt = 0; // en avance (heure corrigée) : on attend que l'horloge nous rattrape
+            }
+        }
         flushLootSpawns();
         netTick(now);
         if (!render) return;
@@ -1817,18 +1896,40 @@ function start() {
         combatHud.update(dt);
     }
 
+    // Une erreur dans une image ne doit jamais arrêter le jeu (sinon tout se fige)
+    let lastErrorAt = 0;
+    function safeTick(now, render) {
+        try {
+            tick(now, render);
+        } catch (err) {
+            if (performance.now() - lastErrorAt > 2000) {
+                lastErrorAt = performance.now();
+                console.error('[Jeu] Erreur pendant une image (le jeu continue)', err);
+            }
+        }
+    }
+
     function frame(now) {
-        tick(now, true);
+        safeTick(now, true);
         requestAnimationFrame(frame);
     }
     requestAnimationFrame(frame);
 
-    // Onglet caché en multijoueur : le navigateur coupe requestAnimationFrame, mais la
-    // partie continue (surtout chez l'hôte, qui fait vivre les bots pour tout le monde)
+    /*
+       Onglet caché en multijoueur : le navigateur coupe requestAnimationFrame et ralentit
+       fortement les minuteurs de la page, mais pas ceux d'un « worker ». Un petit worker
+       nous réveille 10 fois par seconde : la partie continue (et l'hôte fait toujours vivre
+       les bots pour les autres). En cas d'échec, simple minuteur.
+    */
     if (isMultiplayer) {
-        setInterval(() => {
-            if (document.hidden) tick(performance.now(), false);
-        }, 250);
+        const hiddenTick = () => { if (document.hidden) safeTick(performance.now(), false); };
+        try {
+            const src = 'setInterval(function () { postMessage(0); }, 100);';
+            const worker = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+            worker.onmessage = hiddenTick;
+        } catch {
+            setInterval(hiddenTick, 250);
+        }
     }
 
     // Accès depuis la console du navigateur pour tester (ex : FOR2D_GAME.player.x = 1500)
@@ -1841,5 +1942,8 @@ function start() {
 // Icônes SVG du HUD (emplacements data-icon de game.html), posées tout de suite
 mountHudIcons();
 
-// On laisse l'écran de chargement s'afficher avant la génération (qui bloque un court instant)
-requestAnimationFrame(() => setTimeout(start, 50));
+// On laisse l'écran de chargement s'afficher avant la génération (qui bloque un court instant).
+// Onglet en arrière-plan : requestAnimationFrame ne se déclenche pas, on démarre quand même
+// (sinon le joueur rejoindrait la partie seulement en revenant sur la page).
+if (document.hidden) setTimeout(start, 0);
+else requestAnimationFrame(() => setTimeout(start, 50));

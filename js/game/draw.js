@@ -5,7 +5,7 @@
    ================================== */
 
 import { B, BIOME_COLORS } from './config.js';
-import { shadeHex } from './utils.js';
+import { shadeHex, fighterSeed } from './utils.js';
 import { WEAPONS, HEALS, drawWeapon } from './weapons.js';
 import { iconCanvas } from './icons.js';
 
@@ -988,7 +988,7 @@ export function drawStyledHead(ctx, p, hr, time, cx = 0) {
     const style = styleOf(p);
     if (style === 'default') return false;
     ctx.translate(cx, 0);
-    styledHead(ctx, style, skinColors(p.colors), hr, time || 0, (p.id || 0) * 1.37);
+    styledHead(ctx, style, skinColors(p.colors), hr, time || 0, fighterSeed(p) * 1.37);
     ctx.translate(-cx, 0);
     return true;
 }
@@ -1053,12 +1053,11 @@ const localTeamOf = () => globalThis.FOR2D_LOCAL_TEAM ?? 1;
 
 // Joueur ou bot. Tolère un objet incomplet (ex. un combattant en train de mourir).
 export function drawPlayer(ctx, p, time) {
-    const localTeam = localTeamOf();
     const t = time || 0;
     const hf = clamp01(p.hitFlash || 0);
 
     // Respiration à l'arrêt : ±2 %, décalée d'un combattant à l'autre
-    const breath = p.moving ? 0 : Math.sin(t * 2.6 + (p.id || 0) * 1.7) * 0.02;
+    const breath = p.moving ? 0 : Math.sin(t * 2.6 + fighterSeed(p) * 1.7) * 0.02;
 
     // Flash de dégât : blanc au moment du choc, puis rouge clair en redescendant
     // (couleur construite seulement si le flash est visible : pas de chaîne créée pour rien)
@@ -1133,7 +1132,7 @@ function paintFighter(ctx, p, time, fx) {
     // Skin : 'default' = rendu d'origine, sinon couleurs dérivées gardées en cache
     const style = styleOf(p);
     const sc = style === 'default' ? null : skinColors(p.colors);
-    const seed = (p.id || 0) * 1.37;
+    const seed = fighterSeed(p) * 1.37;
 
     // Objet tenu : arme de la case choisie (sinon mains libres)
     const held = p.inventory?.[p.slot || 0];
@@ -1169,7 +1168,7 @@ function paintFighter(ctx, p, time, fx) {
     }
 
     // Cercle d'escouade sous les pieds (couleur distincte par coéquipier, rouge clignotant si K.O.)
-    if (p.team === localTeam) {
+    if (p.team === localTeamOf()) {
         ctx.save();
         const SQUAD_COLORS = { 1: '#00e5ff', 2: '#ffd21e', 3: '#ff4fd8', 4: '#00ff88' };
         const mateColor = SQUAD_COLORS[p.squadSlot || 2] || '#00e5ff';

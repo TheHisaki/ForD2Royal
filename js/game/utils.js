@@ -35,6 +35,25 @@ export function inFrameView(x, y, margin = 0) {
            y + margin >= v.minY && y - margin <= v.maxY;
 }
 
+/*
+   Nombre propre à chaque combattant pour décaler ses petites animations
+   (respiration, battement des membres...). Les bots ont un id numérique, les
+   joueurs en multijoueur un id texte ("usr_...") : on le transforme en nombre,
+   sinon les calculs donnent NaN et le personnage n'est plus dessiné.
+*/
+export function fighterSeed(p) {
+    if (!p) return 0;
+    const id = p.id;
+    if (typeof id === 'number' && Number.isFinite(id)) return id;
+    if (p._seedFor === id && p._seedFor !== undefined) return p._seed;
+    let h = 0;
+    const s = String(id ?? '');
+    for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) % 9973;
+    p._seedFor = id;
+    p._seed = h;
+    return h;
+}
+
 export function rectsOverlap(a, b, margin = 0) {
     return a.x - margin < b.x + b.w && a.x + a.w + margin > b.x &&
            a.y - margin < b.y + b.h && a.y + a.h + margin > b.y;

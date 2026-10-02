@@ -5,7 +5,7 @@
    ================================== */
 
 import { WORLD_SIZE } from './config.js';
-import { clamp, inFrameView } from './utils.js';
+import { clamp, inFrameView, fighterSeed } from './utils.js';
 import { drawPlayer, drawStyledHead } from './draw.js';
 
 const SHIP_EXTENT = 320;     // rayon (unités) couvrant le vaisseau et son ombre, pour le culling
@@ -304,7 +304,7 @@ function flutter(t, seed, i, freq) {
 function drawSkydiver(ctx, p, f) {
     const { t, r, s } = f;
     const heading = fallHeading(p, f.speed);
-    const seed = (p.id || 0) * 1.37;
+    const seed = fighterSeed(p) * 1.37;
     const col = p.colors || {};
     const skin = col.skin || '#f2c29b';
     const hair = col.hair || '#5a3419';
@@ -502,7 +502,7 @@ function tracePoly(ctx, pts, sx, sy, reverse) {
 function drawGliding(ctx, p, f) {
     const { t, alt, r, s } = f;
     const aim = p.angle || 0;
-    const seed = (p.id || 0) * 1.37;
+    const seed = fighterSeed(p) * 1.37;
 
     // Déploiement avec rebond, puis repli juste avant le sol
     const dp = clamp((OPEN_ALT - alt) / DEPLOY_ALT, 0, 1);

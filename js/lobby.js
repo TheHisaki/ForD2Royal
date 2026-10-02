@@ -940,9 +940,12 @@ class LobbyManager {
             if (teamsCount) teamsCount.textContent = `${msg.teamsCount || 1} / ${msg.teamsNeeded || 2}`;
             if (countdownWrap) countdownWrap.hidden = true;
         } else if (msg.state === 'countdown') {
+            const n = msg.teamsCount || 2;
             if (title) title.textContent = 'ADVERSAIRES TROUVÉS !';
-            if (subtitle) subtitle.textContent = `${msg.teamsCount || 2} équipes prêtes dans la partie.`;
-            if (teamsWrap) teamsWrap.hidden = true;
+            if (subtitle) subtitle.textContent = `${n} équipes prêtes dans la partie.`;
+            // Compteur à jour (il reste visible : d'autres équipes peuvent encore arriver)
+            if (teamsWrap) teamsWrap.hidden = false;
+            if (teamsCount) teamsCount.textContent = String(n);
             if (countdownWrap) countdownWrap.hidden = false;
             if (countdownNumber) {
                 countdownNumber.textContent = msg.secondsLeft;
