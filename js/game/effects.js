@@ -395,14 +395,15 @@ function slashPath(ctx, x, y, R, tail, len, wOut, wIn) {
     ctx.closePath();
 }
 
-// Coup de pioche : la tête balaie de -45° à +45°, la queue la rattrape
+// Coup de pioche : la tête balaie de +45° à -45° (même sens que la pioche dans draw.js,
+// qui part du côté de la main droite), la queue la rattrape
 function drawArc(ctx, p, t, x, y) {
     const span = Math.PI / 2;
-    const a0 = p.ang - span / 2;
-    const head = a0 + span * easeOutCubic(Math.min(1, t / 0.65));
-    const tail = a0 + span * easeInQuad(t);
-    const len = head - tail;
-    if (len < 0.02) return;
+    const a0 = p.ang + span / 2;
+    const head = a0 - span * easeOutCubic(Math.min(1, t / 0.65));
+    const tail = a0 - span * easeInQuad(t);
+    const len = head - tail; // négatif : l'arc tourne dans le sens inverse des aiguilles
+    if (len > -0.02) return;
     const R = p.size;
     const w = p.width;
     const a = p.alpha * (1 - 0.5 * t);
