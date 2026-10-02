@@ -4,7 +4,7 @@
    ================================== */
 
 // ?v=9 : force le navigateur à recharger les modules changés (synchro multijoueur)
-import { generateWorld } from './world.js?v=9';
+import { generateWorld, surfaceAt } from './world.js?v=9';
 import { Player } from './player.js?v=9';
 import { Renderer } from './renderer.js?v=9';
 import { Hud } from './hud.js?v=9';
@@ -1211,7 +1211,9 @@ function start() {
                 if (f._stepT > STEP_TIME) {
                     f._stepT = 0;
                     effects.footstep(f.x - Math.cos(f.angle) * 10, f.y - Math.sin(f.angle) * 10, f.inWater);
-                    SFX.play('step', { x: f.x, y: f.y, water: f.inWater, vol: f === player ? 0.8 : 0.55 });
+                    // Le son dépend du sol : bois, carrelage, pierre, terre, sable, neige, herbe...
+                    const surface = f.inWater ? 'water' : surfaceAt(world, f.x, f.y);
+                    SFX.play('step', { x: f.x, y: f.y, water: f.inWater, surface, vol: f === player ? 0.8 : 0.55 });
                 }
             }
 

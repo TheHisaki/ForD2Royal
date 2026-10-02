@@ -109,6 +109,37 @@ export function sampleGround(x, y) {
     return ground;
 }
 
+/*
+   Sur quoi marche-t-on en (x, y) ? (pour le bruit des pas, voir js/sfx.js)
+   'wood' | 'tile' (intérieurs), 'stone' (place de ville), 'crops' (champs),
+   'dirt' (chemins), puis selon le biome : 'grass' | 'forest' | 'sand' | 'rock' | 'snow' | 'water'
+*/
+export function surfaceAt(world, x, y) {
+    if (world) {
+        for (const b of world.buildings) {
+            if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) {
+                return b.roofType === 'flat' ? 'tile' : 'wood'; // maisons du désert : carrelage
+            }
+        }
+        for (const t of world.towns) {
+            const dx = x - t.x;
+            const dy = y - t.y;
+            if (t.plazaR && dx * dx + dy * dy < t.plazaR * t.plazaR) return 'stone';
+        }
+        for (const f of world.fields) {
+            if (x > f.x && x < f.x + f.w && y > f.y && y < f.y + f.h) return 'crops';
+        }
+        if (world.roadGrid && distToRoads(world, x, y, ROAD_WIDTH) < ROAD_WIDTH / 2) return 'dirt';
+    }
+    const b = sampleGround(x, y).biome;
+    if (isWater(b)) return 'water';
+    if (b === B.BEACH || b === B.DESERT) return 'sand';
+    if (b === B.FORET) return 'forest';
+    if (b === B.MONTAGNE) return 'rock';
+    if (b === B.NEIGE) return 'snow';
+    return 'grass';
+}
+
 export function townAt(world, x, y, margin = 0) {
     for (const t of world.towns) {
         if (Math.hypot(x - t.x, y - t.y) < t.radius + margin) return t;

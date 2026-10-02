@@ -351,6 +351,123 @@ const SHOTS = {
     }
 };
 
+/* ---------- Bruits de pas selon le sol ----------
+   Chaque pas = un impact (talon) + une texture propre au sol.
+   La hauteur varie déjà de ±8 % à chaque pas (JITTER.step) : pas deux pas identiques. */
+
+// Petits grains (gravier, neige, brindilles) éparpillés dans le pas
+function grains(c, n, f0, f1, spread, vol, q = 1.5) {
+    for (let i = 0; i < n; i++) {
+        noise(c, {
+            type: 'bandpass', f0: rand(f0, f1), q,
+            dur: rand(0.008, 0.016), vol: vol * rand(0.6, 1), attack: 0.001,
+            delay: 0.004 + Math.random() * spread
+        });
+    }
+}
+
+const STEPS = {
+    // Herbe : frottement doux et feutré
+    grass(c) {
+        noise(c, { type: 'bandpass', f0: 1900, f1: 1100, q: 0.7, dur: 0.08, vol: 0.075, attack: 0.008 });
+        if (c.lite) return;
+        tone(c, { type: 'sine', f0: 85, f1: 55, dur: 0.05, vol: 0.07 });
+        noise(c, { type: 'highpass', f0: 3800, dur: 0.05, vol: 0.022, attack: 0.01, delay: 0.02 });
+    },
+
+    // Forêt : feuilles mortes qui craquent + parfois une brindille
+    forest(c) {
+        noise(c, { type: 'bandpass', f0: 1500, f1: 2600, q: 0.9, dur: 0.1, vol: 0.075, attack: 0.01 });
+        if (c.lite) return;
+        tone(c, { type: 'sine', f0: 80, f1: 50, dur: 0.05, vol: 0.07 });
+        grains(c, 3, 2200, 4200, 0.06, 0.035, 2);
+        if (Math.random() < 0.25) {
+            noise(c, { type: 'bandpass', f0: rand(2600, 3400), q: 5, dur: 0.012, vol: 0.09, delay: rand(0.01, 0.05) });
+        }
+    },
+
+    // Sable (plage, désert) : glissement sourd et granuleux
+    sand(c) {
+        noise(c, { type: 'bandpass', f0: 1100, f1: 650, q: 0.6, dur: 0.12, vol: 0.085, attack: 0.02 });
+        if (c.lite) return;
+        noise(c, { type: 'lowpass', f0: 420, dur: 0.07, vol: 0.06, attack: 0.006 });
+        noise(c, { type: 'highpass', f0: 4500, dur: 0.07, vol: 0.018, attack: 0.02, delay: 0.03 });
+    },
+
+    // Neige : crissement compact (plein de petits grains) + écrasement grave
+    snow(c) {
+        noise(c, { type: 'lowpass', f0: 650, f1: 300, dur: 0.09, vol: 0.075, attack: 0.008 });
+        if (c.lite) return;
+        grains(c, 5, 1600, 3200, 0.07, 0.05, 1.2);
+        noise(c, { type: 'bandpass', f0: 2400, q: 0.8, dur: 0.06, vol: 0.025, attack: 0.02, delay: 0.02 });
+    },
+
+    // Roche (montagne) : semelle dure qui claque + quelques cailloux
+    rock(c) {
+        noise(c, { type: 'bandpass', f0: 950, q: 1.2, dur: 0.04, vol: 0.075 });
+        if (c.lite) return;
+        tone(c, { type: 'triangle', f0: 210, f1: 150, dur: 0.035, vol: 0.05 });
+        noise(c, { type: 'highpass', f0: 2600, dur: 0.018, vol: 0.05 });
+        grains(c, 2, 2500, 4500, 0.05, 0.03);
+    },
+
+    // Place pavée : pas net et sec sur la pierre
+    stone(c) {
+        noise(c, { type: 'bandpass', f0: 1300, q: 1.4, dur: 0.035, vol: 0.08 });
+        if (c.lite) return;
+        tone(c, { type: 'triangle', f0: 260, f1: 190, dur: 0.03, vol: 0.045 });
+        noise(c, { type: 'highpass', f0: 3200, dur: 0.015, vol: 0.05 });
+        tone(c, { type: 'sine', f0: 120, f1: 80, dur: 0.035, vol: 0.05 });
+    },
+
+    // Chemin de terre : terre tassée + petits graviers qui roulent
+    dirt(c) {
+        noise(c, { type: 'bandpass', f0: 800, f1: 500, q: 0.8, dur: 0.07, vol: 0.08, attack: 0.004 });
+        if (c.lite) return;
+        tone(c, { type: 'sine', f0: 95, f1: 60, dur: 0.045, vol: 0.075 });
+        grains(c, 4, 2000, 3800, 0.06, 0.035);
+    },
+
+    // Plancher en bois : coup creux qui résonne, et de temps en temps une latte qui grince
+    wood(c) {
+        tone(c, { type: 'sine', f0: 175, f1: 115, dur: 0.08, vol: 0.12 });
+        if (c.lite) return;
+        tone(c, { type: 'triangle', f0: 340, f1: 250, dur: 0.045, vol: 0.05 });
+        noise(c, { type: 'bandpass', f0: 1100, q: 2, dur: 0.03, vol: 0.06 });
+        if (Math.random() < 0.12) {
+            tone(c, { type: 'sawtooth', f0: rand(380, 520), f1: rand(330, 450), dur: 0.16, vol: 0.012,
+                attack: 0.04, delay: 0.03, filter: { type: 'bandpass', f: 900, q: 3 } });
+        }
+    },
+
+    // Carrelage (maisons du désert) : petit claquement dur et clair
+    tile(c) {
+        noise(c, { type: 'highpass', f0: 3000, dur: 0.014, vol: 0.06 });
+        if (c.lite) return;
+        tone(c, { type: 'triangle', f0: 880, f1: 680, dur: 0.022, vol: 0.03 });
+        tone(c, { type: 'sine', f0: 150, f1: 100, dur: 0.035, vol: 0.06 });
+        noise(c, { type: 'bandpass', f0: 1600, q: 1.5, dur: 0.03, vol: 0.04 });
+    },
+
+    // Champs (blé, cultures) : tiges sèches qui froissent
+    crops(c) {
+        noise(c, { type: 'bandpass', f0: 3000, f1: 2000, q: 0.6, dur: 0.13, vol: 0.07, attack: 0.015 });
+        if (c.lite) return;
+        tone(c, { type: 'sine', f0: 85, f1: 55, dur: 0.045, vol: 0.06 });
+        noise(c, { type: 'highpass', f0: 5000, dur: 0.09, vol: 0.025, attack: 0.02, delay: 0.02 });
+        grains(c, 2, 3500, 5500, 0.08, 0.025, 2);
+    },
+
+    // Eau : éclaboussure + petit « bloup » + gouttelettes
+    water(c) {
+        noise(c, { type: 'bandpass', f0: 800, f1: 2000, q: 0.8, dur: 0.13, vol: 0.09, attack: 0.012 });
+        if (c.lite) return;
+        tone(c, { type: 'sine', f0: 260, f1: 620, dur: 0.05, vol: 0.05, attack: 0.005 });
+        noise(c, { type: 'highpass', f0: 4000, dur: 0.05, vol: 0.03, attack: 0.005, delay: 0.06 });
+        grains(c, 2, 3000, 5000, 0.1, 0.025, 3);
+    }
+};
+
 const IMPACTS = {
     wall(c) {
         noise(c, { type: 'bandpass', f0: 2200, f1: 1000, q: 1.2, dur: 0.05, vol: 0.25 });
@@ -619,15 +736,11 @@ const SOUNDS = {
         noise(c, { type: 'bandpass', f0: 2500, q: 0.7, dur: 0.25, vol: 0.06, attack: 0.03, delay: 0.03 });
     },
 
-    // Pas lointains (c.lite) : une seule couche (2 nœuds au lieu de 5)
+    // Pas : un son différent selon le sol (o.surface, voir surfaceAt dans js/game/world.js).
+    // Pas lointains (c.lite) : seulement la couche principale (moins de nœuds audio)
     step(c, o) {
-        if (o.water) {
-            tone(c, { type: 'sine', f0: 300, f1: 700, dur: 0.06, vol: 0.06, attack: 0.005 });
-            if (!c.lite) noise(c, { type: 'bandpass', f0: 1800, q: 1, dur: 0.08, vol: 0.05 });
-        } else {
-            tone(c, { type: 'triangle', f0: 90, f1: 60, dur: 0.04, vol: 0.08 });
-            if (!c.lite) noise(c, { type: 'lowpass', f0: 500, dur: 0.03, vol: 0.06 });
-        }
+        const surf = o.water ? 'water' : (hasOwn(STEPS, o.surface) ? o.surface : 'grass');
+        STEPS[surf](c);
     },
 
     eliminate(c) {
@@ -865,8 +978,8 @@ function play(name, opts = {}) {
             gain *= k * k;
             pan = clamp(dx / 800, -1, 1) * 0.8;
             if (pan > -0.03 && pan < 0.03) pan = 0; // inaudible : pas de nœud de panoramique
-            // Pas sur la terre : déjà très graves, le filtre de distance ne change rien
-            if (d > 250 && !(name === 'step' && !o.water)) cutoff = 800 + 17000 * k * k;
+            // Son lointain : plus étouffé (les pas aussi, ils ont maintenant des aigus selon le sol)
+            if (d > 250) cutoff = 800 + 17000 * k * k;
             spatial = true;
         }
         if (gain < 0.01) return;

@@ -3,9 +3,10 @@
    Minimap, carte plein écran, nom du lieu, barres de vie, inventaire.
    ================================== */
 
-import { WORLD_SIZE, B, BIOME_NAMES, LAKES, OCEAN_DEEP } from './config.js';
-import { sampleGround, nearestLake } from './world.js';
-import { groundRGB, drawRoads, drawPlaza, drawField } from './draw.js';
+import { WORLD_SIZE, B, BIOME_NAMES, LAKES, OCEAN_DEEP, SEED, isWater } from './config.js';
+import { sampleGround, nearestLake, distToRoads } from './world.js';
+import { groundRGB, drawPlaza, drawField } from './draw.js';
+import { fbm, valueNoise } from './noise.js';
 import { SFX } from '../sfx.js';
 
 const VEGETATION = new Set(['tree', 'bush', 'pine', 'palm']);
@@ -35,61 +36,282 @@ function zoneActive(z) {
 
 /* ===================== IMAGE DE LA CARTE ===================== */
 
-// Construit une fois pour toutes l'image de l'île entière (vue du dessus)
-export function buildMapImage(world, size = 1024) {
-    // 1) Sol calculé en basse résolution
-    const RES = 512;
+// Sol de la carte : couleurs des biomes + relief des montagnes + trait de côte net
+function mapGround(RES) {
     const small = document.createElement('canvas');
     small.width = RES;
     small.height = RES;
     const sctx = small.getContext('2d');
     const img = sctx.createImageData(RES, RES);
+    const data = img.data;
     const step = WORLD_SIZE / RES;
+    const N = RES * RES;
+    const biomes = new Uint8Array(N);
+    const height = new Float32Array(N);
+
     for (let py = 0; py < RES; py++) {
         const y = (py + 0.5) * step;
         for (let px = 0; px < RES; px++) {
-            const s = sampleGround((px + 0.5) * step, y);
-            groundRGB(img.data, (py * RES + px) * 4, s);
+            const x = (px + 0.5) * step;
+            const i = py * RES + px;
+            const s = sampleGround(x, y);
+            biomes[i] = s.biome;
+            groundRGB(data, i * 4, s);
+            // Altitude (bruit) : seulement là où l'on dessine du relief
+            if (s.biome === B.MONTAGNE || s.biome === B.NEIGE) height[i] = fbm(x * 0.0022, y * 0.0022, SEED + 11, 4);
+        }
+    }
+
+    const scale = (i, f) => {
+        data[i * 4] *= f;
+        data[i * 4 + 1] *= f;
+        data[i * 4 + 2] *= f;
+    };
+    const mix = (i, r, g, b, a) => {
+        data[i * 4] += (r - data[i * 4]) * a;
+        data[i * 4 + 1] += (g - data[i * 4 + 1]) * a;
+        data[i * 4 + 2] += (b - data[i * 4 + 2]) * a;
+    };
+
+    for (let py = 1; py < RES - 1; py++) {
+        for (let px = 1; px < RES - 1; px++) {
+            const i = py * RES + px;
+            const b = biomes[i];
+            const water = isWater(b);
+
+            // Relief : lumière venant du nord-ouest
+            if (b === B.MONTAGNE || b === B.NEIGE) {
+                const a = i - RES - 1;
+                const c = i + RES + 1;
+                const ha = biomes[a] === B.MONTAGNE || biomes[a] === B.NEIGE ? height[a] : height[i];
+                const hc = biomes[c] === B.MONTAGNE || biomes[c] === B.NEIGE ? height[c] : height[i];
+                const f = 1 + (ha - hc) * 7;
+                scale(i, f < 0.72 ? 0.72 : f > 1.22 ? 1.22 : f);
+            }
+
+            // Côte : sable plus sombre côté terre, écume blanche côté eau
+            const n = [biomes[i - 1], biomes[i + 1], biomes[i - RES], biomes[i + RES]];
+            if (!water && n.some(isWater)) scale(i, 0.78);
+            else if (water && n.some(v => !isWater(v))) mix(i, 255, 255, 255, 0.5);
         }
     }
     sctx.putImageData(img, 0, 0);
+    return small;
+}
 
-    // 2) Agrandi avec lissage
+// Petit massif montagneux (2 sommets) : repères sur la carte, comme une carte au trésor
+function drawPeaks(ctx, x, y, s, snowy) {
+    const peak = (cx, h, w) => {
+        ctx.beginPath();
+        ctx.moveTo(cx - w, y);
+        ctx.lineTo(cx, y - h);
+        ctx.lineTo(cx + w, y);
+        ctx.closePath();
+        ctx.fillStyle = snowy ? '#dfe7ef' : '#7b756b';
+        ctx.fill();
+        // Versant à l'ombre
+        ctx.beginPath();
+        ctx.moveTo(cx, y - h);
+        ctx.lineTo(cx + w, y);
+        ctx.lineTo(cx + w * 0.15, y);
+        ctx.closePath();
+        ctx.fillStyle = snowy ? 'rgba(120, 140, 165, 0.45)' : 'rgba(40, 34, 28, 0.35)';
+        ctx.fill();
+        // Neige au sommet
+        if (!snowy) {
+            ctx.beginPath();
+            ctx.moveTo(cx - w * 0.32, y - h * 0.68);
+            ctx.lineTo(cx, y - h);
+            ctx.lineTo(cx + w * 0.32, y - h * 0.68);
+            ctx.lineTo(cx + w * 0.1, y - h * 0.74);
+            ctx.lineTo(cx - w * 0.08, y - h * 0.62);
+            ctx.closePath();
+            ctx.fillStyle = '#f4f7fb';
+            ctx.fill();
+        }
+        ctx.beginPath();
+        ctx.moveTo(cx - w, y);
+        ctx.lineTo(cx, y - h);
+        ctx.lineTo(cx + w, y);
+        ctx.strokeStyle = 'rgba(30, 26, 22, 0.75)';
+        ctx.lineWidth = s * 0.09;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+    };
+    peak(x + s * 0.45, s * 0.8, s * 0.55);
+    peak(x - s * 0.2, s, s * 0.7);
+}
+
+// Construit une fois pour toutes l'image de l'île entière (vue du dessus).
+// Sert aussi de fond à la minimap.
+export function buildMapImage(world, size = 1024) {
+    // 1) Sol calculé en basse résolution, agrandi avec lissage
     const canvas = document.createElement('canvas');
     canvas.width = size;
     canvas.height = size;
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(small, 0, 0, size, size);
+    ctx.drawImage(mapGround(512), 0, 0, size, size);
 
-    // 3) Détails dessinés en coordonnées monde
+    // Océan plus profond vers les bords
+    const deep = ctx.createRadialGradient(size / 2, size / 2, size * 0.5, size / 2, size / 2, size * 0.74);
+    deep.addColorStop(0, 'rgba(6, 24, 70, 0)');
+    deep.addColorStop(1, 'rgba(6, 24, 70, 0.5)');
+    ctx.fillStyle = deep;
+    ctx.fillRect(0, 0, size, size);
+
+    // 2) Détails dessinés en coordonnées monde
     const k = size / WORLD_SIZE;
-    const minR = 1.2 / k; // un objet fait au moins ~1 pixel sur la carte
+    const px = 1 / k; // un pixel de la carte, en unités monde
     ctx.save();
     ctx.scale(k, k);
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
 
-    drawRoads(ctx, world.roads, 30);
-    for (const town of world.towns) drawPlaza(ctx, town);
+    // Champs (cultures en rangées)
     for (const f of world.fields) drawField(ctx, f);
 
-    ctx.lineWidth = 14;
+    // Chemins : bordure sombre, terre claire, pointillés au milieu
+    const roadLine = (r) => {
+        ctx.beginPath();
+        ctx.moveTo(r.points[0], r.points[1]);
+        for (let i = 2; i < r.points.length; i += 2) ctx.lineTo(r.points[i], r.points[i + 1]);
+    };
+    ctx.strokeStyle = 'rgba(92, 62, 34, 0.9)';
+    ctx.lineWidth = 9 * px;
+    for (const r of world.roads) { roadLine(r); ctx.stroke(); }
+    ctx.strokeStyle = '#d9b47c';
+    ctx.lineWidth = 6 * px;
+    for (const r of world.roads) { roadLine(r); ctx.stroke(); }
+    ctx.strokeStyle = 'rgba(255, 246, 220, 0.75)';
+    ctx.lineWidth = 1.2 * px;
+    ctx.setLineDash([5 * px, 6 * px]);
+    for (const r of world.roads) { roadLine(r); ctx.stroke(); }
+    ctx.setLineDash([]);
+
+    // Places des villes
+    for (const town of world.towns) drawPlaza(ctx, town);
+
+    // Cactus du désert : petits points verts cerclés
+    for (const o of world.objects) {
+        if (o.type !== 'cactus') continue;
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, Math.max(o.r * 0.8, 1.3 * px), 0, TAU);
+        ctx.fillStyle = o.base;
+        ctx.fill();
+        ctx.strokeStyle = o.dark;
+        ctx.lineWidth = 0.7 * px;
+        ctx.stroke();
+    }
+
+    // Rochers (seulement les très gros, plus petits : les autres faisaient des taches)
+    for (const o of world.objects) {
+        if (o.type !== 'rock' || o.r < 70) continue;
+        const r = Math.max(o.r * 0.45, 1.4 * px);
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, r, 0, TAU);
+        ctx.fillStyle = o.base;
+        ctx.fill();
+        ctx.strokeStyle = o.dark;
+        ctx.lineWidth = 0.8 * px;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(o.x - r * 0.3, o.y - r * 0.3, r * 0.35, 0, TAU);
+        ctx.fillStyle = o.light;
+        ctx.fill();
+    }
+
+    // Arbres : ombre, puis bord sombre, puis feuillage éclairé (les forêts forment des masses)
+    const trees = world.objects.filter(o => VEGETATION.has(o.type) && o.type !== 'bush');
+    const tr = o => Math.max(o.r * 0.72, 1.6 * px);
+    ctx.fillStyle = 'rgba(8, 24, 12, 0.28)';
+    for (const o of trees) {
+        const r = tr(o);
+        ctx.beginPath();
+        ctx.arc(o.x + r * 0.3, o.y + r * 0.38, r, 0, TAU);
+        ctx.fill();
+    }
+    for (const o of trees) {
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, tr(o), 0, TAU);
+        ctx.fillStyle = o.dark;
+        ctx.fill();
+    }
+    for (const o of trees) {
+        const r = tr(o);
+        ctx.beginPath();
+        ctx.arc(o.x - r * 0.12, o.y - r * 0.14, r * 0.78, 0, TAU);
+        ctx.fillStyle = o.base;
+        ctx.fill();
+        // Reflet (sapins enneigés : neige sur le dessus)
+        ctx.beginPath();
+        ctx.arc(o.x - r * 0.3, o.y - r * 0.32, r * (o.snowy ? 0.42 : 0.3), 0, TAU);
+        ctx.fillStyle = o.snowy ? '#f4f8fc' : o.light;
+        ctx.fill();
+    }
+
+    // Bâtiments : ombre portée, toit à deux pans (ou plat), contour
     for (const b of world.buildings) {
-        ctx.fillStyle = b.roof;
+        ctx.fillStyle = 'rgba(10, 18, 30, 0.35)';
+        ctx.fillRect(b.x + 2.5 * px, b.y + 3 * px, b.w, b.h);
+    }
+    for (const b of world.buildings) {
+        ctx.fillStyle = b.snow ? '#eef3f8' : b.roof;
         ctx.fillRect(b.x, b.y, b.w, b.h);
-        ctx.strokeStyle = b.roofDark;
+        if (b.roofType === 'flat') {
+            // Toit plat : rebord clair
+            ctx.strokeStyle = b.roofLight;
+            ctx.lineWidth = 2 * px;
+            ctx.strokeRect(b.x + 2.5 * px, b.y + 2.5 * px, b.w - 5 * px, b.h - 5 * px);
+        } else {
+            // Deux pans : celui du haut / de gauche éclairé, faîtage au milieu
+            const along = b.w >= b.h;
+            ctx.fillStyle = b.snow ? '#ffffff' : b.roofLight;
+            if (along) ctx.fillRect(b.x, b.y, b.w, b.h / 2);
+            else ctx.fillRect(b.x, b.y, b.w / 2, b.h);
+            ctx.beginPath();
+            if (along) { ctx.moveTo(b.x, b.y + b.h / 2); ctx.lineTo(b.x + b.w, b.y + b.h / 2); }
+            else { ctx.moveTo(b.x + b.w / 2, b.y); ctx.lineTo(b.x + b.w / 2, b.y + b.h); }
+            ctx.strokeStyle = b.roofDark;
+            ctx.lineWidth = 1.2 * px;
+            ctx.stroke();
+        }
+        ctx.strokeStyle = 'rgba(11, 20, 40, 0.85)';
+        ctx.lineWidth = 1.3 * px;
         ctx.strokeRect(b.x, b.y, b.w, b.h);
     }
 
+    // Fontaine, puits
     for (const o of world.objects) {
-        let color;
-        if (VEGETATION.has(o.type)) color = o.base;
-        else if (o.type === 'rock') color = '#8d9199';
-        else continue;
-        ctx.fillStyle = color;
+        if (o.type !== 'fountain' && o.type !== 'well') continue;
+        const r = Math.max(o.r * (o.type === 'fountain' ? 0.9 : 1.1), 3 * px);
         ctx.beginPath();
-        ctx.arc(o.x, o.y, Math.max(o.r * 0.8, minR), 0, Math.PI * 2);
+        ctx.arc(o.x, o.y, r, 0, TAU);
+        ctx.fillStyle = '#d8dde4';
         ctx.fill();
+        ctx.strokeStyle = 'rgba(11, 20, 40, 0.8)';
+        ctx.lineWidth = 1 * px;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.arc(o.x, o.y, r * 0.65, 0, TAU);
+        ctx.fillStyle = '#4fb3f0';
+        ctx.fill();
+    }
+
+    // Massifs dessinés dans les montagnes (grille régulière, loin des villes et chemins)
+    const cell = 420;
+    for (let gy = cell / 2; gy < WORLD_SIZE; gy += cell) {
+        for (let gx = cell / 2; gx < WORLD_SIZE; gx += cell) {
+            const j = valueNoise(gx * 0.01, gy * 0.01, SEED + 21);
+            const x = gx + (j - 0.5) * cell * 0.6;
+            const y = gy + (valueNoise(gx * 0.01, gy * 0.01, SEED + 22) - 0.5) * cell * 0.6;
+            const bio = sampleGround(x, y).biome;
+            if (bio !== B.MONTAGNE && bio !== B.NEIGE) continue;
+            if (world.towns.some(t => Math.hypot(x - t.x, y - t.y) < t.radius + 60)) continue;
+            if (world.roadGrid && distToRoads(world, x, y, 160) < 130) continue;
+            drawPeaks(ctx, x, y, (12 + j * 5) * px, bio === B.NEIGE);
+        }
     }
 
     ctx.restore();
@@ -661,10 +883,11 @@ export class Hud {
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(this.mapImage, 0, 0, size, size);
 
-        // Quadrillage 8 x 8
+        // Quadrillage 8 x 8 : traits fins et discrets
         const cell = size / GRID;
-        ctx.strokeStyle = 'rgba(255, 255, 255, 0.28)';
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.16)';
         ctx.lineWidth = Math.max(1, dpr);
+        ctx.setLineDash([6 * dpr, 5 * dpr]);
         ctx.beginPath();
         for (let i = 1; i < GRID; i++) {
             const v = Math.round(i * cell) + 0.5;
@@ -672,24 +895,124 @@ export class Hud {
             ctx.moveTo(0, v); ctx.lineTo(size, v);
         }
         ctx.stroke();
+        ctx.setLineDash([]);
 
-        const labelPx = Math.max(12, size * 0.024);
+        // Bandeaux des coordonnées (haut et gauche) : lettres et chiffres sur fond sombre
+        const labelPx = Math.max(11, size * 0.022);
+        const band = labelPx * 1.7;
+        ctx.fillStyle = 'rgba(8, 20, 56, 0.72)';
+        ctx.fillRect(0, 0, size, band);
+        ctx.fillRect(0, band, band, size - band);
+        ctx.fillStyle = 'rgba(255, 224, 61, 0.9)';
+        ctx.fillRect(0, band - Math.max(1, dpr), size, Math.max(1, dpr));
+        ctx.fillRect(band - Math.max(1, dpr), band, Math.max(1, dpr), size - band);
+        ctx.font = `${Math.round(labelPx)}px "Bebas Neue", Impact, sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillStyle = '#ffffff';
         for (let i = 0; i < GRID; i++) {
-            outlinedText(ctx, LETTERS[i], (i + 0.5) * cell, labelPx * 0.8, labelPx);
-            outlinedText(ctx, String(i + 1), labelPx * 0.8, (i + 0.5) * cell, labelPx);
+            ctx.fillText(LETTERS[i], (i + 0.5) * cell, band / 2 + labelPx * 0.05);
+            ctx.fillText(String(i + 1), band / 2, (i + 0.5) * cell);
         }
 
-        // Villes
-        const townPx = Math.max(14, size * 0.034);
-        for (const t of this.world.towns) {
-            outlinedText(ctx, t.name.toUpperCase(), t.x * k, t.y * k, townPx);
-        }
-        // Lacs (plus petits, en italique)
-        const lakePx = Math.max(10, size * 0.02);
+        // Lacs : nom en italique, dans l'eau
+        const lakePx = Math.max(10, size * 0.019);
         for (const l of LAKES) {
-            // Sous le lac, pour ne pas chevaucher les noms de villes voisines
-            outlinedText(ctx, l.name, l.x * k, (l.y + l.r) * k + lakePx, lakePx, 'italic 600 ' + '"Rubik", "Segoe UI", sans-serif');
+            ctx.font = `italic 600 ${Math.round(lakePx)}px "Rubik", "Segoe UI", sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.lineJoin = 'round';
+            ctx.lineWidth = Math.max(2, lakePx * 0.28);
+            ctx.strokeStyle = 'rgba(14, 60, 130, 0.9)';
+            ctx.strokeText(l.name, l.x * k, l.y * k);
+            ctx.fillStyle = '#e8f6ff';
+            ctx.fillText(l.name, l.x * k, l.y * k);
         }
+
+        // Villes : repère sur la place + étiquette (plaque sombre, liseré jaune) au-dessus
+        const townPx = Math.max(13, size * 0.03);
+        for (const t of this.world.towns) {
+            const tx = t.x * k;
+            const ty = t.y * k;
+            const name = t.name.toUpperCase();
+            ctx.font = `${Math.round(townPx)}px "Bebas Neue", Impact, sans-serif`;
+            const tw = ctx.measureText(name).width;
+            const padX = townPx * 0.5;
+            const h = townPx * 1.35;
+            const w = tw + padX * 2;
+            const gap = Math.max(10 * dpr, (t.plazaR || 120) * k * 0.6);
+            const bx = Math.min(Math.max(tx - w / 2, band + 4 * dpr), size - w - 4 * dpr);
+            const by = Math.max(ty - gap - h, band + 4 * dpr);
+
+            // Pointe vers le centre de la ville + point blanc
+            ctx.beginPath();
+            ctx.moveTo(tx - townPx * 0.28, by + h - 1);
+            ctx.lineTo(tx, ty - 4 * dpr);
+            ctx.lineTo(tx + townPx * 0.28, by + h - 1);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(8, 20, 56, 0.88)';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.arc(tx, ty, 4 * dpr, 0, TAU);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            ctx.lineWidth = 2 * dpr;
+            ctx.strokeStyle = 'rgba(8, 20, 56, 0.9)';
+            ctx.stroke();
+
+            // Plaque
+            ctx.save();
+            ctx.shadowColor = 'rgba(0, 0, 0, 0.45)';
+            ctx.shadowBlur = 6 * dpr;
+            ctx.shadowOffsetY = 2 * dpr;
+            ctx.beginPath();
+            ctx.roundRect(bx, by, w, h, h * 0.22);
+            ctx.fillStyle = 'rgba(8, 20, 56, 0.88)';
+            ctx.fill();
+            ctx.restore();
+            ctx.beginPath();
+            ctx.roundRect(bx, by, w, h, h * 0.22);
+            ctx.lineWidth = Math.max(1.5, 1.5 * dpr);
+            ctx.strokeStyle = YELLOW;
+            ctx.stroke();
+            ctx.fillStyle = '#ffffff';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText(name, bx + w / 2, by + h / 2 + townPx * 0.04);
+        }
+
+        // Rose des vents (coin bas droit)
+        const cr = Math.max(16, size * 0.035);
+        const cx = size - cr * 1.6;
+        const cy = size - cr * 1.6;
+        ctx.save();
+        ctx.translate(cx, cy);
+        ctx.beginPath();
+        ctx.arc(0, 0, cr, 0, TAU);
+        ctx.fillStyle = 'rgba(8, 20, 56, 0.75)';
+        ctx.fill();
+        ctx.lineWidth = Math.max(1.5, 1.5 * dpr);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+        ctx.stroke();
+        for (const [a, col] of [[0, YELLOW], [Math.PI, '#ffffff'], [Math.PI / 2, 'rgba(255,255,255,0.55)'], [-Math.PI / 2, 'rgba(255,255,255,0.55)']]) {
+            ctx.save();
+            ctx.rotate(a);
+            ctx.beginPath();
+            ctx.moveTo(0, -cr * 0.78);
+            ctx.lineTo(cr * 0.2, 0);
+            ctx.lineTo(-cr * 0.2, 0);
+            ctx.closePath();
+            ctx.fillStyle = col;
+            ctx.fill();
+            ctx.restore();
+        }
+        ctx.restore();
+        outlinedText(ctx, 'N', cx, cy - cr * 1.25, cr * 0.6);
+
+        // Cadre
+        ctx.lineWidth = Math.max(2, 2 * dpr);
+        ctx.strokeStyle = 'rgba(8, 20, 56, 0.9)';
+        ctx.strokeRect(ctx.lineWidth / 2, ctx.lineWidth / 2, size - ctx.lineWidth, size - ctx.lineWidth);
         this._fullBase = c;
     }
 
