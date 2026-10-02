@@ -1047,8 +1047,13 @@ function soulSparks(ctx, r, time, seed, color) {
     ctx.globalAlpha = ga;
 }
 
+// Équipe du joueur de cette machine (posée par main.js) : cercle d'escouade sous ses coéquipiers.
+// Variable globale car ce module peut être chargé deux fois (avec et sans ?v=).
+const localTeamOf = () => globalThis.FOR2D_LOCAL_TEAM ?? 1;
+
 // Joueur ou bot. Tolère un objet incomplet (ex. un combattant en train de mourir).
 export function drawPlayer(ctx, p, time) {
+    const localTeam = localTeamOf();
     const t = time || 0;
     const hf = clamp01(p.hitFlash || 0);
 
@@ -1164,7 +1169,7 @@ function paintFighter(ctx, p, time, fx) {
     }
 
     // Cercle d'escouade sous les pieds (couleur distincte par coéquipier, rouge clignotant si K.O.)
-    if (p.team === 1) {
+    if (p.team === localTeam) {
         ctx.save();
         const SQUAD_COLORS = { 1: '#00e5ff', 2: '#ffd21e', 3: '#ff4fd8', 4: '#00ff88' };
         const mateColor = SQUAD_COLORS[p.squadSlot || 2] || '#00e5ff';

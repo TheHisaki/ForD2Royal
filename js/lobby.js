@@ -13,7 +13,12 @@ class LobbyManager {
         this.currentGameMode = 'SOLO';
         this.teamSize = 1;
         this._pendingMode = 'solo';
+        // Deux options distinctes :
+        // - botsEnabled = « Remplir l'équipe avec des bots » (places vides de MON équipe)
+        // - fillMatch   = « Remplir la partie avec des bots » (sinon : file d'attente avec de vrais joueurs)
         this.botsEnabled = true;
+        this.fillMatch = true;
+        this.autoRoom = false; // salle créée toute seule pour la file d'attente
 
         // Charger le dernier mode choisi
         try {
@@ -23,7 +28,8 @@ class LobbyManager {
                 if (cfg.modeName) this.currentGameMode = cfg.modeName;
                 if (cfg.teamSize) this.teamSize = cfg.teamSize;
                 if (cfg.mode) this._pendingMode = cfg.mode;
-                if (typeof cfg.bots === 'boolean') this.botsEnabled = cfg.bots;
+                if (typeof cfg.fillTeam === 'boolean') this.botsEnabled = cfg.fillTeam;
+                if (typeof cfg.fillMatch === 'boolean') this.fillMatch = cfg.fillMatch;
             }
         } catch { /* parse error */ }
 
@@ -195,7 +201,7 @@ class LobbyManager {
         // Mode selector
         this.setupModeSelector();
 
-        // Remplissage / Jouer avec des bots
+        // Accueil : « Remplir l'équipe avec des bots » (au-dessus du bouton Prêt)
         const fillToggle = document.getElementById('botFillToggle') || document.querySelector('.fill-toggle');
         if (fillToggle) {
             fillToggle.addEventListener('click', () => {
@@ -261,16 +267,34 @@ class LobbyManager {
             this.handleMatchmakingStatus({ state: 'idle' });
         }
 
-        // Notifier le réseau si connecté dans une salle
-        if (window.networkManager && window.networkManager.isConnected() && window.networkManager.roomCode) {
-            window.networkManager.sendPlayerStatus(this.localPlayerReady);
-            if (this.localPlayerReady && window.networkManager.isHost && this.botsEnabled) {
-                const allReady = this.players.every(p => p.ready);
-                if (allReady) window.networkManager.startGame();
+        const net = window.networkManager;
+        if (net && net.isConnected() && net.roomCode) {
+            // Dans une salle : c'est le serveur qui lance la partie quand tout le monde est prêt
+            // (tout de suite si la partie est remplie de bots, sinon file d'attente)
+            net.sendPlayerStatus(this.localPlayerReady);
+            // Salle créée seulement pour la file d'attente : on la quitte en annulant
+            if (!this.localPlayerReady && this.autoRoom && this.getRealPartyPlayerCount() <= 1) {
+                this.autoRoom = false;
+                net.leaveRoom();
             }
-        } else {
+        } else if (this.localPlayerReady && !this.fillMatch) {
+            // Pas de bots dans la partie : il faut le serveur pour trouver d'autres équipes
+            if (net && net.isConnected()) {
+                this.autoRoom = true;
+                net.readyAfterCreate = true;
+                net.createRoom(this.currentGameMode.toLowerCase(), false, this.botsEnabled);
+                this.handleMatchmakingStatus({ state: 'searching', teamsCount: 1, teamsNeeded: 2, mode: this.currentGameMode.toLowerCase() });
+            } else {
+                this.showToast('File d\'attente impossible hors ligne : active « Remplir la partie avec des bots ».');
+                this.localPlayerReady = false;
+                this.players[0].ready = false;
+                readyBtn.classList.remove('is-ready');
+                readyBtn.querySelector('.ready-text').textContent = 'PRÊT';
+                this.updatePlayerStatus(0, false);
+            }
+        } else if (this.localPlayerReady) {
             // Hors ligne / Solo : on lance la partie
-            if (this.localPlayerReady) this.startGame();
+            this.startGame();
         }
     }
 
@@ -313,7 +337,6 @@ class LobbyManager {
     /* ===== MODE SELECTOR ===== */
 
     setupModeSelector() {
-        this.botsEnabled = true; // Bots always on for now
         this._pendingMode = this.currentGameMode.toLowerCase();
 
         const overlay = document.getElementById('modeSelector');
@@ -348,22 +371,27 @@ class LobbyManager {
             });
         });
 
-        // Bouton interrupteur Bots (fonctionnel : Avec bots / Sans bots)
-        const botsToggle = document.getElementById('modeBotsToggle');
-        const botsRow = document.getElementById('modeOptBots');
-        const onBotsToggle = (e) => {
-            e?.preventDefault?.();
-            e?.stopPropagation?.();
-            this.toggleBotTeammates();
+        // Deux interrupteurs : remplir l'équipe / remplir la partie (clic sur la ligne entière aussi)
+        const bindSwitch = (rowId, toggleId, action) => {
+            const row = document.getElementById(rowId);
+            const toggle = document.getElementById(toggleId);
+            const onClick = (e) => {
+                e?.preventDefault?.();
+                e?.stopPropagation?.();
+                if (toggle?.disabled) return;
+                action();
+            };
+            if (toggle) {
+                toggle.disabled = false;
+                toggle.addEventListener('click', onClick);
+            }
+            if (row) {
+                row.style.cursor = 'pointer';
+                row.addEventListener('click', onClick);
+            }
         };
-        if (botsToggle) {
-            botsToggle.disabled = false;
-            botsToggle.addEventListener('click', onBotsToggle);
-        }
-        if (botsRow) {
-            botsRow.style.cursor = 'pointer';
-            botsRow.addEventListener('click', onBotsToggle);
-        }
+        bindSwitch('modeOptFillTeam', 'modeFillTeamToggle', () => this.toggleBotTeammates());
+        bindSwitch('modeOptFillMatch', 'modeFillMatchToggle', () => this.toggleFillMatch());
 
         // Confirm button
         const confirmBtn = document.getElementById('modeConfirmBtn');
@@ -489,7 +517,6 @@ class LobbyManager {
 
         this.currentGameMode = modeMap[mode] || 'SOLO';
         this.teamSize = teamSizes[mode] || 1;
-        this.botsEnabled = true;
 
         const overlay = document.getElementById('modeSelector');
         if (overlay) {
@@ -524,31 +551,66 @@ class LobbyManager {
 
         nameEl.textContent = modeNames[this._pendingMode] || 'SOLO';
         const ts = teamSizes[this._pendingMode] || 1;
-        const teamText = ts > 1 ? ` · Équipe de ${ts}` : '';
-        const botText = this.botsEnabled ? 'Avec bots' : 'Sans bots';
-        detailEl.textContent = `${modePlayers[this._pendingMode] || '1 joueur'}${teamText} · ${botText}`;
+        const teamText = ts > 1 ? ` · Équipe ${this.botsEnabled ? 'complétée par des bots' : 'sans bots'}` : '';
+        const matchText = this.fillMatch ? 'Partie remplie de bots' : 'File d\'attente (vrais joueurs)';
+        detailEl.textContent = `${modePlayers[this._pendingMode] || '1 joueur'}${teamText} · ${matchText}`;
     }
 
+    // Met à jour les 3 boutons (accueil + 2 interrupteurs du menu des modes)
     updateBotFillUI() {
+        const solo = this.teamSize <= 1;
+        const leader = this.isCurrentPartyLeader();
         const fillToggle = document.getElementById('botFillToggle');
         if (fillToggle) {
-            fillToggle.setAttribute('aria-pressed', String(this.botsEnabled));
-            fillToggle.textContent = this.botsEnabled ? 'Activé' : 'Désactivé';
-            fillToggle.classList.toggle('is-disabled-fill', !this.botsEnabled);
+            fillToggle.setAttribute('aria-pressed', String(this.botsEnabled && !solo));
+            fillToggle.textContent = solo ? 'Solo' : this.botsEnabled ? 'Activé' : 'Désactivé';
+            fillToggle.classList.toggle('is-disabled-fill', solo || !this.botsEnabled);
+            fillToggle.disabled = solo;
+            fillToggle.title = solo
+                ? 'En solo, il n\'y a pas d\'équipe à remplir'
+                : leader ? 'Les places vides de ton équipe sont prises par des bots' : 'Seul le chef du groupe peut changer cette option';
         }
 
-        const modeBotsToggle = document.getElementById('modeBotsToggle');
-        if (modeBotsToggle) {
-            modeBotsToggle.setAttribute('aria-checked', String(this.botsEnabled));
+        const teamSwitch = document.getElementById('modeFillTeamToggle');
+        if (teamSwitch) {
+            teamSwitch.setAttribute('aria-checked', String(this.botsEnabled));
+            teamSwitch.disabled = solo;
         }
+        document.getElementById('modeOptFillTeam')?.classList.toggle('is-disabled', solo);
+
+        const matchSwitch = document.getElementById('modeFillMatchToggle');
+        if (matchSwitch) matchSwitch.setAttribute('aria-checked', String(this.fillMatch));
 
         this.updateModeFooter();
     }
 
+    // Réglages reçus du serveur (le chef du groupe les a changés)
+    applyFillConfig(msg) {
+        if (!msg) return;
+        const fm = msg.fillMatch ?? msg.botFill;
+        if (typeof fm === 'boolean') this.fillMatch = fm;
+        if (typeof msg.fillTeam === 'boolean') this.botsEnabled = msg.fillTeam;
+        this.syncBotTeammates();
+        this.saveGameConfig();
+        this.updateBotFillUI();
+        this.updateUI();
+    }
+
+    sendFillConfig() {
+        if (window.networkManager?.roomCode && this.isCurrentPartyLeader()) {
+            window.networkManager.sendRoomConfig(this.currentGameMode.toLowerCase(), this.fillMatch, this.botsEnabled);
+        }
+    }
+
+    // « Remplir l'équipe avec des bots »
     toggleBotTeammates() {
         if (!this.isCurrentPartyLeader()) {
             this.showToast('Seul le chef du groupe peut changer les options de bots ! 👑');
             window.SFX?.play('click');
+            return;
+        }
+        if (this.teamSize <= 1) {
+            this.showToast('En solo, il n\'y a pas d\'équipe à remplir.');
             return;
         }
 
@@ -558,29 +620,48 @@ class LobbyManager {
         this.saveGameConfig();
         this.updateUI();
         window.SFX?.play('click');
+        this.sendFillConfig();
 
-        if (window.networkManager?.roomCode && this.isCurrentPartyLeader()) {
-            window.networkManager.sendRoomConfig(this.currentGameMode.toLowerCase(), this.botsEnabled);
+        this.showToast(this.botsEnabled
+            ? 'Équipe complétée par des bots'
+            : 'Équipe sans bots : vous jouerez en sous-nombre s\'il manque des joueurs');
+        this.addChatMessage(`Remplir l'équipe avec des bots : ${this.botsEnabled ? 'Activé' : 'Désactivé'}`, 'Système');
+    }
+
+    // « Remplir la partie avec des bots »
+    toggleFillMatch() {
+        if (!this.isCurrentPartyLeader()) {
+            this.showToast('Seul le chef du groupe peut changer les options de bots ! 👑');
+            window.SFX?.play('click');
+            return;
+        }
+        if (this.localPlayerReady) {
+            this.showToast('Annule « Prêt » avant de changer cette option.');
+            return;
         }
 
-        const stateStr = this.botsEnabled ? 'activés (remplissage auto avec bots)' : 'désactivés (file d\'attente matchmaking)';
-        this.showToast(`Bots ${stateStr}`);
-        this.addChatMessage(`Bots : ${this.botsEnabled ? 'Activés' : 'Désactivés (Matchmaking en ligne)'}`, 'Système');
+        this.fillMatch = !this.fillMatch;
+        this.updateBotFillUI();
+        this.saveGameConfig();
+        window.SFX?.play('click');
+        this.sendFillConfig();
+
+        this.showToast(this.fillMatch
+            ? 'Partie remplie avec des bots : lancement immédiat'
+            : 'Sans bots dans la partie : file d\'attente avec de vrais joueurs');
+        this.addChatMessage(`Remplir la partie avec des bots : ${this.fillMatch ? 'Activé' : 'Désactivé (file d\'attente)'}`, 'Système');
     }
 
     syncBotTeammates() {
         const local = this.players[0] || { id: 1, name: 'Joueur 1', ready: this.localPlayerReady, isLocal: true };
         local.ready = this.localPlayerReady;
 
-        // Si nous sommes dans une salle réseau avec plusieurs vrais joueurs, ne pas écraser les coéquipiers
-        if (window.networkManager?.roomCode && Array.isArray(window.networkManager.roomPlayers) && window.networkManager.roomPlayers.length > 1) {
-            return;
-        }
-
+        // Vrais joueurs du groupe (moi d'abord), puis des bots dans les places libres si
+        // « Remplir l'équipe » est activé (ex. Trio à 2 : 1 bot ; sinon on reste à 2)
+        const real = [local, ...this.players.slice(1).filter(p => !p.isBot)];
+        const list = real.slice(0, Math.max(1, this.teamSize));
         if (this.botsEnabled && this.teamSize > 1) {
-            const list = [local];
-            const needed = this.teamSize - 1;
-            for (let i = 0; i < needed; i++) {
+            for (let i = 0; list.length < this.teamSize; i++) {
                 list.push({
                     id: `bot_${i + 2}`,
                     name: BOT_TEAMMATE_NAMES[i] || `Bot ${i + 2}`,
@@ -589,10 +670,9 @@ class LobbyManager {
                     isBot: true
                 });
             }
-            this.players = list;
-        } else {
-            this.players = [local];
         }
+        // Les vrais joueurs ne sont jamais cachés, même au-delà de la taille d'équipe
+        this.players = list.concat(real.slice(list.filter(p => !p.isBot).length));
     }
 
     saveGameConfig() {
@@ -612,8 +692,12 @@ class LobbyManager {
                 mode: m,
                 modeName: this.currentGameMode,
                 teamSize: this.teamSize,
-                bots: this.botsEnabled
+                bots: this.fillMatch,
+                fillMatch: this.fillMatch,
+                fillTeam: this.botsEnabled
             };
+            // Partie hors ligne : pas d'équipes reçues du serveur
+            if (!window.networkManager?.roomCode) delete cfg.teams;
 
             // Si connecté à une salle réseau, préserver les identifiants et membres
             if (window.networkManager?.roomCode) {
@@ -640,7 +724,7 @@ class LobbyManager {
         window.SFX?.play('mode');
 
         if (this.isCurrentPartyLeader() && window.networkManager?.roomCode) {
-            window.networkManager.sendRoomConfig(this._pendingMode, this.botsEnabled);
+            window.networkManager.sendRoomConfig(this._pendingMode, this.fillMatch, this.botsEnabled);
         }
 
         this.syncBotTeammates();
@@ -648,7 +732,8 @@ class LobbyManager {
         this.updateBotFillUI();
         this.updateUI();
         const display = this.currentGameMode === 'ESCOUADE' ? 'SECTION' : this.currentGameMode;
-        this.addChatMessage(`Mode de jeu : ${display} (équipe de ${this.teamSize}) · ${this.botsEnabled ? 'Avec bots' : 'Sans bots'}`, 'Système');
+        const teamTxt = this.teamSize > 1 ? (this.botsEnabled ? ' · équipe complétée par des bots' : ' · équipe sans bots') : '';
+        this.addChatMessage(`Mode de jeu : ${display} (équipe de ${this.teamSize})${teamTxt} · ${this.fillMatch ? 'partie remplie de bots' : 'file d\'attente'}`, 'Système');
         this.closeModeSelector();
     }
 
@@ -685,7 +770,8 @@ class LobbyManager {
         
         // Créer une salle multijoueur sur le serveur
         if (window.networkManager) {
-            window.networkManager.createRoom(this.currentGameMode.toLowerCase(), this.botsEnabled);
+            this.autoRoom = false;
+            window.networkManager.createRoom(this.currentGameMode.toLowerCase(), this.fillMatch, this.botsEnabled);
         }
         
         this.addChatMessage('Création d\'une salle multijoueur...');
@@ -807,17 +893,14 @@ class LobbyManager {
         });
 
         this.players = newPlayers;
+        if (others.length > 0) this.autoRoom = false; // des amis ont rejoint : c'est un vrai groupe
         this.enforceMinModeForParty();
+        this.syncBotTeammates();
         this.updateLeaderPermissions();
+        this.updateBotFillUI();
         this.updateUI();
-
-        // Si tout le monde est prêt et qu'on joue avec bots, lancer automatiquement
-        if (this.isCurrentPartyLeader() && this.botsEnabled && this.players.length > 1) {
-            const allReady = this.players.every(p => p.ready);
-            if (allReady) {
-                window.networkManager?.startGame();
-            }
-        }
+        // Lancement : décidé par le serveur quand tout le monde est prêt
+        // (direct si la partie est remplie de bots, sinon file d'attente)
 
         const partyActions = document.getElementById('partyActions');
         if (partyActions) {
@@ -893,7 +976,7 @@ class LobbyManager {
             this.setGameModeSilently(targetMode);
 
             if (isLeader && window.networkManager?.roomCode) {
-                window.networkManager.sendRoomConfig(targetMode, this.botsEnabled);
+                window.networkManager.sendRoomConfig(targetMode, this.fillMatch, this.botsEnabled);
             }
 
             const icons = { duo: '👥', trio: '👥‍👤', section: '🎖️' };
@@ -1087,18 +1170,13 @@ class LobbyManager {
         // Nombre réel de joueurs dans le groupe (en haut à droite)
         const partyCount = document.getElementById('partyCount');
         if (partyCount) {
-            const n = this.players.length;
+            const n = this.players.filter(p => !p.isBot).length || 1; // vrais joueurs seulement
             partyCount.textContent = String(n);
             partyCount.setAttribute('aria-label', `${n} joueur${n > 1 ? 's' : ''} dans le groupe`);
         }
 
-        // Mettre à jour le bouton Jouer avec des bots
-        const botToggle = document.getElementById('botFillToggle') || document.querySelector('.fill-toggle');
-        if (botToggle) {
-            botToggle.setAttribute('aria-pressed', String(this.botsEnabled));
-            botToggle.textContent = this.botsEnabled ? 'Activé' : 'Désactivé';
-            botToggle.classList.toggle('active', this.botsEnabled);
-        }
+        // Boutons « Remplir l'équipe » (accueil) et interrupteurs du menu des modes
+        this.updateBotFillUI();
 
         // Mettre à jour le mode de jeu
         const modeDisplay = document.querySelector('.mode-display');
@@ -1173,11 +1251,8 @@ class LobbyManager {
         
         if (allReady) {
             if (window.networkManager && window.networkManager.isConnected() && window.networkManager.roomCode) {
-                if (window.networkManager.isHost) {
-                    window.networkManager.startGame();
-                } else {
-                    this.addChatMessage('En attente que le chef lance la partie...');
-                }
+                // Le serveur lance (ou met en file d'attente) quand tout le groupe est prêt
+                this.addChatMessage('En attente des autres joueurs du groupe...');
                 return;
             }
 

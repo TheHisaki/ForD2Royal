@@ -6,6 +6,7 @@
 
 const ROOM_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MAX_PLAYERS_PER_ROOM = 4; // Escouade max par lobby
+const MAX_FIGHTERS = 24;        // places sur la carte (même valeur que js/game/main.js)
 
 function generateRoomCode() {
     let code = '';
@@ -49,7 +50,9 @@ class RoomManager {
             code,
             hostId: hostData.id,
             mode: hostData.mode || 'duo',
-            botFill: hostData.botFill !== false,
+            // botFill = « Remplir la partie avec des bots » ; fillTeam = « Remplir l'équipe avec des bots »
+            botFill: (hostData.fillMatch ?? hostData.botFill) !== false,
+            fillTeam: hostData.fillTeam !== false,
             state: 'lobby',
             seed: Math.floor(Math.random() * 1000000),
             createdAt: Date.now(),
@@ -81,11 +84,16 @@ class RoomManager {
             roomCode: code,
             hostId: room.hostId,
             mode: room.mode,
-            botFill: room.botFill,
+            ...this.fillInfo(room),
             players: this.serializePlayers(room)
         });
 
         return room;
+    }
+
+    // Options de bots envoyées aux clients (botFill gardé pour les anciennes pages)
+    fillInfo(room) {
+        return { botFill: room.botFill !== false, fillMatch: room.botFill !== false, fillTeam: room.fillTeam !== false };
     }
 
     joinRoom(ws, code, playerData) {
@@ -123,7 +131,7 @@ class RoomManager {
                 hostId: room.hostId,
                 authorityId: room.authorityId || null,
                 mode: room.mode,
-                botFill: room.botFill,
+                ...this.fillInfo(room),
                 slot: existingPlayer.slot,
                 seed: room.seed,
                 state: room.state,
@@ -202,7 +210,7 @@ class RoomManager {
             roomCode: code,
             hostId: room.hostId,
             mode: room.mode,
-            botFill: room.botFill,
+            ...this.fillInfo(room),
             slot: freeSlot,
             players: this.serializePlayers(room)
         });
@@ -218,7 +226,7 @@ class RoomManager {
             this.broadcastToRoom(room, {
                 type: 'room_config',
                 mode: room.mode,
-                botFill: room.botFill
+                ...this.fillInfo(room)
             });
         }
 
@@ -268,14 +276,16 @@ class RoomManager {
 
         const oldMode = room.mode;
         if (data.mode) room.mode = data.mode;
-        if (typeof data.botFill === 'boolean') room.botFill = data.botFill;
+        const fillMatch = typeof data.fillMatch === 'boolean' ? data.fillMatch : data.botFill;
+        if (typeof fillMatch === 'boolean') room.botFill = fillMatch;
+        if (typeof data.fillTeam === 'boolean') room.fillTeam = data.fillTeam;
 
-        console.log(`[Multiplayer] Config salle ${code}: mode=${room.mode}, botFill=${room.botFill}`);
+        console.log(`[Multiplayer] Config salle ${code}: mode=${room.mode}, remplir partie=${room.botFill}, remplir équipe=${room.fillTeam !== false}`);
 
         this.broadcastToRoom(room, {
             type: 'room_config',
             mode: room.mode,
-            botFill: room.botFill
+            ...this.fillInfo(room)
         });
 
         // Si le mode a changé et qu'on était en file, retirer de l'ancienne file
@@ -414,8 +424,18 @@ class RoomManager {
             queue.timer = null;
         }
 
-        const validRooms = roomCodes.map(code => this.rooms.get(code)).filter(r => r && r.state === 'lobby');
-        if (validRooms.length === 0) return;
+        let validRooms = roomCodes.map(code => this.rooms.get(code)).filter(r => r && r.state === 'lobby');
+        // Une équipe toute seule (les autres ont annulé) : elle continue d'attendre
+        if (validRooms.length < 2) {
+            for (const r of validRooms) this.enqueueMatchmaking(r);
+            return;
+        }
+        // Pas plus d'équipes que la carte n'en accueille : les suivantes attendent la prochaine partie
+        const teamSize = { solo: 1, duo: 2, trio: 3, section: 4 }[mode] || 2;
+        const maxTeams = Math.max(2, Math.floor(MAX_FIGHTERS / teamSize));
+        const waiting = validRooms.slice(maxTeams);
+        validRooms = validRooms.slice(0, maxTeams);
+        setTimeout(() => { for (const r of waiting) if (r.state === 'lobby') this.enqueueMatchmaking(r); }, 0);
 
         const sharedSeed = Math.floor(Math.random() * 1000000);
         console.log(`[Matchmaking] Lancement match ${mode} pour ${validRooms.length} équipes (seed: ${sharedSeed})`);
@@ -443,6 +463,9 @@ class RoomManager {
         // Un seul hôte pour toute la partie : le chef de la première salle
         const authorityId = validRooms[0].hostId;
 
+        // Chaque équipe garde son choix « Remplir l'équipe » (sinon elle joue en sous-nombre)
+        const teams = validRooms.map((r, i) => ({ team: i + 1, humans: r.players.size, fillTeam: r.fillTeam !== false }));
+
         // Relier les salles pour que les messages en cours de partie soient partagés
         validRooms.forEach((r, teamIdx) => {
             r.state = 'game';
@@ -456,9 +479,13 @@ class RoomManager {
                 roomCode: r.code,
                 seed: sharedSeed,
                 mode: r.mode,
+                // Partie sans bots adverses : seulement les équipes de la file d'attente
                 botFill: false,
+                fillMatch: false,
+                fillTeam: r.fillTeam !== false,
                 myTeam: teamIdx + 1,
                 authorityId,
+                teams,
                 players: allMatchPlayers
             });
         });
@@ -575,7 +602,7 @@ class RoomManager {
                 roomCode: room.code,
                 hostId: room.hostId,
                 mode: room.mode,
-                botFill: room.botFill,
+                ...this.fillInfo(room),
                 slot: p.slot,
                 state: 'lobby',
                 players: this.serializePlayers(room)
@@ -639,9 +666,11 @@ class RoomManager {
             roomCode: room.code,
             seed: room.seed,
             mode: room.mode,
-            botFill: room.botFill !== false,
+            ...this.fillInfo(room),
             myTeam: 1,
             authorityId: room.authorityId,
+            // Équipes de vrais joueurs (les bots de la partie sont calculés pareil partout à partir de ça)
+            teams: [{ team: 1, humans: room.players.size, fillTeam: room.fillTeam !== false }],
             players: this.serializePlayers(room)
         });
     }
@@ -671,7 +700,9 @@ class RoomManager {
         const room = this.rooms.get(code);
         if (!room || room.hostId !== ws.playerId) return;
 
-        this.startGameForRoom(room);
+        // Sans bots dans la partie : on passe par la file d'attente (au moins 2 équipes)
+        if (room.botFill === false) this.enqueueMatchmaking(room);
+        else this.startGameForRoom(room);
     }
 
     relayGameMessage(ws, data) {

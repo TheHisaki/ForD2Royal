@@ -25,7 +25,7 @@ import { InventoryUI } from './inventory-ui.js?v=8';
 import { EndScreen, Spectator } from './end-screen.js?v=8';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=8';
 
-const BOT_COUNT = 24;
+const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
 const SPECTATE_DELAY = 1200; // ms après la mort : la caméra passe sur le tueur
 const DEFEAT_DELAY = 1400;   // ms après la mort : écran de fin
@@ -62,6 +62,7 @@ function start() {
     // garde rien de ce qui concerne la salle (liste des joueurs, hôte...)
     if (roomParam && (gameConfig.roomCode !== roomParam || (seedParam && String(gameConfig.seed) !== seedParam))) {
         gameConfig.roomPlayers = null;
+        gameConfig.teams = null;
         gameConfig.authorityId = null;
         gameConfig.isHost = false;
         gameConfig.myTeam = 1;
@@ -171,6 +172,7 @@ function start() {
     const remotePlayersMap = new Map();
     const myTeam = gameConfig.myTeam || 1;
     player.team = myTeam;
+    globalThis.FOR2D_LOCAL_TEAM = myTeam; // cercle d'escouade sous nos coéquipiers (draw.js)
     // En multijoueur, le joueur porte son identifiant de salle (le même sur toutes les machines)
     if (isMultiplayer) player.id = gameConfig.myPlayerId;
     const meInRoom = isMultiplayer && Array.isArray(gameConfig.roomPlayers)
@@ -447,18 +449,39 @@ function start() {
         else if (type === 'shrink') SFX.play('zoneShrink');
     };
 
-    // En multijoueur : interdire les bots alliés si on a lancé en groupe avec un ami
-    const roomPlayersCount = Array.isArray(gameConfig.roomPlayers) ? gameConfig.roomPlayers.length : 0;
-    const allowBotTeammates = !isMultiplayer || (teamSize > 1 && roomPlayersCount <= 1 && !gameConfig.roomCode);
-
-    // Partie « sans bots » (matchmaking entre groupes) : seulement les vrais joueurs
-    const botCount = isMultiplayer && gameConfig.bots === false ? 0 : (teamMode ? 23 : BOT_COUNT);
+    /*
+       Bots de la partie (même calcul sur toutes les machines) :
+       - « Remplir l'équipe » : les places libres des équipes de vrais joueurs qui l'ont
+         activé reçoivent des bots coéquipiers (sinon l'équipe joue en sous-nombre) ;
+       - « Remplir la partie » : des escouades de bots complètent la carte jusqu'à
+         MAX_FIGHTERS combattants (sinon : seulement les équipes de vrais joueurs).
+       En multijoueur, le serveur donne la liste des équipes (gameConfig.teams).
+    */
+    // Hors ligne, il n'y a pas d'autres vrais joueurs : la partie est toujours remplie de bots
+    const fillMatch = !isMultiplayer || (gameConfig.fillMatch ?? (gameConfig.bots !== false));
+    let teams = isMultiplayer && Array.isArray(gameConfig.teams) && gameConfig.teams.length ? gameConfig.teams : null;
+    if (!teams) {
+        const humans = 1 + [...remotePlayersMap.values()].filter(m => m.team === myTeam).length;
+        teams = [{ team: myTeam, humans, fillTeam: gameConfig.fillTeam !== false }];
+    }
+    const teamFill = teamMode
+        ? teams.filter(t => t.fillTeam).map(t => ({
+            team: t.team,
+            count: Math.max(0, teamSize - (t.humans || 1)),
+            firstSlot: (t.humans || 1) + 1
+        }))
+        : [];
+    const humanSlots = teams.length * teamSize;
+    const enemyCount = fillMatch
+        ? Math.max(0, Math.floor((MAX_FIGHTERS - humanSlots) / teamSize) * teamSize)
+        : 0;
     const bots = new BotManager({
         world, drop, loot, combat, fighters,
-        count: botCount,
         corruption, teamSize, player,
         isGuest: isMultiplayer && !isHost,
-        allowBotTeammates
+        teamFill,
+        enemyCount,
+        firstEnemyTeam: Math.max(...teams.map(t => t.team || 1)) + 1
     });
 
     // ----- Fin de l'initialisation déterministe -----

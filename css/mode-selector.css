@@ -365,6 +365,16 @@
     transform: translateX(26px);
 }
 
+.mode-toggle:focus-visible { outline: 3px solid var(--accent-yellow, #ffe03d); outline-offset: 3px; }
+
+/* Option sans effet dans ce mode (ex. remplir l'équipe en Solo) */
+.mode-option-row.is-disabled { opacity: 0.45; cursor: default !important; }
+.mode-option-row.is-disabled:hover { border-color: rgba(120, 180, 255, 0.12); background: rgba(10, 20, 55, 0.6); }
+.mode-toggle:disabled { cursor: default; }
+
+/* Accueil : bouton « Remplir l'équipe » désactivé en Solo */
+.fill-toggle:disabled { cursor: default; opacity: 0.6; }
+
 /* ===== FOOTER ACTIONS ===== */
 .mode-panel-foot {
     display: flex;

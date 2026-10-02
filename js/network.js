@@ -157,14 +157,17 @@ class NetworkManager {
 
     /* ===== ACTIONS DE SALLE ===== */
 
-    createRoom(mode = 'duo', botFill = true) {
+    // fillMatch : remplir la partie avec des bots ; fillTeam : remplir l'équipe avec des bots
+    createRoom(mode = 'duo', fillMatch = true, fillTeam = true) {
         const skinData = this.getPlayerSkinData();
         const payload = {
             type: 'create_room',
             id: this.getPlayerId(),
             name: this.getPlayerName(),
             mode: mode || 'duo',
-            botFill: botFill !== false,
+            botFill: fillMatch !== false,
+            fillMatch: fillMatch !== false,
+            fillTeam: fillTeam !== false,
             skin: skinData.skin,
             backpack: skinData.backpack,
             pickaxeSkin: skinData.pickaxeSkin,
@@ -227,13 +230,12 @@ class NetworkManager {
         });
     }
 
-    sendRoomConfig(mode, botFill) {
+    sendRoomConfig(mode, fillMatch, fillTeam) {
         if (!this.isHost) return;
-        this.send({
-            type: 'update_config',
-            mode,
-            botFill
-        });
+        const msg = { type: 'update_config', mode };
+        if (typeof fillMatch === 'boolean') { msg.fillMatch = fillMatch; msg.botFill = fillMatch; }
+        if (typeof fillTeam === 'boolean') msg.fillTeam = fillTeam;
+        this.send(msg);
     }
 
     sendChatMessage(text) {
@@ -269,13 +271,26 @@ class NetworkManager {
                 this.updateRoomCodeUI(this.roomCode);
                 this.updateConnectionStatus(`Chef du groupe (Salle ${this.roomCode})`, '#00ff88');
 
-                this.copyCodeToClipboard(this.roomCode);
+                if (this.readyAfterCreate) {
+                    const me = this.roomPlayers.find(p => p.id === this.getPlayerId());
+                    if (me) me.ready = true; // évite que le bouton « Prêt » clignote
+                }
+                if (window.lobbyManager) {
+                    window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
+                    window.lobbyManager.updateLeaderPermissions?.();
+                }
+                // Salle créée juste pour la file d'attente (« Prêt » sans remplir la partie) :
+                // on se met prêt tout de suite, pas besoin de partager le code
+                if (this.readyAfterCreate) {
+                    this.readyAfterCreate = false;
+                    this.sendPlayerStatus(true);
+                    break;
+                }
 
+                this.copyCodeToClipboard(this.roomCode);
                 if (window.lobbyManager) {
                     window.lobbyManager.addChatMessage(`Partie créée ! Code : ${this.roomCode}`);
                     window.lobbyManager.addChatMessage('Partage ce code ou le lien d\'invitation avec tes amis !');
-                    window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
-                    window.lobbyManager.updateLeaderPermissions?.();
                 }
                 break;
 
@@ -308,6 +323,7 @@ class NetworkManager {
                         window.lobbyManager.addChatMessage(`Connecté à la salle ${this.roomCode} !`);
                     }
                     if (msg.mode) window.lobbyManager.setGameModeSilently?.(msg.mode);
+                    window.lobbyManager.applyFillConfig?.(msg);
                     window.lobbyManager.syncPartyMembers?.(this.roomPlayers);
                     window.lobbyManager.updateLeaderPermissions?.();
                 }
@@ -369,12 +385,12 @@ class NetworkManager {
             case 'room_config':
                 if (window.lobbyManager) {
                     if (msg.mode) window.lobbyManager.setGameModeSilently?.(msg.mode);
-                    if (typeof msg.botFill === 'boolean') {
-                        window.lobbyManager.botsEnabled = msg.botFill;
-                        window.lobbyManager.updateBotFillUI?.();
-                    }
-                    const fillText = msg.botFill !== false ? 'Avec bots' : 'Sans bots (Matchmaking en ligne)';
-                    window.lobbyManager.addChatMessage(`Configuration : Mode ${(msg.mode || 'duo').toUpperCase()} · ${fillText}`, 'Système');
+                    window.lobbyManager.applyFillConfig?.(msg);
+                    const fm = (msg.fillMatch ?? msg.botFill) !== false;
+                    const ft = msg.fillTeam !== false;
+                    window.lobbyManager.addChatMessage(
+                        `Configuration : Mode ${(msg.mode || 'duo').toUpperCase()} · Équipe ${ft ? 'remplie de bots' : 'sans bots'} · Partie ${fm ? 'remplie de bots' : 'en file d\'attente (vrais joueurs)'}`,
+                        'Système');
                 }
                 break;
 
@@ -430,7 +446,11 @@ class NetworkManager {
             mode: msg.mode || 'duo',
             modeName: (msg.mode || 'duo').toUpperCase(),
             teamSize,
-            bots: msg.botFill !== false,
+            bots: (msg.fillMatch ?? msg.botFill) !== false,
+            fillMatch: (msg.fillMatch ?? msg.botFill) !== false,
+            fillTeam: msg.fillTeam !== false,
+            // Équipes de vrais joueurs de la partie (pour calculer les bots pareil partout)
+            teams: Array.isArray(msg.teams) ? msg.teams : null,
             isMultiplayer: true,
             roomCode: msg.roomCode,
             seed: msg.seed,

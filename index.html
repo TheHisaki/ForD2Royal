@@ -251,8 +251,8 @@
 
                 <section class="card squad-fill-section">
                     <div class="fill-option">
-                        <span class="fill-label">🤖 Jouer avec des bots</span>
-                        <button class="fill-toggle" id="botFillToggle" aria-pressed="true" title="Activer ou désactiver les coéquipiers bots">Activé</button>
+                        <span class="fill-label" id="fillTeamLabel">🤝 Remplir l'équipe avec des bots</span>
+                        <button type="button" class="fill-toggle" id="botFillToggle" aria-pressed="true" aria-labelledby="fillTeamLabel" title="Les places vides de ton équipe sont prises par des bots">Activé</button>
                     </div>
                 </section>
 
@@ -644,12 +644,19 @@
 
             <!-- Options dynamiques (bots, etc.) -->
             <div class="mode-options" id="modeOptions">
-                <div class="mode-option-row" id="modeOptBots">
+                <div class="mode-option-row" id="modeOptFillTeam">
                     <div class="mode-option-text">
-                        <span class="mode-option-label">🤖 Jouer avec des bots</span>
-                        <span class="mode-option-desc">Active ou désactive les bots. Sans bots : recherche d'au moins 2 équipes avant le lancement.</span>
+                        <span class="mode-option-label" id="modeFillTeamLabel">🤝 Remplir l'équipe avec des bots</span>
+                        <span class="mode-option-desc" id="modeFillTeamDesc">Les places vides de ton équipe sont prises par des bots. Désactivé : tu joues en sous-nombre (ex. à 2 en Trio).</span>
                     </div>
-                    <button type="button" class="mode-toggle" id="modeBotsToggle" role="switch" aria-checked="true" aria-label="Jouer avec des bots"></button>
+                    <button type="button" class="mode-toggle" id="modeFillTeamToggle" role="switch" aria-checked="true" aria-labelledby="modeFillTeamLabel" aria-describedby="modeFillTeamDesc"></button>
+                </div>
+                <div class="mode-option-row" id="modeOptFillMatch">
+                    <div class="mode-option-text">
+                        <span class="mode-option-label" id="modeFillMatchLabel">🤖 Remplir la partie avec des bots</span>
+                        <span class="mode-option-desc" id="modeFillMatchDesc">Des équipes de bots complètent la carte : la partie démarre tout de suite. Désactivé : file d'attente avec de vrais joueurs (au moins 2 équipes, puis 30 s).</span>
+                    </div>
+                    <button type="button" class="mode-toggle" id="modeFillMatchToggle" role="switch" aria-checked="true" aria-labelledby="modeFillMatchLabel" aria-describedby="modeFillMatchDesc"></button>
                 </div>
             </div>
 
@@ -769,7 +776,7 @@
                 <div class="mm-countdown-wrap" id="mmCountdownWrap" hidden>
                     <div class="mm-countdown-label">LANCEMENT DE LA PARTIE DANS</div>
                     <div class="mm-countdown-number" id="mmCountdownNumber">30</div>
-                    <div class="mm-countdown-sub">Remplissage des places restantes avec des bots</div>
+                    <div class="mm-countdown-sub" id="mmCountdownSub">D'autres équipes peuvent encore rejoindre la partie</div>
                 </div>
             </div>
 
@@ -822,8 +829,8 @@
     <script type="module" src="js/lobby-skin.js"></script>
     <!-- Passe de combat, Profil, Classements + niveau du lobby (module ES) -->
     <script type="module" src="js/lobby-hub.js"></script>
-    <script src="js/network.js?v=3"></script>
-    <script src="js/lobby.js?v=2"></script>
+    <script src="js/network.js?v=4"></script>
+    <script src="js/lobby.js?v=3"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

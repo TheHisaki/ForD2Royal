@@ -256,7 +256,15 @@ export function roofAlphaAt(world, x, y) {
 /* ===================== GESTIONNAIRE DE BOTS ===================== */
 
 export class BotManager {
-    constructor({ world, drop, loot, combat, fighters, count = 24, corruption, teamSize = 1, player = null, isGuest = false, allowBotTeammates = true }) {
+    /*
+       teamFill (optionnel) : bots coéquipiers à ajouter aux équipes de vrais joueurs,
+         [{ team, count, firstSlot }] (même liste sur toutes les machines en multijoueur).
+       enemyCount (optionnel) : nombre de bots adverses (en escouades de teamSize).
+       firstEnemyTeam (optionnel) : numéro de la première escouade de bots.
+       Sans ces options : ancien comportement (coéquipiers du joueur + count bots au total).
+    */
+    constructor({ world, drop, loot, combat, fighters, count = 24, corruption, teamSize = 1, player = null, isGuest = false,
+        allowBotTeammates = true, teamFill = null, enemyCount = null, firstEnemyTeam = null }) {
         this.world = world;
         this.drop = drop;
         this.loot = loot;
@@ -281,10 +289,22 @@ export class BotManager {
         const names = shuffle([...BOT_NAMES]);
 
         const myTeam = player ? (player.team || 1) : 1;
-        const existingTeammates = fighters.filter(f => f.team === myTeam).length;
-        const teammateCount = this.allowBotTeammates ? Math.max(0, teamSize - existingTeammates) : 0;
-        const maxHumanTeam = Math.max(1, ...fighters.map(f => f.team || 1));
-        let enemySquadId = maxHumanTeam + 1;
+        // Coéquipiers bots, équipe par équipe (ordre fixe)
+        let fill;
+        if (Array.isArray(teamFill)) {
+            fill = teamFill.filter(t => t && t.count > 0).map(t => ({ team: t.team, count: t.count, firstSlot: t.firstSlot || 2 }))
+                .sort((a, b) => a.team - b.team);
+        } else {
+            const existingTeammates = fighters.filter(f => f.team === myTeam).length;
+            const n = this.allowBotTeammates ? Math.max(0, teamSize - existingTeammates) : 0;
+            fill = n > 0 ? [{ team: myTeam, count: n, firstSlot: existingTeammates + 1 }] : [];
+        }
+        const mates = [];
+        for (const t of fill) for (let k = 0; k < t.count; k++) mates.push({ team: t.team, slot: t.firstSlot + k, idx: k });
+        const teammateCount = mates.length;
+        count = teammateCount + (Number.isInteger(enemyCount) ? Math.max(0, enemyCount) : Math.max(0, count - teammateCount));
+        const maxHumanTeam = Math.max(1, ...fighters.map(f => f.team || 1), ...fill.map(t => t.team));
+        let enemySquadId = Number.isInteger(firstEnemyTeam) ? firstEnemyTeam : maxHumanTeam + 1;
         let enemySquadFill = 0;
         let currentSquadLand = null;
 
@@ -300,10 +320,11 @@ export class BotManager {
             const bot = new Player(drop.ship.x, drop.ship.y);
             bot.isBot = true;
             bot.id = nextId++;
-            if (i < teammateCount) {
-                bot.name = TEAMMATE_NAMES[i] || `Agent ${i + 1}`;
-                bot.squadSlot = existingTeammates + i + 1; // Slot adapté selon les joueurs réels
-                const look = TEAMMATE_LOOKS[i] || TEAMMATE_LOOKS[0];
+            const mate = i < teammateCount ? mates[i] : null;
+            if (mate) {
+                bot.name = TEAMMATE_NAMES[mate.idx] || `Agent ${mate.idx + 1}`;
+                bot.squadSlot = mate.slot; // place libre de l'équipe (après les vrais joueurs)
+                const look = TEAMMATE_LOOKS[mate.idx % TEAMMATE_LOOKS.length];
                 bot.colors = { ...look.colors };
                 bot.skinStyle = look.skinStyle;
             } else {
@@ -332,9 +353,10 @@ export class BotManager {
             bot._targetAlt = bot.altitude;
 
             // Attribution des équipes
-            if (i < teammateCount) {
-                bot.team = myTeam; // Coéquipier du joueur !
-                this.playerTeammates.push(bot);
+            if (mate) {
+                bot.team = mate.team; // Coéquipier d'une équipe de vrais joueurs
+                bot.humanSquad = true;
+                if (mate.team === myTeam) this.playerTeammates.push(bot);
             } else if (teamSize > 1) {
                 bot.team = enemySquadId;
                 if (!this.squadLeaders[enemySquadId]) this.squadLeaders[enemySquadId] = bot;
@@ -345,12 +367,14 @@ export class BotManager {
                     currentSquadLand = null; // Nouvelle escouade ennemie
                 }
             } else {
-                bot.team = nextId + 10; // Solo : chaque bot a son équipe
+                bot.team = enemySquadId++; // Solo : chaque bot a son équipe (après celles des joueurs)
             }
 
             // Atterrissage groupé en escouade
             let land;
-            if (bot.team === myTeam) {
+            if (bot.humanSquad) {
+                land = this.chooseLanding(enter, exit); // il suivra ses joueurs pendant la chute
+            } else if (bot.team === myTeam) {
                 land = this.chooseLanding(enter, exit);
             } else if (teamSize > 1) {
                 if (!currentSquadLand) currentSquadLand = this.chooseLanding(enter, exit);
@@ -463,6 +487,19 @@ export class BotManager {
         return clamp(along + rand(-700, 250), enter, exit);
     }
 
+    // Vrai joueur de l'équipe du bot le plus proche (vivant), ou null
+    squadLead(bot, allowShip) {
+        let best = null;
+        let bd = Infinity;
+        for (const f of this.fighters) {
+            if (f.isBot || !f.alive || f.team !== bot.team) continue;
+            if (!allowShip && f.phase !== 'ground') continue;
+            const d = (f.x - bot.x) ** 2 + (f.y - bot.y) ** 2;
+            if (d < bd) { bd = d; best = f; }
+        }
+        return best;
+    }
+
     removePlayerTeammates() {
         const myTeam = this.player ? (this.player.team || 1) : 1;
         const toRemove = this.bots.filter(b => b.team === myTeam);
@@ -560,9 +597,9 @@ export class BotManager {
 
         // Saut synchronisé pour les escouades
         let squadJump = false;
-        if (bot.team === 1) {
-            // Coéquipier du joueur : saute quand n'importe quel joueur humain de l'équipe a sauté
-            const leadPlayer = this.fighters.find(f => !f.isBot && f.team === 1 && f.phase !== 'ship') || this.player;
+        if (bot.humanSquad) {
+            // Coéquipier de vrais joueurs : saute quand n'importe quel joueur humain de son équipe a sauté
+            const leadPlayer = this.fighters.find(f => !f.isBot && f.team === bot.team && f.phase !== 'ship');
             if (leadPlayer && leadPlayer.phase !== 'ship') {
                 squadJump = true;
                 const slotIdx = (bot.squadSlot || 2) - 1;
@@ -573,7 +610,7 @@ export class BotManager {
                     y: clamp(leadPlayer.y + Math.sin(offsetAng) * 60, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN)
                 };
             }
-        } else if (bot.team > 1) {
+        } else if (this.squadLeaders[bot.team]) {
             // Escouade ennemie : saute avec son chef d'escouade
             const leader = this.squadLeaders[bot.team];
             if (leader && leader !== bot && leader.phase !== 'ship') {
@@ -588,8 +625,9 @@ export class BotManager {
         }
 
         // Le coéquipier allié ne saute JAMAIS tout seul prématurément !
-        const shouldJump = bot.team === 1
-            ? (squadJump || !drop.ship.active)
+        // (au pire : saut automatique avec la fin de l'île, comme les joueurs)
+        const shouldJump = bot.humanSquad
+            ? (squadJump || !drop.ship.active || drop.dist >= (drop.exitAt ?? Infinity) - 300)
             : (squadJump || drop.dist >= bot.brain.jumpAt || !drop.ship.active);
 
         if (shouldJump) {
@@ -604,8 +642,8 @@ export class BotManager {
         const br = bot.brain;
 
         // Si le bot est coéquipier du joueur : plane EN FORMATION à côté du joueur humain le plus proche
-        if (bot.team === 1) {
-            const squadTarget = this.fighters.find(f => !f.isBot && f.team === 1 && f.alive) || this.player;
+        if (bot.humanSquad) {
+            const squadTarget = this.squadLead(bot, true);
             if (squadTarget) {
                 const slotIdx = (bot.squadSlot || 2) - 1;
                 const side = (slotIdx % 2 === 1 ? 1 : -1);
@@ -773,7 +811,7 @@ export class BotManager {
         const downedTeammate = this.fighters.find(f =>
             f !== bot && f.alive && f.dbno && f.team === bot.team
         );
-        if (downedTeammate && (downedTeammate === this.player || !t || dist > 180)) {
+        if (downedTeammate && (!downedTeammate.isBot || !t || dist > 180)) {
             br.state = 'revive';
             br.reviveTarget = downedTeammate;
             br.goal = { x: downedTeammate.x, y: downedTeammate.y };
@@ -837,8 +875,10 @@ export class BotManager {
                 this.combat.startUse(bot);
                 br.state = 'heal';
             } else {
-                const pDist = (bot.team === 1 && this.player) ? Math.hypot(this.player.x - bot.x, this.player.y - bot.y) : 0;
-                const lootRadius = bot.team === 1 ? (pDist > 220 ? 280 : LOOT_SEARCH) : (hasGun ? LOOT_BONUS : LOOT_SEARCH);
+                // Coéquipier de vrais joueurs : reste près du joueur de son équipe le plus proche
+                const lead = bot.humanSquad ? this.squadLead(bot, false) : null;
+                const pDist = lead ? Math.hypot(lead.x - bot.x, lead.y - bot.y) : 0;
+                const lootRadius = bot.humanSquad ? (pDist > 220 ? 280 : LOOT_SEARCH) : (hasGun ? LOOT_BONUS : LOOT_SEARCH);
                 const lt = this.updateLootTarget(bot, lootRadius, step);
                 const ltDist = lt ? Math.hypot(lt.x - bot.x, lt.y - bot.y) : Infinity;
                 if (t && dist < 280 && (dist < 160 || ltDist > dist)) {
@@ -853,22 +893,22 @@ export class BotManager {
                 } else {
                     br.state = 'roam';
                     // Cohésion d'escouade : les coéquipiers du joueur restent proches du joueur
-                    if (bot.team === 1 && this.player && this.player.alive && !this.player.dbno) {
+                    if (lead && !lead.dbno) {
                         if (pDist > 240) {
-                            br.roamGoal = { x: this.player.x + rand(-70, 70), y: this.player.y + rand(-70, 70) };
+                            br.roamGoal = { x: lead.x + rand(-70, 70), y: lead.y + rand(-70, 70) };
                             br.goal = br.roamGoal;
                         } else if (pDist > 140) {
                             if (!br.roamGoal || Math.hypot(br.roamGoal.x - bot.x, br.roamGoal.y - bot.y) < 60) {
-                                br.roamGoal = { x: this.player.x + rand(-120, 120), y: this.player.y + rand(-120, 120) };
+                                br.roamGoal = { x: lead.x + rand(-120, 120), y: lead.y + rand(-120, 120) };
                             }
                             br.goal = br.roamGoal;
                         } else {
                             const g = br.roamGoal;
                             if (!g || Math.hypot(g.x - bot.x, g.y - bot.y) < 50 ||
-                                !this.inZone(g.x, g.y, ZONE_MARGIN)) br.roamGoal = { x: this.player.x + rand(-100, 100), y: this.player.y + rand(-100, 100) };
+                                !this.inZone(g.x, g.y, ZONE_MARGIN)) br.roamGoal = { x: lead.x + rand(-100, 100), y: lead.y + rand(-100, 100) };
                             br.goal = br.roamGoal;
                         }
-                    } else if (bot.team > 1) {
+                    } else if (this.squadLeaders[bot.team]) {
                         const leader = this.squadLeaders[bot.team];
                         if (leader && leader !== bot && leader.alive && !leader.dbno) {
                             const lDist = Math.hypot(leader.x - bot.x, leader.y - bot.y);
@@ -1441,7 +1481,7 @@ export class BotManager {
             drawFalling(ctx, bot, time);
 
             // Coéquipier allié en vol : flèche et nom bien visibles dès le saut
-            if (bot.team === 1) {
+            if (bot.team === (this.player?.team ?? 1)) {
                 const teamCol = SQUAD_COLORS[bot.squadSlot || 2] || '#ffd21e';
                 const bob = Math.sin((time || 0) * 6) * 4;
                 const arrowY = bot.y - 75 + bob;
@@ -1507,7 +1547,7 @@ export class BotManager {
             const bx = x - W / 2;
             ctx.globalAlpha = bot._labelA; // s'efface en même temps que le toit se referme
 
-            const isTeammate = bot.team === 1;
+            const isTeammate = bot.team === (this.player?.team ?? 1);
             const teamCol = SQUAD_COLORS[bot.squadSlot || 2] || '#ffd21e';
 
             if (isTeammate) {
