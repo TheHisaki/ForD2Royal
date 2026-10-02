@@ -1168,7 +1168,8 @@ function paintFighter(ctx, p, time, fx) {
     }
 
     // Cercle d'escouade sous les pieds (couleur distincte par coéquipier, rouge clignotant si K.O.)
-    if (p.team === localTeamOf()) {
+    // Seulement en équipe (duo, trio, section) : en solo, personne n'est notre coéquipier
+    if (globalThis.FOR2D_TEAM_MODE && p.team === localTeamOf()) {
         ctx.save();
         const SQUAD_COLORS = { 1: '#00e5ff', 2: '#ffd21e', 3: '#ff4fd8', 4: '#00ff88' };
         const mateColor = SQUAD_COLORS[p.squadSlot || 2] || '#00e5ff';

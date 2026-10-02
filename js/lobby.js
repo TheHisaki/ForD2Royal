@@ -996,6 +996,8 @@ class LobbyManager {
         this.updateUI();
         const partyActions = document.getElementById('partyActions');
         if (partyActions) partyActions.classList.remove('is-active');
+        // Plus de salle : « Créer » n'est plus sélectionné (il ne devient bleu qu'au clic)
+        document.getElementById('hostBtn')?.classList.remove('active');
     }
 
     setGameModeSilently(mode) {

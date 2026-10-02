@@ -515,6 +515,8 @@ export function mountLobbySkins(root = document) {
         const look = MATE_LOOKS[(i - 1) % MATE_LOOKS.length];
         const key = `bot_${look.hair}_${look.goggles}`;
         if (body.dataset.skin === key) return;
+        // Effacer les couleurs d'un joueur parti : sinon elles cachent la silhouette grisée
+        for (const [, v] of VARS) holder.style.removeProperty(v);
         body.innerHTML = svgOf('default', look.hair, look.goggles);
         body.dataset.skin = key;
     });

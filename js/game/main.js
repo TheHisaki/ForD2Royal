@@ -173,6 +173,7 @@ function start() {
     const myTeam = gameConfig.myTeam || 1;
     player.team = myTeam;
     globalThis.FOR2D_LOCAL_TEAM = myTeam; // cercle d'escouade sous nos coéquipiers (draw.js)
+    globalThis.FOR2D_TEAM_MODE = teamMode; // en solo : pas de cercle d'escouade
     // En multijoueur, le joueur porte son identifiant de salle (le même sur toutes les machines)
     if (isMultiplayer) player.id = gameConfig.myPlayerId;
     const meInRoom = isMultiplayer && Array.isArray(gameConfig.roomPlayers)

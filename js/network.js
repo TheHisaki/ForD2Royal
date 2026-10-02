@@ -198,7 +198,8 @@ class NetworkManager {
         this.updateConnectionStatus('Connexion à la salle...', '#ffd700');
     }
 
-    leaveRoom() {
+    // silent : pas de message dans le chat (salle automatique quittée au retour d'une partie)
+    leaveRoom(silent = false) {
         if (this.roomCode) {
             this.send({ type: 'leave_room' });
             this.roomCode = null;
@@ -209,9 +210,23 @@ class NetworkManager {
             this.updateRoomCodeUI('-');
             this.updateConnectionStatus('En ligne', '#00ff88');
 
+            // Oublier la salle dans la config enregistrée : la prochaine partie hors ligne
+            // ne doit pas essayer de rejoindre une salle qui n'existe plus
+            for (const store of [sessionStorage, localStorage]) {
+                try {
+                    const cfg = JSON.parse(store.getItem('for2d-game-mode') || '{}');
+                    for (const k of ['isMultiplayer', 'roomCode', 'seed', 'mySlot', 'myPlayerId', 'myTeam',
+                        'isHost', 'authorityId', 'roomPlayers', 'teams', 'returningFromGame', 'autoRoom']) {
+                        delete cfg[k];
+                    }
+                    store.setItem('for2d-game-mode', JSON.stringify(cfg));
+                    store.removeItem('for2d-room-players');
+                } catch { /* stockage indisponible */ }
+            }
+
             if (window.lobbyManager) {
                 window.lobbyManager.resetTeammateSlots?.();
-                window.lobbyManager.addChatMessage?.('Tu as quitté la salle.');
+                if (!silent) window.lobbyManager.addChatMessage?.('Tu as quitté la salle.');
                 window.lobbyManager.updateLeaderPermissions?.();
             }
         }
@@ -310,12 +325,37 @@ class NetworkManager {
                         const cfg = JSON.parse(sessionStorage.getItem('for2d-game-mode') || '{}');
                         if (cfg.returningFromGame) {
                             returning = true;
+                            // Salle créée seulement pour la file d'attente : on la quittera
+                            // dès qu'elle redevient un lobby (retour à l'accueil comme avant)
+                            if (cfg.autoRoom) this.leaveAutoRoom = true;
                             // Nettoyer le flag
                             delete cfg.returningFromGame;
+                            delete cfg.autoRoom;
                             sessionStorage.setItem('for2d-game-mode', JSON.stringify(cfg));
                             localStorage.setItem('for2d-game-mode', JSON.stringify(cfg));
                         }
                     } catch {}
+
+                    // Retour d'une partie lancée seul depuis l'accueil : on quitte la salle
+                    // automatique et on retrouve l'accueil tel qu'il était (même mode, pas de salle)
+                    if (this.leaveAutoRoom && this.roomPlayers.length <= 1) {
+                        if (msg.mode) window.lobbyManager.setGameModeSilently?.(msg.mode);
+                        // Partie encore marquée « en cours » : le serveur renvoie la salle en
+                        // lobby juste après (on est le seul joueur), on la quittera à ce moment-là
+                        if (msg.state === 'game') {
+                            // Filet de sécurité si ce message n'arrive pas
+                            setTimeout(() => {
+                                if (!this.leaveAutoRoom) return;
+                                this.leaveAutoRoom = false;
+                                this.leaveRoom(true);
+                            }, 3000);
+                            break;
+                        }
+                        this.leaveAutoRoom = false;
+                        this.leaveRoom(true);
+                        break;
+                    }
+                    this.leaveAutoRoom = false;
 
                     if (returning) {
                         window.lobbyManager.addChatMessage(`Retour dans le groupe (Salle ${this.roomCode}) !`);
@@ -460,6 +500,8 @@ class NetworkManager {
             isHost: !!this.isHost,
             // Joueur qui simule les bots / la corruption pour toute la partie (désigné par le serveur)
             authorityId: msg.authorityId || null,
+            // Salle créée toute seule (« Prêt » seul sans remplir la partie) : quittée au retour
+            autoRoom: !!window.lobbyManager?.autoRoom && this.roomPlayers.length <= 1,
             roomPlayers
         };
 

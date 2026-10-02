@@ -138,7 +138,12 @@ class RoomManager {
                 slot: existingPlayer.slot,
                 seed: room.seed,
                 state: room.state,
-                players: room.state === 'game' ? this.matchPlayers(room) : this.serializePlayers(room)
+                // Page de jeu : tous les joueurs de la partie (y compris les autres équipes).
+                // Retour au lobby : seulement son propre groupe (sinon un adversaire apparaît
+                // comme coéquipier et le mode passe en duo)
+                players: room.state === 'game' && !existingPlayer.inLobby
+                    ? this.matchPlayers(room)
+                    : this.serializePlayers(room)
             });
 
             if (room.state === 'game') {
