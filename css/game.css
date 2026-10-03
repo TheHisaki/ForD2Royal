@@ -2380,29 +2380,38 @@ body.item-dragging * { cursor: grabbing !important; }
     to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
 }
 
+/* Emote visée, exactement au centre du cercle (le bord du cercle n'entre pas dans le calcul) */
 .emote-wheel-center-art {
     position: absolute;
-    top: 7px;
-    left: 7px;
-    width: 64px;
-    height: 64px;
+    left: 50%;
+    top: 50%;
+    width: 62px;
+    height: 62px;
+    display: grid;
+    place-items: center;
     border-radius: 50%;
     overflow: hidden;
-    opacity: 0.9;
+    transform: translate(-50%, -50%);
 }
 
 .emote-wheel-center-art svg {
-    width: 64px;
-    height: 64px;
+    width: 62px;
+    height: 62px;
     display: block;
 }
 
+/* « RELÂCHER » (ou le temps d'attente) sous le cercle : ne cache plus l'emote */
 .emote-wheel-center-art + .emote-wheel-hint {
-    position: relative;
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 6px);
     z-index: 2;
-    padding: 2px 4px;
-    border-radius: 3px;
-    background: rgba(6, 16, 43, 0.66);
+    width: auto;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(6, 16, 43, 0.82);
+    white-space: nowrap;
+    transform: translateX(-50%);
 }
 
 .emote-wheel-figure {

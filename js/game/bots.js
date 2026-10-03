@@ -13,9 +13,13 @@ import { clamp, pick } from './utils.js';
 import { drawFalling } from './drop.js';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
+import { hasBackpackArt } from './backpack-art.js';
 
 // Planeurs que les bots peuvent avoir (classiques et à forme)
 const BOT_GLIDERS = ITEMS.filter(it => it.type === 'glider' && Array.isArray(it.colors));
+// Sacs à forme que les bots peuvent porter
+const BOT_PACK_CHANCE = 0.35;
+const BOT_PACKS = ITEMS.filter(it => it.type === 'backpack' && !it.none && it.color && hasBackpackArt(it.motif));
 
 export const BOT_NAMES = [
     'xX_Snip3r_Xx', 'NoobMaster', 'PiouPiou', 'BaguetteTurbo', 'Kevin_du_93',
@@ -346,6 +350,13 @@ export class BotManager {
             }
             bot.pickaxeSkin = rpick(['pioche-defaut', 'pioche-laser', 'pioche-royale', 'pioche-cosmique', 'pioche-maudite', 'pioche-bonbon']);
             if (bot.inventory?.[0]) bot.inventory[0].pickaxeSkin = bot.pickaxeSkin;
+            // ~1 bot sur 3 porte un sac à forme du catalogue (ailes, cape, queue...)
+            if (Math.random() < BOT_PACK_CHANCE) {
+                const bp = rpick(BOT_PACKS);
+                bot.colors = { ...bot.colors, pack: bp.color };
+                bot.packMotif = bp.motif;
+                bot.packAccent = bp.accent;
+            }
             // Planeur du catalogue au hasard (même tirage sur toutes les machines : graine partagée)
             const gl = rpick(BOT_GLIDERS);
             bot.gliderColors = gl.colors;

@@ -8,6 +8,7 @@ import { B, BIOME_COLORS } from './config.js';
 import { shadeHex, fighterSeed } from './utils.js';
 import { WEAPONS, HEALS, drawWeapon } from './weapons.js';
 import { iconCanvas } from './icons.js';
+import { drawBackpack } from './backpack-art.js';
 
 const OUTLINE = '#0a1030';
 const TAU = Math.PI * 2;
@@ -1267,6 +1268,8 @@ export function drawDying(ctx, d, time) {
         angle: (d.angle || 0) + spin,
         colors: d.colors,
         skinStyle: d.skinStyle,
+        packMotif: d.packMotif,
+        packAccent: d.packAccent,
         inventory: d.inventory,
         slot: d.slot || 0
     };
@@ -1457,8 +1460,12 @@ function paintFighter(ctx, p, time, fx) {
         return;
     }
 
-    // Dos : sac (défaut), bouclier (chevalier), réacteur (astronaute)
-    if (style === 'knight') {
+    // Dos : sac à forme équipé (ailes, cape, queue...) en priorité, sinon l'objet du skin :
+    // sac (défaut), bouclier (chevalier), réacteur (astronaute)...
+    const packArt = !!p.packMotif && drawBackpack(ctx, p.packMotif, r, pack, p.packAccent, time, seed);
+    if (packArt) {
+        // déjà dessiné
+    } else if (style === 'knight') {
         circle(ctx, -r * 0.8, 0, r * 0.5);
         fillStroke(ctx, skin, OUTLINE, 3);
         circle(ctx, -r * 0.8, 0, r * 0.38);

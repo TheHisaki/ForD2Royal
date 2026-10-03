@@ -8,6 +8,7 @@ import { WORLD_SIZE } from './config.js';
 import { clamp, inFrameView, fighterSeed } from './utils.js';
 import { drawPlayer, drawStyledHead } from './draw.js';
 import { GLIDER_ART } from '../glider-art.js';
+import { drawBackpack } from './backpack-art.js';
 
 const SHIP_EXTENT = 320;     // rayon (unités) couvrant le vaisseau et son ombre, pour le culling
 const SHIP_SPEED = 620;      // unités / s
@@ -375,14 +376,20 @@ function drawSkydiver(ctx, p, f) {
     ctx.ellipse(-r * 0.05, 0, r * 0.7, r * 0.52, 0, 0, TAU);
     fillStroke(ctx, outfit);
 
-    // Sac à dos (on le voit de dos) + petit reflet
-    ctx.beginPath();
-    ctx.roundRect(-r * 0.52, -r * 0.38, r * 0.72, r * 0.76, r * 0.2);
-    fillStroke(ctx, pack);
-    ctx.beginPath();
-    ctx.ellipse(-r * 0.3, -r * 0.18, r * 0.14, r * 0.08, 0, 0, TAU);
-    ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
-    ctx.fill();
+    // Sac à dos (on le voit de dos) : sac à forme équipé (ailes, cape...) ou sac classique
+    ctx.save();
+    ctx.translate(r * 0.6, 0);
+    const packArt = !!p.packMotif && drawBackpack(ctx, p.packMotif, r * 0.85, pack, p.packAccent, t, seed);
+    ctx.restore();
+    if (!packArt) {
+        ctx.beginPath();
+        ctx.roundRect(-r * 0.52, -r * 0.38, r * 0.72, r * 0.76, r * 0.2);
+        fillStroke(ctx, pack);
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.3, -r * 0.18, r * 0.14, r * 0.08, 0, 0, TAU);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.fill();
+    }
 
     // Tête : skin (heaume, crâne, cagoule, casque) si le combattant en porte un...
     if (!drawStyledHead(ctx, p, r * 0.4, t, r * 0.8)) {

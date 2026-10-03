@@ -145,7 +145,12 @@ function start() {
         }
         // Sac à dos, pioche et planeur du chargement
         const pack = Cosmetics.equippedOf('backpack');
-        if (pack && pack.color && !pack.none) player.colors.pack = pack.color;
+        if (pack && pack.color && !pack.none) {
+            player.colors.pack = pack.color;
+            // Forme du sac en jeu (ailes, cape, queue...) ; motif classique = petit sac coloré
+            player.packMotif = pack.motif || null;
+            player.packAccent = pack.accent || null;
+        }
         const glider = Cosmetics.equippedOf('glider');
         if (glider && Array.isArray(glider.colors)) player.gliderColors = glider.colors;
         if (glider?.style) player.gliderStyle = glider.style; // forme spéciale (js/glider-art.js)
@@ -368,6 +373,7 @@ function start() {
         corpses.push({
             x: victim.x, y: victim.y, r: victim.r, angle: victim.angle,
             colors: victim.colors, skinStyle: victim.skinStyle,
+            packMotif: victim.packMotif, packAccent: victim.packAccent,
             inventory: victim.inventory.slice(), slot: victim.slot, t: 0
         });
         effects.death(victim.x, victim.y, victim.colors);
@@ -829,7 +835,11 @@ function start() {
         if (rp.colors) mate.colors = { ...mate.colors, ...rp.colors };
         if (rp.backpack) {
             const bp = getItem?.(rp.backpack);
-            if (bp?.color && !bp.none) mate.colors.pack = bp.color;
+            if (bp?.color && !bp.none) {
+                mate.colors.pack = bp.color;
+                mate.packMotif = bp.motif || null;
+                mate.packAccent = bp.accent || null;
+            }
         }
         if (rp.pickaxeSkin) mate.pickaxeSkin = rp.pickaxeSkin;
         // Planeur équipé par l'autre joueur (couleurs + forme)
@@ -922,6 +932,7 @@ function start() {
         if (!f.alive) return;
         corpses.push({
             x: f.x, y: f.y, r: f.r, angle: f.angle, colors: f.colors, skinStyle: f.skinStyle,
+            packMotif: f.packMotif, packAccent: f.packAccent,
             inventory: (f.inventory || []).slice(), slot: f.slot, t: 0
         });
         f.alive = false;
