@@ -6,7 +6,7 @@
 
    API :
    - SFX.play(name, opts)     : son ponctuel (opts.x / opts.y = spatialisation,
-                                opts.vol = multiplicateur, + paramètres du son)
+                                opts.vol = multiplicateur, opts.muffle = son derrière un mur)
    - SFX.setListener(x, y)    : position de l'auditeur (le joueur)
    - SFX.setLoop(name, level) : boucles 'ship' | 'wind' | 'corruption', level 0..1
    - SFX.toggleMute() / SFX.isMuted() / SFX.setMuted(bool)
@@ -20,13 +20,18 @@ const AC = typeof window !== 'undefined'
 const STORAGE_KEY = 'for2d-sfx-muted';
 const MASTER_VOL = 0.8;
 const MAX_SOURCES = 48;
-const DEFAULT_RANGE = 1500;
+const DEFAULT_RANGE = 850;       // les sons spatialisés restent réservés à la proximité
 // En dessous de ce volume (son lointain), les sons fréquents (pas, tirs) utilisent
 // une version allégée : moins de nœuds audio, différence inaudible à cette distance
 const LITE_GAIN = 0.15;
 
-// Portée d'audition spécifique à certains sons
-const RANGES = { step: 650, chestHum: 700, healTick: 700 };
+// Portée d'audition spécifique à certains sons (unités monde)
+const RANGES = {
+    step: 280,
+    chest: 360,
+    chestHum: 360,
+    healTick: 350
+};
 
 // Délai minimal (ms) entre deux lectures du même son (anti-spam)
 const MIN_GAP = {
@@ -961,6 +966,7 @@ function play(name, opts = {}) {
         if (gap && lastPlay[name] !== undefined && t - lastPlay[name] < gap) return;
 
         let gain = Number.isFinite(o.vol) ? Math.max(0, o.vol) : 1;
+        const muffle = clamp(Number.isFinite(o.muffle) ? o.muffle : 0, 0, 1);
         let pan = 0;
         let cutoff = 0;
         let spatial = false;
@@ -979,7 +985,13 @@ function play(name, opts = {}) {
             pan = clamp(dx / 800, -1, 1) * 0.8;
             if (pan > -0.03 && pan < 0.03) pan = 0; // inaudible : pas de nœud de panoramique
             // Son lointain : plus étouffé (les pas aussi, ils ont maintenant des aigus selon le sol)
-            if (d > 250) cutoff = 800 + 17000 * k * k;
+            if (d > 180) cutoff = 700 + 15000 * k * k;
+            // Le muffle est aussi appliqué si la source est presque au même endroit.
+            if (muffle > 0) {
+                gain *= 1 - muffle * 0.65;
+                const muffledCutoff = 900 + (1 - muffle) * 1000;
+                cutoff = cutoff > 0 ? Math.min(cutoff, muffledCutoff) : muffledCutoff;
+            }
             spatial = true;
         }
         if (gain < 0.01) return;

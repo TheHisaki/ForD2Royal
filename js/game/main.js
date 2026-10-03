@@ -20,7 +20,7 @@ import { CombatHud } from './combat-hud.js?v=10';
 import { Effects } from './effects.js?v=13';
 import { HEALS, WEAPONS } from './weapons.js?v=9';
 import { drawPlayer, drawDying } from './draw.js?v=9';
-import { SFX } from '../sfx.js?v=9';
+import { SFX } from '../sfx.js?v=14';
 import { Settings } from '../settings.js?v=9';
 import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=9';
 import { itemArt } from '../item-art.js?v=10';
@@ -37,12 +37,12 @@ const STEP_TIME = 0.3;   // un nuage de poussière tous les 0,3 s en marchant
 
 // Sons
 const GLIDER_ALT = 2 / 3;      // ouverture après 1/3 de la chute (voir drop.js)
-const SHIP_HEAR_DIST = 2500;   // on entend le vaisseau jusqu'à cette distance
+const SHIP_HEAR_DIST = 1000;   // moteur du vaisseau audible seulement à proximité
 const HEARTBEAT_TIME = 0.95;   // un battement de cœur toutes les 0,95 s quand la vie est basse
 const LOW_HEALTH = 30;
 const CHEST_HUM_TIME = 1.2;    // bourdonnement du coffre le plus proche
-const CHEST_HUM_RANGE = 700;
-const BOT_VOL = 0.7;           // sons d'action des bots un peu moins forts
+const CHEST_HUM_RANGE = 360;    // portée cohérente avec le son d'ouverture
+const BOT_VOL = 0.7;            // sons d'action des bots un peu moins forts
 
 // Secousse de caméra quand le joueur tire, selon l'arme
 const FIRE_SHAKE = { pistol: 1.5, smg: 1.2, ar: 2, shotgun: 6, sniper: 8 };
@@ -428,6 +428,24 @@ function start() {
     }
 
     /* ----- Butin : chaque changement fait ici est diffusé aux autres joueurs ----- */
+    // Rectangle de maison contenant un point. Les coffres sauvages renvoient null.
+    function buildingAt(x, y) {
+        for (const b of world.buildings) {
+            if (x > b.x && x < b.x + b.w && y > b.y && y < b.y + b.h) return b;
+        }
+        return null;
+    }
+
+    // Un coffre intérieur entendu depuis l'extérieur (ou une autre maison) est étouffé.
+    // Le filtrage est appliqué dans SFX.play pour conserver les graves mais couper les aigus.
+    let audioView = player;
+    function chestMuffle(chest) {
+        const sourceBuilding = buildingAt(chest.x, chest.y);
+        if (!sourceBuilding) return 0;
+        const listenerBuilding = buildingAt(audioView.x, audioView.y);
+        return listenerBuilding === sourceBuilding ? 0 : 0.72;
+    }
+
     if (isMultiplayer) {
         // Préfixe unique par joueur : les objets créés en partie ne se mélangent jamais
         loot.idPrefix = `${String(gameConfig.myPlayerId).slice(-6)}:`;
@@ -445,7 +463,7 @@ function start() {
 
     loot.onChestOpen = (c, f, local = true) => {
         effects.chestOpen(c.x, c.y);
-        SFX.play('chest', { x: c.x, y: c.y });
+        SFX.play('chest', { x: c.x, y: c.y, muffle: chestMuffle(c) });
         if (f === player) stats.chests++;
         // Ouvert ici par un combattant qu'on gère : les autres l'ouvrent aussi (sans butin)
         if (local && isMultiplayer && owns(f)) netSend({ type: 'chest_open', c: c.id, s: f?.id ?? null });
@@ -1576,6 +1594,7 @@ function start() {
 
     // view : celui que suit la caméra (le joueur, ou la cible du spectateur)
     function updateAudio(dt, view = player) {
+        audioView = view;
         SFX.setListener(view.x, view.y);
 
         // Moteur du vaisseau : plein dedans, puis de plus en plus loin
@@ -1631,13 +1650,13 @@ function start() {
             let bestD = CHEST_HUM_RANGE;
             for (const c of loot.chests) {
                 if (c.opened) continue;
-                const d = Math.hypot(c.x - player.x, c.y - player.y);
+                const d = Math.hypot(c.x - view.x, c.y - view.y);
                 if (d < bestD) {
                     bestD = d;
                     best = c;
                 }
             }
-            if (best) SFX.play('chestHum', { x: best.x, y: best.y });
+            if (best) SFX.play('chestHum', { x: best.x, y: best.y, muffle: chestMuffle(best) });
         }
 
         // Oiseaux de temps en temps
