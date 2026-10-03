@@ -2,14 +2,34 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+    <script>
+        // Bloque le zoom de page dès le chargement (avant les modules du lobby).
+        (() => {
+            const zoomKeys = new Set(['Equal', 'Minus', 'Digit0', 'NumpadAdd', 'NumpadSubtract', 'Numpad0']);
+            const stopZoomKey = (event) => {
+                if (!(event.ctrlKey || event.metaKey)) return;
+                if (zoomKeys.has(event.code) || event.key === '+' || event.key === '-') {
+                    event.preventDefault();
+                    event.stopImmediatePropagation();
+                }
+            };
+            addEventListener('keydown', stopZoomKey, { capture: true });
+            addEventListener('wheel', (event) => {
+                if (event.ctrlKey || event.metaKey) event.preventDefault();
+            }, { capture: true, passive: false });
+            for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+                addEventListener(type, (event) => event.preventDefault(), { capture: true, passive: false });
+            }
+        })();
+    </script>
     <meta name="theme-color" content="#0b1d4a">
     <title>FOR2D ROYAL - Lobby</title>
     <!-- Polices (si le réseau les bloque, des polices de secours sont prévues dans le CSS) -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/main.css">
+    <link rel="stylesheet" href="css/main.css?v=10">
     <link rel="stylesheet" href="css/lobby.css">
     <link rel="stylesheet" href="css/settings.css">
     <link rel="stylesheet" href="css/store.css">

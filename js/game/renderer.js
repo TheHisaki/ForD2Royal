@@ -151,9 +151,10 @@ export class Renderer {
         this.ctx.imageSmoothingQuality = 'low';
     }
 
-    // flightMul < 1 : vue plus large pendant le vol (bornée pour garder peu de chunks à l'écran)
+    // flightMul < 1 : vue plus large pendant le vol. Le plancher automatique reste
+    // assez bas pour montrer toute la carte autour du bus en altitude.
     get zoom() {
-        return this.baseZoom * Math.max(0.5, this.zoomMul * (this.flightMul ?? 1));
+        return this.baseZoom * Math.max(0.38, this.zoomMul * (this.flightMul ?? 1));
     }
 
     // Change en douceur la largeur de vue (1 = normal)

@@ -35,6 +35,7 @@ body {
     height: 100%;
     overscroll-behavior: none;
     touch-action: none;
+    -webkit-text-size-adjust: 100%;
 }
 
 body {
@@ -1978,7 +1979,7 @@ body.item-dragging * { cursor: grabbing !important; }
     :root { --hud-zoom: 1; }
 }
 
-#hud > * { zoom: var(--hud-zoom); }
+#hud > * { zoom: 1; }
 
 /* La ligne d'aide n'est pas agrandie (elle passerait sous les barres et la hotbar) :
    elle passe en haut, sous le nom du lieu (elle disparaît après 10 s),

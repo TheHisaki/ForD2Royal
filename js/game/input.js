@@ -28,6 +28,8 @@ function isTextField(el) {
 
 // true = le navigateur ne doit pas réagir à cette touche
 function shouldBlock(e) {
+    // Le zoom navigateur doit rester bloqué même si le focus est dans un champ texte.
+    if ((e.ctrlKey || e.metaKey) && (BLOCKED_ZOOM.has(e.code) || e.key === '+' || e.key === '-')) return true;
     if (isTextField(e.target)) return false;
     // Entrée / Espace sur un bouton du HUD (paramètres, inventaire) : on garde l'activation
     if ((e.key === 'Enter' || e.code === 'Space') && e.target instanceof Element && e.target.closest('button, a')) {

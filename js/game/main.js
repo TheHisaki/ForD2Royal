@@ -6,7 +6,7 @@
 // ?v=10 : force le navigateur à recharger les modules changés (synchro multijoueur, emotes)
 import { generateWorld, surfaceAt } from './world.js?v=9';
 import { Player } from './player.js?v=9';
-import { Renderer } from './renderer.js?v=9';
+import { Renderer } from './renderer.js?v=10';
 import { Hud } from './hud.js?v=10';
 import { Input } from './input.js?v=10';
 import { Drop, drawFalling } from './drop.js?v=10';
@@ -32,6 +32,8 @@ const SPECTATE_DELAY = 1200; // ms après la mort : la caméra passe sur le tueu
 const DEFEAT_DELAY = 1400;   // ms après la mort : écran de fin
 const VICTORY_DELAY = 900;
 const STEP_TIME = 0.3;   // un nuage de poussière tous les 0,3 s en marchant
+const SHIP_VIEW = 0.42;   // vue très large depuis le bus (altitude élevée)
+const GROUND_VIEW = 1;    // vue normale une fois au sol
 
 // Sons
 const GLIDER_ALT = 2 / 3;      // ouverture après 1/3 de la chute (voir drop.js)
@@ -501,7 +503,7 @@ function start() {
 
     const canvas = document.getElementById('gameCanvas');
     renderer = new Renderer(canvas, world);
-    renderer.setFlightView(0.65, 1);
+    renderer.setFlightView(SHIP_VIEW, 1);
     renderer.follow(drop.ship, 0, true);
     renderer.warmup();
 
@@ -2067,8 +2069,16 @@ function start() {
         const watched = spectator.update() || player;
         updateAudio(dt, watched);
 
-        // Vue large dans le vaisseau, qui se resserre pendant la chute
-        const view = player.phase === 'ship' ? 0.65 : player.phase === 'air' ? 0.65 + (1 - player.altitude) * 0.35 : 1;
+        // Vue très large depuis le bus, puis resserrement progressif vers le sol.
+        // Smoothstep : la vue reste large au début, puis se resserre davantage à l'approche
+        // de l'atterrissage pour donner une vraie sensation de descente.
+        const view = player.phase === 'ship' ? SHIP_VIEW : player.phase === 'air'
+            ? (() => {
+                const progress = 1 - Math.max(0, Math.min(1, player.altitude ?? 0));
+                const eased = progress * progress * (3 - 2 * progress);
+                return SHIP_VIEW + (GROUND_VIEW - SHIP_VIEW) * eased;
+            })()
+            : GROUND_VIEW;
         renderer.setFlightView(view, dt);
         renderer.follow(player.phase === 'ship' ? drop.ship : watched, dt);
         renderer.render(watched, dt, time, hooks);
