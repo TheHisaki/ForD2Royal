@@ -240,9 +240,16 @@ class Hub {
         // Profil
         e.pForm?.addEventListener('submit', (ev) => {
             ev.preventDefault();
-            const name = Progress.setName(e.pName.value);
+            const requested = (e.pName.value || '').trim();
+            const net = window.networkManager;
+            if (net?.isAuthenticated?.()) {
+                e.pNameMsg.textContent = 'Vérification du pseudo...';
+                net.renameAccount(requested);
+                return;
+            }
+            const name = Progress.setName(requested);
             e.pName.value = name;
-            e.pNameMsg.textContent = `Pseudo enregistré : ${name}`;
+            e.pNameMsg.textContent = `Pseudo local enregistré : ${name}. Crée un compte dans Amis pour le rendre unique.`;
             sfx('ready');
             this.syncLobbyName();
         });

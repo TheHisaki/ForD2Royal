@@ -258,6 +258,21 @@ wss.on('connection', (ws) => {
             case 'leave_room':
                 roomManager.leaveCurrentRoom(ws);
                 break;
+            case 'account_register':
+            case 'account_login':
+            case 'account_session':
+            case 'account_logout':
+            case 'account_rename':
+            case 'friend_request':
+            case 'friend_accept':
+            case 'friend_reject':
+            case 'friend_remove':
+            case 'friend_invite':
+                roomManager.handleFriendMessage(ws, msg).catch((error) => {
+                    console.error('[Amis] Erreur:', error.message);
+                    roomManager.send(ws, { type: 'account_error', action: msg.type, message: 'Erreur serveur.' });
+                });
+                break;
             default:
                 // Événements de synchronisation en partie (voir js/game/main.js)
                 if (GAME_MESSAGES.has(msg.type)) roomManager.relayGameMessage(ws, msg);
@@ -267,10 +282,12 @@ wss.on('connection', (ws) => {
 
     ws.on('close', () => {
         roomManager.leaveCurrentRoom(ws);
+        roomManager.unbindAccount(ws);
     });
 
     ws.on('error', () => {
         roomManager.leaveCurrentRoom(ws);
+        roomManager.unbindAccount(ws);
     });
 });
 

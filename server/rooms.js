@@ -4,6 +4,9 @@
    Adapté pour Node.js sur hébergement Hostinger (Business)
    ================================== */
 
+const crypto = require('crypto');
+const { FriendsStore } = require('./friends-store.js');
+
 const ROOM_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MAX_PLAYERS_PER_ROOM = 4; // Escouade max par lobby
 const MAX_FIGHTERS = 24;        // places sur la carte (même valeur que js/game/main.js)
@@ -29,6 +32,156 @@ class RoomManager {
         this.rooms = new Map();             // roomCode -> Room
         this.playerRooms = new Map();       // ws -> roomCode
         this.matchmakingQueues = new Map(); // mode -> { rooms: Set<roomCode>, timer: interval, secondsLeft: number }
+        this.friends = new FriendsStore();
+        this.friendSessions = new Map();    // bearer token -> { accountId, expiresAt }
+        this.accountSockets = new Map();    // accountId -> Set<ws>
+    }
+
+    /* ===================== COMPTES ET AMIS ===================== */
+
+    sendFriend(ws, data) {
+        this.send(ws, data);
+    }
+
+    bindAccount(ws, accountId) {
+        const account = this.friends.get(accountId);
+        if (!account) return false;
+        if (ws.accountId && ws.accountId !== accountId) this.unbindAccount(ws);
+        ws.accountId = accountId;
+        ws.accountName = account.name;
+        let sockets = this.accountSockets.get(accountId);
+        if (!sockets) {
+            sockets = new Set();
+            this.accountSockets.set(accountId, sockets);
+        }
+        sockets.add(ws);
+        return true;
+    }
+
+    unbindAccount(ws) {
+        const id = ws?.accountId;
+        if (!id) return;
+        const sockets = this.accountSockets.get(id);
+        sockets?.delete(ws);
+        if (sockets && !sockets.size) this.accountSockets.delete(id);
+        delete ws.accountId;
+        delete ws.accountName;
+    }
+
+    authenticateToken(ws, token) {
+        if (typeof token !== 'string' || !/^[a-f0-9]{64}$/.test(token)) return false;
+        const session = this.friendSessions.get(token);
+        if (!session || session.expiresAt < Date.now()) {
+            if (session) this.friendSessions.delete(token);
+            return false;
+        }
+        return this.bindAccount(ws, session.accountId);
+    }
+
+    accountToken(ws) {
+        const token = crypto.randomBytes(32).toString('hex');
+        this.friendSessions.set(token, { accountId: ws.accountId, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+        return token;
+    }
+
+    friendState(ws) {
+        if (!ws.accountId) return null;
+        const state = this.friends.list(ws.accountId);
+        if (!state) return null;
+        const online = (account) => ({ ...account, online: this.accountSockets.has(account.id) });
+        return {
+            account: state.account,
+            friends: state.friends.map(online),
+            incoming: state.incoming.map(online),
+            outgoing: state.outgoing.map(online)
+        };
+    }
+
+    sendFriendState(ws) {
+        const state = this.friendState(ws);
+        if (state) this.sendFriend(ws, { type: 'friends_state', ...state });
+    }
+
+    notifyAccount(accountId, data) {
+        for (const socket of this.accountSockets.get(accountId) || []) this.sendFriend(socket, data);
+    }
+
+    requireAccount(ws) {
+        return !!ws.accountId && !!this.friends.get(ws.accountId);
+    }
+
+    async handleFriendMessage(ws, msg) {
+        const type = msg?.type;
+        if (type === 'account_session') {
+            if (!this.authenticateToken(ws, msg.token)) return this.sendFriend(ws, { type: 'account_error', action: 'session', message: 'Session expirée, reconnecte-toi.' });
+            this.sendFriend(ws, { type: 'account_authenticated', token: msg.token, account: this.friends.getPublic(ws.accountId) });
+            this.sendFriendState(ws);
+            return;
+        }
+        if (type === 'account_register' || type === 'account_login') {
+            if (this.requireAccount(ws)) return this.sendFriend(ws, { type: 'account_error', action: type === 'account_register' ? 'register' : 'login', message: 'Ce navigateur est déjà connecté à un compte.' });
+            const result = type === 'account_register'
+                ? await this.friends.register(msg.name, msg.password)
+                : await this.friends.verify(msg.name, msg.password);
+            if (!result.ok) return this.sendFriend(ws, { type: 'account_error', action: type === 'account_register' ? 'register' : 'login', message: result.reason });
+            this.bindAccount(ws, result.account.id);
+            const token = this.accountToken(ws);
+            this.sendFriend(ws, { type: 'account_authenticated', token, account: result.account });
+            this.sendFriendState(ws);
+            return;
+        }
+        if (type === 'account_logout') {
+            this.unbindAccount(ws);
+            return this.sendFriend(ws, { type: 'account_logged_out' });
+        }
+        if (type === 'account_rename') {
+            if (!this.requireAccount(ws)) return this.sendFriend(ws, { type: 'account_error', action: 'rename', message: 'Connecte-toi d’abord.' });
+            const result = await this.friends.rename(ws.accountId, msg.name);
+            if (!result.ok) return this.sendFriend(ws, { type: 'account_error', action: 'rename', message: result.reason });
+            ws.accountName = result.account.name;
+            const code = this.playerRooms.get(ws);
+            const room = code ? this.rooms.get(code) : null;
+            const player = room?.players.get(ws.accountId);
+            if (player) {
+                player.name = result.account.name;
+                this.broadcastToRoom(room, { type: 'player_updated', player: this.serializePlayer(player, room) });
+            }
+            this.sendFriend(ws, { type: 'account_updated', account: result.account });
+            this.sendFriendState(ws);
+            return;
+        }
+        if (!this.requireAccount(ws)) return this.sendFriend(ws, { type: 'account_error', action: type, message: 'Connecte-toi pour utiliser les amis.' });
+
+        let result;
+        if (type === 'friend_request') result = await this.friends.request(ws.accountId, msg.name);
+        else if (type === 'friend_accept') result = await this.friends.accept(ws.accountId, msg.id);
+        else if (type === 'friend_reject') result = await this.friends.reject(ws.accountId, msg.id);
+        else if (type === 'friend_remove') result = await this.friends.remove(ws.accountId, msg.id);
+        else if (type === 'friend_invite') {
+            const targetId = String(msg.id || '');
+            const code = this.playerRooms.get(ws);
+            const room = code ? this.rooms.get(code) : null;
+            if (!targetId || !this.friends.areFriends(ws.accountId, targetId) || !room || room.state !== 'lobby') {
+                return this.sendFriend(ws, { type: 'friend_error', message: 'Invitation impossible pour le moment.' });
+            }
+            this.notifyAccount(targetId, {
+                type: 'friend_invite',
+                from: this.friends.getPublic(ws.accountId),
+                roomCode: code,
+                mode: room.mode
+            });
+            return this.sendFriend(ws, { type: 'friend_invite_sent' });
+        } else {
+            return;
+        }
+
+        if (!result?.ok) return this.sendFriend(ws, { type: 'friend_error', action: type, message: result?.reason || 'Action impossible.' });
+        this.sendFriendState(ws);
+        const otherId = result.target?.id || msg.id;
+        if (otherId && this.friends.get(otherId)) {
+            this.notifyAccount(otherId, { type: 'friends_changed' });
+            for (const socket of this.accountSockets.get(otherId) || []) this.sendFriendState(socket);
+        }
     }
 
     getQueue(mode) {
@@ -46,6 +199,9 @@ class RoomManager {
     createRoom(ws, hostData) {
         // Nettoyer si déjà dans une salle
         this.leaveCurrentRoom(ws);
+        if (hostData?.accountToken && !ws.accountId) this.authenticateToken(ws, hostData.accountToken);
+        const accountId = ws.accountId || hostData.id;
+        const accountName = ws.accountName || hostData.name;
 
         let code;
         let attempts = 0;
@@ -56,7 +212,7 @@ class RoomManager {
 
         const room = {
             code,
-            hostId: hostData.id,
+            hostId: accountId,
             mode: hostData.mode || 'duo',
             // botFill = « Remplir la partie avec des bots » ; fillTeam = « Remplir l'équipe avec des bots »
             botFill: (hostData.fillMatch ?? hostData.botFill) !== false,
@@ -69,8 +225,8 @@ class RoomManager {
         };
 
         const hostPlayer = {
-            id: hostData.id,
-            name: String(hostData.name || 'Hôte').slice(0, 16),
+            id: accountId,
+            name: String(accountName || 'Hôte').slice(0, 16),
             skin: hostData.skin || 'recrue',
             backpack: hostData.backpack || null,
             colors: hostData.colors || null,
@@ -85,6 +241,7 @@ class RoomManager {
         this.rooms.set(code, room);
         this.playerRooms.set(ws, code);
         ws.playerId = hostPlayer.id;
+        if (ws.accountId) ws.accountName = hostPlayer.name;
 
         console.log(`[Multiplayer] Salle créée: ${code} par ${hostPlayer.name} (${hostPlayer.id}) [botFill: ${room.botFill}]`);
 
@@ -107,6 +264,7 @@ class RoomManager {
 
     joinRoom(ws, code, playerData) {
         code = String(code || '').trim().toUpperCase();
+        if (playerData?.accountToken && !ws.accountId) this.authenticateToken(ws, playerData.accountToken);
         this.leaveCurrentRoom(ws);
 
         const room = this.rooms.get(code);
@@ -114,7 +272,8 @@ class RoomManager {
             return this.send(ws, { type: 'error', message: 'Code de salle introuvable.' });
         }
 
-        const candidateId = playerData.id || playerData.player?.id;
+        const candidateId = ws.accountId || playerData.id || playerData.player?.id;
+        const candidateName = ws.accountName || playerData.name || playerData.player?.name;
 
         // Reconnexion d'un joueur existant (ex: passage à game.html ou refresh)
         if (candidateId && room.players.has(candidateId)) {
@@ -194,7 +353,7 @@ class RoomManager {
 
         const newPlayer = {
             id: candidateId || `p_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
-            name: String(playerData.name || playerData.player?.name || `Joueur ${freeSlot}`).slice(0, 16),
+            name: String(candidateName || `Joueur ${freeSlot}`).slice(0, 16),
             skin: playerData.skin || playerData.player?.skin || 'recrue',
             backpack: playerData.backpack || playerData.player?.backpack || null,
             colors: playerData.colors || playerData.player?.colors || null,
@@ -269,7 +428,8 @@ class RoomManager {
         if (!player) return;
 
         if (typeof data.ready === 'boolean') player.ready = data.ready;
-        if (data.name) player.name = String(data.name).slice(0, 16);
+        if (!ws.accountId && data.name) player.name = String(data.name).slice(0, 16);
+        if (ws.accountId) player.name = ws.accountName || player.name;
         if (data.skin) player.skin = data.skin;
         if (data.backpack !== undefined) player.backpack = data.backpack;
         if (data.colors) player.colors = data.colors;

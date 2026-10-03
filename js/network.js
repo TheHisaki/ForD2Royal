@@ -41,6 +41,9 @@ class NetworkManager {
         this.slot = 1;
         this.reconnectTimer = null;
         this.pendingAction = null;
+        this.friendHandlers = new Set();
+        this.account = null;
+        this.accountToken = localStorage.getItem('for2d-account-token') || '';
         this.gameDataHandlers = [];
 
         this.init();
@@ -56,6 +59,47 @@ class NetworkManager {
         }
         return localStorage.getItem('for2d-player-name') || 'Joueur';
     }
+
+    isAuthenticated() {
+        return !!this.account && !!this.accountToken;
+    }
+
+    onFriendEvent(handler) {
+        if (typeof handler === 'function') this.friendHandlers.add(handler);
+        return () => this.friendHandlers.delete(handler);
+    }
+
+    emitFriend(msg) {
+        for (const handler of this.friendHandlers) {
+            try { handler(msg); } catch (error) { console.error('[Amis] UI:', error); }
+        }
+        window.dispatchEvent(new CustomEvent('friends-event', { detail: msg }));
+    }
+
+    registerAccount(name, password) {
+        this.send({ type: 'account_register', name, password });
+    }
+
+    loginAccount(name, password) {
+        this.send({ type: 'account_login', name, password });
+    }
+
+    renameAccount(name) {
+        if (this.isAuthenticated()) this.send({ type: 'account_rename', name });
+    }
+
+    logoutAccount() {
+        this.send({ type: 'account_logout' });
+        this.account = null;
+        this.accountToken = '';
+        try { localStorage.removeItem('for2d-account-token'); } catch {}
+    }
+
+    requestFriend(name) { this.send({ type: 'friend_request', name }); }
+    acceptFriend(id) { this.send({ type: 'friend_accept', id }); }
+    rejectFriend(id) { this.send({ type: 'friend_reject', id }); }
+    removeFriend(id) { this.send({ type: 'friend_remove', id }); }
+    inviteFriend(id) { this.send({ type: 'friend_invite', id }); }
 
     getPlayerSkinData() {
         const cos = window.FOR2D_COSMETICS;
@@ -109,6 +153,7 @@ class NetworkManager {
             console.log('[Network] Connecté au serveur multijoueur !');
             this.connected = true;
             this.updateConnectionStatus(this.roomCode ? `Connecté (${this.roomCode})` : 'En ligne', '#00ff88');
+            if (this.accountToken) this.send({ type: 'account_session', token: this.accountToken });
 
             if (this.pendingAction) {
                 const act = this.pendingAction;
@@ -164,6 +209,7 @@ class NetworkManager {
         const payload = {
             type: 'create_room',
             id: this.getPlayerId(),
+            accountToken: this.accountToken || undefined,
             name: this.getPlayerName(),
             mode: mode || 'duo',
             botFill: fillMatch !== false,
@@ -189,6 +235,7 @@ class NetworkManager {
             type: 'join_room',
             roomCode,
             id: this.getPlayerId(),
+            accountToken: this.accountToken || undefined,
             name: this.getPlayerName(),
             skin: skinData.skin,
             backpack: skinData.backpack,
@@ -281,6 +328,31 @@ class NetworkManager {
 
     handleMessage(msg) {
         switch (msg.type) {
+            case 'account_authenticated':
+                this.account = msg.account || null;
+                if (msg.token) {
+                    this.accountToken = msg.token;
+                    try { localStorage.setItem('for2d-account-token', msg.token); } catch {}
+                }
+                this.emitFriend(msg);
+                break;
+            case 'account_updated':
+                this.account = msg.account || this.account;
+                this.emitFriend(msg);
+                break;
+            case 'account_logged_out':
+                this.account = null;
+                this.accountToken = '';
+                this.emitFriend(msg);
+                break;
+            case 'account_error':
+            case 'friend_error':
+            case 'friends_state':
+            case 'friends_changed':
+            case 'friend_invite':
+            case 'friend_invite_sent':
+                this.emitFriend(msg);
+                break;
             case 'room_created':
                 this.isHost = true;
                 this.hostId = this.getPlayerId();

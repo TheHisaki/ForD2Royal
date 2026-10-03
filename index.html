@@ -77,10 +77,57 @@
                         <span class="currency-amount" id="partyCount" aria-label="1 joueur dans le groupe">1</span>
                     </div>
                 </div>
+                <button class="menu-button friends-button" id="friendsBtn" type="button" aria-label="Amis" title="Amis" aria-haspopup="dialog" aria-controls="friendsPanel">
+                    <span class="hud-ico" data-icon="group" aria-hidden="true"></span>
+                    <span class="friends-badge" id="friendsBadge" hidden></span>
+                </button>
                 <button class="menu-button sound-button" id="soundToggle" type="button" aria-label="Couper le son" title="Couper le son" aria-pressed="false"><span class="hud-ico" data-icon="sound-on" aria-hidden="true"></span></button>
                 <button class="menu-button" id="settingsBtn" aria-label="Paramètres" title="Paramètres" aria-haspopup="dialog" aria-controls="settingsPanel"><span class="hud-ico" data-icon="gear" aria-hidden="true"></span></button>
             </div>
         </header>
+
+        <!-- Panneau social : comptes, amis, invitations et rejoindre -->
+        <aside id="friendsPanel" class="friends-panel" hidden aria-labelledby="friendsTitle">
+            <div class="friends-panel-head">
+                <div>
+                    <span class="friends-kicker">SOCIAL</span>
+                    <h2 id="friendsTitle">Amis</h2>
+                </div>
+                <button type="button" class="friends-close" id="friendsClose" aria-label="Fermer le panneau amis">×</button>
+            </div>
+            <div id="friendsAuth" class="friends-auth">
+                <p class="friends-intro">Crée un compte pour garder ton pseudo et tes amis sur le serveur.</p>
+                <label for="friendsName">Pseudo unique</label>
+                <input id="friendsName" type="text" maxlength="16" autocomplete="username" placeholder="Ton pseudo">
+                <label for="friendsPassword">Mot de passe</label>
+                <input id="friendsPassword" type="password" minlength="8" maxlength="128" autocomplete="current-password" placeholder="8 caractères minimum">
+                <div class="friends-auth-actions">
+                    <button type="button" class="friends-primary" id="friendsRegister">Créer</button>
+                    <button type="button" class="friends-secondary" id="friendsLogin">Se connecter</button>
+                </div>
+                <p class="friends-message" id="friendsAuthMessage" role="status" aria-live="polite"></p>
+            </div>
+            <div id="friendsAccount" class="friends-account" hidden>
+                <div class="friends-account-line"><span id="friendsAccountName"></span><button type="button" id="friendsLogout" class="friends-link">Déconnexion</button></div>
+                <form id="friendsAddForm" class="friends-add-form" autocomplete="off">
+                    <input id="friendsAddName" type="text" maxlength="16" placeholder="Ajouter avec son pseudo" aria-label="Pseudo de l'ami">
+                    <button type="submit" class="friends-primary">Ajouter</button>
+                </form>
+                <p class="friends-message" id="friendsActionMessage" role="status" aria-live="polite"></p>
+                <section class="friends-section" aria-labelledby="friendsRequestsTitle">
+                    <h3 id="friendsRequestsTitle">Demandes reçues</h3>
+                    <div id="friendsRequests" class="friends-list"></div>
+                </section>
+                <section class="friends-section" aria-labelledby="friendsListTitle">
+                    <h3 id="friendsListTitle">Ma liste</h3>
+                    <div id="friendsList" class="friends-list"></div>
+                </section>
+                <section class="friends-section friends-invites-section" aria-labelledby="friendsInvitesTitle">
+                    <h3 id="friendsInvitesTitle">Invitations de groupe</h3>
+                    <div id="friendsInvites" class="friends-list"></div>
+                </section>
+            </div>
+        </aside>
 
         <!-- ===== ZONE PRINCIPALE ===== -->
         <main class="lobby-main">
@@ -849,7 +896,8 @@
     <script type="module" src="js/lobby-skin.js"></script>
     <!-- Passe de combat, Profil, Classements + niveau du lobby (module ES) -->
     <script type="module" src="js/lobby-hub.js"></script>
-    <script src="js/network.js?v=5"></script>
+    <script src="js/network.js?v=6"></script>
+    <script src="js/friends.js?v=1"></script>
     <script src="js/lobby.js?v=5"></script>
     <script src="js/main.js"></script>
 </body>
