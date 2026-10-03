@@ -50,7 +50,8 @@ export const SLOTS = [
 ];
 
 /*
-   Tenue : style de dessin ('default' | 'knight' | 'skeleton' | 'ninja' | 'astro'),
+   Tenue : style de dessin ('default' | 'knight' | 'skeleton' | 'ninja' | 'astro' |
+   'chef' | 'pirate' | 'mecha' | 'mage'),
    look = couleurs du lobby, game = couleurs en jeu (player.colors).
 */
 export const SKINS = [
@@ -67,6 +68,34 @@ export const SKINS = [
         desc: 'Toujours la première à repérer un coffre.',
         look: { skin: '#ffd8b8', hair: '#f0c040', outfit: '#1fc27a', outfitDark: '#138a55', pants: '#3b2a1a', shoes: '#1a1f33', pack: '#ff5d8f', accent: '#ffe03d' },
         game: { skin: '#ffd8b8', hair: '#f0c040', outfit: '#1fc27a', pack: '#ff5d8f' }
+    },
+    {
+        id: 'chef-raclette', name: 'Chef Raclette', rarity: 'uncommon', price: 400,
+        series: 'Essentiels', style: 'chef',
+        desc: 'Toque, moustache et baguette dans le dos. Il ne lâche jamais sa cuillère en bois.',
+        look: { skin: '#f2c29b', hair: '#5a3a22', outfit: '#f4f6fb', outfitDark: '#d7dde8', pants: '#2b2f45', shoes: '#1a1f33', pack: '#e9b26a', accent: '#e8323c' },
+        game: { skin: '#f2c29b', hair: '#5a3a22', outfit: '#f4f6fb', pack: '#e8323c' }
+    },
+    {
+        id: 'corsaire', name: 'Capitaine Corsaire', rarity: 'rare', price: 900,
+        series: 'Royaume déchu', style: 'pirate',
+        desc: 'Tricorne, cache-œil, jambe de bois et un perroquet qui répète tout.',
+        look: { skin: '#e0a57a', hair: '#2a1a12', outfit: '#b3262e', outfitDark: '#7a1a20', pants: '#efe2c4', shoes: '#2a1a12', pack: '#1c1f33', accent: '#ffd24a' },
+        game: { skin: '#e0a57a', hair: '#2a1a12', outfit: '#b3262e', pack: '#ffd24a' }
+    },
+    {
+        id: 'mecha-titan', name: 'Mécha Titan', rarity: 'epic', price: 1400,
+        series: 'Au-delà du vaisseau', style: 'mecha',
+        desc: 'Armure de combat blindée, cœur à fusion et réacteurs dans le dos.',
+        look: { skin: '#5b6680', hair: '#f4f6fb', outfit: '#3a8dff', outfitDark: '#2563c9', pants: '#2b3245', shoes: '#1c2236', pack: '#ffd23a', accent: '#4fe8ff' },
+        game: { skin: '#f4f6fb', hair: '#4fe8ff', outfit: '#3a8dff', pack: '#ffd23a' }
+    },
+    {
+        id: 'archimage', name: 'Archimage Céleste', rarity: 'legendary', price: 2200,
+        series: 'Nuit de la corruption', style: 'mage',
+        desc: 'Sa robe est cousue de constellations. Un cercle de runes tourne toujours sous ses pieds.',
+        look: { skin: '#f2c29b', hair: '#0d0a24', outfit: '#3b2a8f', outfitDark: '#261a66', pants: '#261a66', shoes: '#1a1240', pack: '#ffd24a', accent: '#7ff0ff' },
+        game: { skin: '#f2c29b', hair: '#7ff0ff', outfit: '#3b2a8f', pack: '#ffd24a' }
     },
     {
         id: 'ninja', name: 'Ninja Néon', rarity: 'rare', price: 800,

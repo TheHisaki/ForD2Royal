@@ -793,10 +793,31 @@ const SCABBARD = '#3d3560';      // fourreau du katana
 const WRAP = '#e8e2d0';          // poignée tressée
 const TSUBA = '#ffd24a';         // garde dorée
 
+const BREAD = '#d9a05b';         // baguette du chef
+const BREAD_CUT = '#a8692e';
+const TOQUE = '#fbfcff';
+const HAT = '#1c1f33';           // tricorne du corsaire
+const PARROT = '#2ec27e';
+const PARROT_D = '#1f8f5a';
+const HOOD_HOLE = '#0d0a24';     // ouverture sombre de la capuche de l'archimage
+const MECHA_JOINT = '#2b3245';
+
 // Style de dessin d'un combattant (tout style inconnu = rendu par défaut)
+const STYLES = new Set(['knight', 'skeleton', 'ninja', 'astro', 'chef', 'pirate', 'mecha', 'mage']);
 function styleOf(p) {
-    const s = p.skinStyle;
-    return s === 'knight' || s === 'skeleton' || s === 'ninja' || s === 'astro' ? s : 'default';
+    return STYLES.has(p.skinStyle) ? p.skinStyle : 'default';
+}
+
+// Contour arrondi « nuage » de la toque (5 bosses), sous-chemin centré en (cx, 0)
+function toquePath(ctx, cx, R) {
+    ctx.beginPath();
+    for (let i = 0; i < 5; i++) {
+        const a = (i / 5) * TAU + 0.3;
+        const x = cx + Math.cos(a) * R * 0.55;
+        const y = Math.sin(a) * R * 0.55;
+        ctx.moveTo(x + R * 0.5, y);
+        ctx.arc(x, y, R * 0.5, 0, TAU);
+    }
 }
 
 function safeShade(c, amt, fallback) {
@@ -944,6 +965,131 @@ function styledHead(ctx, style, d, hr, time, seed) {
         ctx.stroke();
         circle(ctx, -hr * 0.9, 0, hr * 0.2);
         fillStroke(ctx, d.pack, OUTLINE, 2.5);
+    } else if (style === 'chef') {
+        // Visage + grosse moustache devant, toque bouffante par-dessus (vers l'arrière)
+        circle(ctx, 0, 0, hr);
+        fillStroke(ctx, d.skin, OUTLINE, 3);
+        ctx.beginPath();
+        ctx.ellipse(hr * 0.78, -hr * 0.28, hr * 0.26, hr * 0.17, 0.5, 0, TAU);
+        ctx.moveTo(hr * 1.04, hr * 0.28);
+        ctx.ellipse(hr * 0.78, hr * 0.28, hr * 0.26, hr * 0.17, -0.5, 0, TAU);
+        fillStroke(ctx, d.hair, OUTLINE, 2);
+        circle(ctx, hr * 0.92, 0, hr * 0.16);
+        fillStroke(ctx, d.skin, OUTLINE, 2);
+        // Contour épais d'abord, puis remplissage par-dessus : seul le bord extérieur reste visible
+        toquePath(ctx, -hr * 0.22, hr * 1.02);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        ctx.fillStyle = TOQUE;
+        ctx.fill();
+        circle(ctx, -hr * 0.22, 0, hr * 0.5);
+        ctx.fill();
+        // Plis de la toque
+        ctx.beginPath();
+        ctx.moveTo(-hr * 0.55, -hr * 0.25);
+        ctx.lineTo(hr * 0.1, -hr * 0.15);
+        ctx.moveTo(-hr * 0.55, hr * 0.25);
+        ctx.lineTo(hr * 0.1, hr * 0.15);
+        ctx.strokeStyle = 'rgba(10, 16, 48, 0.25)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    } else if (style === 'pirate') {
+        // Barbe devant, puis tricorne (pointe vers l'avant), liseré doré, tête de mort, plume
+        circle(ctx, 0, 0, hr);
+        fillStroke(ctx, d.skin, OUTLINE, 3);
+        ctx.beginPath();
+        ctx.arc(0, 0, hr * 0.92, -0.9, 0.9);
+        ctx.strokeStyle = d.hair;
+        ctx.lineWidth = hr * 0.32;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-hr * 0.5, -hr * 0.6);
+        ctx.quadraticCurveTo(-hr * 1.5, -hr * 1.2, -hr * 1.75, -hr * 0.45);
+        ctx.quadraticCurveTo(-hr * 1.2, -hr * 0.55, -hr * 0.4, -hr * 0.35);
+        ctx.closePath();
+        fillStroke(ctx, '#ff5470', OUTLINE, 2);
+        ctx.beginPath();
+        ctx.moveTo(hr * 1.2, 0);
+        ctx.quadraticCurveTo(hr * 0.1, hr * 0.35, -hr * 0.8, hr * 1.1);
+        ctx.quadraticCurveTo(-hr * 0.55, 0, -hr * 0.8, -hr * 1.1);
+        ctx.quadraticCurveTo(hr * 0.1, -hr * 0.35, hr * 1.2, 0);
+        ctx.closePath();
+        fillStroke(ctx, HAT, OUTLINE, 3);
+        ctx.beginPath();
+        ctx.moveTo(hr * 0.95, 0);
+        ctx.quadraticCurveTo(hr * 0.05, hr * 0.28, -hr * 0.62, hr * 0.88);
+        ctx.moveTo(hr * 0.95, 0);
+        ctx.quadraticCurveTo(hr * 0.05, -hr * 0.28, -hr * 0.62, -hr * 0.88);
+        ctx.strokeStyle = d.pack;
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        circle(ctx, hr * 0.2, 0, hr * 0.2);
+        fillStroke(ctx, TOQUE, OUTLINE, 1.5);
+        ctx.beginPath();
+        ctx.arc(hr * 0.24, -hr * 0.07, hr * 0.05, 0, TAU);
+        ctx.moveTo(hr * 0.29, hr * 0.07);
+        ctx.arc(hr * 0.24, hr * 0.07, hr * 0.05, 0, TAU);
+        ctx.fillStyle = OUTLINE;
+        ctx.fill();
+    } else if (style === 'mecha') {
+        // Casque anguleux blanc, oreillettes, visière en V lumineuse, crête jaune
+        roundRectPath(ctx, -hr * 1.0, -hr * 1.18, hr * 0.5, hr * 0.36, hr * 0.08);
+        roundRectSub(ctx, -hr * 1.0, hr * 0.82, hr * 0.5, hr * 0.36, hr * 0.08);
+        fillStroke(ctx, d.outfit, OUTLINE, 2.5);
+        roundRectPath(ctx, -hr * 0.95, -hr * 0.95, hr * 1.9, hr * 1.9, hr * 0.45);
+        fillStroke(ctx, d.skin, OUTLINE, 3);
+        ctx.fillStyle = d.dark;
+        ctx.fillRect(-hr * 0.95, -hr * 0.08, hr * 0.85, hr * 0.16);
+        ctx.beginPath();
+        ctx.moveTo(hr * 0.25, -hr * 0.75);
+        ctx.lineTo(hr * 0.8, -hr * 0.18);
+        ctx.lineTo(hr * 0.8, hr * 0.18);
+        ctx.lineTo(hr * 0.25, hr * 0.75);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = hr * 0.34 + 3;
+        ctx.stroke();
+        ctx.strokeStyle = d.hair;
+        ctx.lineWidth = hr * 0.34;
+        ctx.stroke();
+        // Crête en V vers l'avant
+        ctx.beginPath();
+        ctx.moveTo(hr * 0.05, 0);
+        ctx.lineTo(hr * 1.05, -hr * 0.55);
+        ctx.lineTo(hr * 1.2, -hr * 0.42);
+        ctx.lineTo(hr * 0.42, 0);
+        ctx.lineTo(hr * 1.2, hr * 0.42);
+        ctx.lineTo(hr * 1.05, hr * 0.55);
+        ctx.closePath();
+        fillStroke(ctx, d.pack, OUTLINE, 2);
+    } else if (style === 'mage') {
+        // Capuche pointue (vers l'arrière) + croissant de lune, ouverture sombre, yeux lumineux
+        ctx.beginPath();
+        ctx.moveTo(hr * 0.95, 0);
+        ctx.arc(0, 0, hr * 1.05, 0, Math.PI * 0.62);
+        ctx.quadraticCurveTo(-hr * 1.2, hr * 0.5, -hr * 1.9, hr * 0.3);
+        ctx.quadraticCurveTo(-hr * 1.25, -hr * 0.2, -hr * 0.5, -hr * 0.95);
+        ctx.arc(0, 0, hr * 1.05, -Math.PI * 0.68, 0);
+        ctx.closePath();
+        fillStroke(ctx, d.outfit, OUTLINE, 3);
+        ctx.beginPath();
+        ctx.arc(-hr * 1.92, hr * 0.3, hr * 0.26, 0.6, 5.2);
+        ctx.arc(-hr * 1.8, hr * 0.25, hr * 0.18, 5.0, 0.8, true);
+        ctx.closePath();
+        fillStroke(ctx, d.pack, OUTLINE, 1.8);
+        ctx.beginPath();
+        ctx.ellipse(hr * 0.45, 0, hr * 0.42, hr * 0.62, 0, 0, TAU);
+        fillStroke(ctx, HOOD_HOLE, d.pack, 2);
+        const glow = 0.65 + 0.35 * Math.sin(time * 3 + seed);
+        ctx.save();
+        ctx.globalAlpha *= glow;
+        ctx.beginPath();
+        ctx.ellipse(hr * 0.6, -hr * 0.24, hr * 0.12, hr * 0.08, 0, 0, TAU);
+        ctx.moveTo(hr * 0.72, hr * 0.24);
+        ctx.ellipse(hr * 0.6, hr * 0.24, hr * 0.12, hr * 0.08, 0, 0, TAU);
+        ctx.fillStyle = d.hair;
+        ctx.fill();
+        ctx.restore();
     } else {
         // Astronaute : casque rond plus gros, visière bleue teintée + reflet, antenne
         const H = hr * 1.2;
@@ -1030,6 +1176,26 @@ function drawKatana(ctx, r) {
     ctx.strokeStyle = TSUBA;
     ctx.lineWidth = r * 0.12;
     ctx.stroke();
+}
+
+const SIDES2 = [-1, 1];
+
+// 3 orbes de lumière qui tournent autour de l'archimage
+function mageOrbs(ctx, r, time, seed, color) {
+    const ga = ctx.globalAlpha;
+    for (let k = 0; k < 3; k++) {
+        const a = time * 1.6 + seed + k * 2.094;
+        const x = Math.cos(a) * r * 1.3;
+        const y = Math.sin(a) * r * 1.3;
+        ctx.globalAlpha = ga * 0.35;
+        circle(ctx, x, y, r * 0.2);
+        ctx.fillStyle = color;
+        ctx.fill();
+        ctx.globalAlpha = ga;
+        circle(ctx, x, y, r * 0.1);
+        fillStroke(ctx, color, OUTLINE, 1.5);
+    }
+    ctx.globalAlpha = ga;
 }
 
 // Petites âmes violettes autour du squelette (3 au plus, calculées à partir de time)
@@ -1319,6 +1485,82 @@ function paintFighter(ctx, p, time, fx) {
         fillStroke(ctx, pack, OUTLINE, 3);
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(-r * 0.86, -r * 0.46, r * 0.12, r * 0.92);
+    } else if (style === 'chef') {
+        // Baguette en travers du dos (entailles dorées)
+        ctx.beginPath();
+        ctx.moveTo(-r * 1.05, r * 0.75);
+        ctx.lineTo(r * 0.2, -r * 1.15);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = r * 0.36 + 5;
+        ctx.stroke();
+        ctx.strokeStyle = BREAD;
+        ctx.lineWidth = r * 0.36;
+        ctx.stroke();
+        ctx.beginPath();
+        for (let k = 0; k < 4; k++) {
+            const u = 0.18 + k * 0.2;
+            const x = -r * 1.05 + r * 1.25 * u;
+            const y = r * 0.75 - r * 1.9 * u;
+            ctx.moveTo(x - r * 0.12, y - r * 0.02);
+            ctx.lineTo(x + r * 0.08, y + r * 0.12);
+        }
+        ctx.strokeStyle = BREAD_CUT;
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+    } else if (style === 'mecha') {
+        // Deux réacteurs + flammes cyan qui vacillent
+        const fl = 0.75 + 0.25 * Math.sin(time * 26 + seed);
+        ctx.beginPath();
+        for (const s of SIDES2) {
+            ctx.moveTo(-r * 1.08, s * r * 0.42 - r * 0.15);
+            ctx.lineTo(-r * (1.3 + 0.45 * fl), s * r * 0.42);
+            ctx.lineTo(-r * 1.08, s * r * 0.42 + r * 0.15);
+        }
+        ctx.fillStyle = sc.hair;
+        ctx.fill();
+        roundRectPath(ctx, -r * 1.15, -r * 0.68, r * 0.62, r * 0.5, r * 0.12);
+        roundRectSub(ctx, -r * 1.15, r * 0.18, r * 0.62, r * 0.5, r * 0.12);
+        fillStroke(ctx, MECHA_JOINT, OUTLINE, 3);
+        ctx.fillStyle = pack;
+        ctx.fillRect(-r * 0.95, -r * 0.62, r * 0.1, r * 0.38);
+        ctx.fillRect(-r * 0.95, r * 0.24, r * 0.1, r * 0.38);
+    } else if (style === 'mage') {
+        // Cercle de runes au sol (tourne) puis pans de la robe étoilée vers l'arrière
+        ctx.save();
+        ctx.rotate(time * 0.8);
+        ctx.globalAlpha *= 0.55;
+        circle(ctx, 0, 0, r * 1.6);
+        ctx.strokeStyle = sc.hair;
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * TAU;
+            const b = ((i + 3) / 8) * TAU;
+            ctx.moveTo(Math.cos(a) * r * 1.6, Math.sin(a) * r * 1.6);
+            ctx.lineTo(Math.cos(b) * r * 1.6, Math.sin(b) * r * 1.6);
+        }
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.restore();
+        ctx.beginPath();
+        ctx.moveTo(r * 0.1, -r * 0.95);
+        ctx.quadraticCurveTo(-r * 1.0, -r * 1.1, -r * 1.5, -r * 0.2);
+        ctx.quadraticCurveTo(-r * 1.25, 0, -r * 1.5, r * 0.2);
+        ctx.quadraticCurveTo(-r * 1.0, r * 1.1, r * 0.1, r * 0.95);
+        ctx.closePath();
+        fillStroke(ctx, sc.back, OUTLINE, 3);
+        ctx.beginPath();
+        ctx.moveTo(-r * 1.5, -r * 0.2);
+        ctx.quadraticCurveTo(-r * 1.25, 0, -r * 1.5, r * 0.2);
+        ctx.strokeStyle = pack;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ctx.fillStyle = '#ffffff';
+        for (const [sx, sy] of [[-0.9, -0.5], [-1.15, 0.35], [-0.6, 0.65], [-0.75, -0.05]]) {
+            circle(ctx, r * sx, r * sy, r * 0.05);
+            ctx.fill();
+        }
     } else {
         roundRectPath(ctx, -r * 1.02, -r * 0.62, r * 0.7, r * 1.24, r * 0.25);
         fillStroke(ctx, style === 'default' ? pack : style === 'ninja' ? sc.back : sc.packDark, OUTLINE, 3);
@@ -1358,6 +1600,63 @@ function paintFighter(ctx, p, time, fx) {
         ctx.moveTo(r * 0.15, r * 0.8);
         ctx.arc(0, r * 0.8, r * 0.15, 0, TAU);
         fillStroke(ctx, skin, OUTLINE, 2);
+    } else if (style === 'chef') {
+        // Foulard rouge noué au cou
+        circle(ctx, r * 0.3, r * 0.42, r * 0.17);
+        fillStroke(ctx, pack, OUTLINE, 2);
+    } else if (style === 'pirate') {
+        // Épaulettes dorées + perroquet sur l'épaule gauche (il dodeline)
+        ctx.beginPath();
+        ctx.ellipse(0, r * 0.82, r * 0.22, r * 0.3, 0, 0, TAU);
+        fillStroke(ctx, pack, OUTLINE, 2);
+        const bob = Math.sin(time * 4 + seed) * r * 0.05;
+        ctx.save();
+        ctx.translate(-r * 0.05 + bob, -r * 0.85);
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.25, -r * 0.08);
+        ctx.lineTo(-r * 0.75, -r * 0.2);
+        ctx.lineTo(-r * 0.7, r * 0.1);
+        ctx.closePath();
+        fillStroke(ctx, '#ff5470', OUTLINE, 2);
+        ctx.beginPath();
+        ctx.ellipse(0, 0, r * 0.32, r * 0.22, 0, 0, TAU);
+        fillStroke(ctx, PARROT, OUTLINE, 2.5);
+        ctx.beginPath();
+        ctx.ellipse(-r * 0.05, -r * 0.1, r * 0.2, r * 0.1, -0.2, 0, TAU);
+        ctx.fillStyle = PARROT_D;
+        ctx.fill();
+        circle(ctx, r * 0.3, 0, r * 0.17);
+        fillStroke(ctx, PARROT, OUTLINE, 2);
+        ctx.beginPath();
+        ctx.moveTo(r * 0.42, -r * 0.07);
+        ctx.quadraticCurveTo(r * 0.62, 0, r * 0.44, r * 0.09);
+        ctx.closePath();
+        fillStroke(ctx, TSUBA, OUTLINE, 1.5);
+        circle(ctx, r * 0.33, -r * 0.07, r * 0.035);
+        ctx.fillStyle = OUTLINE;
+        ctx.fill();
+        ctx.restore();
+    } else if (style === 'mecha') {
+        // Épaulières en bloc avec bande jaune
+        roundRectPath(ctx, -r * 0.42, -r * 1.22, r * 0.8, r * 0.5, r * 0.12);
+        roundRectSub(ctx, -r * 0.42, r * 0.72, r * 0.8, r * 0.5, r * 0.12);
+        fillStroke(ctx, outfit, OUTLINE, 3);
+        ctx.fillStyle = pack;
+        ctx.fillRect(-r * 0.42, -r * 0.92, r * 0.8, r * 0.1);
+        ctx.fillRect(-r * 0.42, r * 0.82, r * 0.8, r * 0.1);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.fillRect(-r * 0.3, -r * 1.14, r * 0.5, r * 0.06);
+        ctx.fillRect(-r * 0.3, r * 1.08, r * 0.5, r * 0.06);
+    } else if (style === 'mage') {
+        // Col doré
+        ctx.beginPath();
+        ctx.arc(0, 0, r * 0.62, -1.3, 1.3);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        ctx.strokeStyle = pack;
+        ctx.lineWidth = 3;
+        ctx.stroke();
     }
 
     const swing = p.moving ? Math.sin((p.walkTime || 0) * 12) * r * 0.25 : 0;
@@ -1442,6 +1741,7 @@ function paintFighter(ctx, p, time, fx) {
     } else {
         styledHead(ctx, style, sc, r * 0.6, time, seed);
         if (style === 'skeleton') soulSparks(ctx, r, time, seed, pack);
+        if (style === 'mage') mageOrbs(ctx, r, time, seed, sc.hair);
     }
 
     // Flash : toute la silhouette (sac, épaules, mains, tête) réunie dans un seul chemin,
@@ -1456,6 +1756,14 @@ function paintFighter(ctx, p, time, fx) {
             ctx.ellipse(-r * 0.05, -r * 0.8, r * 0.38, r * 0.27, 0, 0, TAU);
             ctx.moveTo(r * 0.33, r * 0.8);
             ctx.ellipse(-r * 0.05, r * 0.8, r * 0.38, r * 0.27, 0, 0, TAU);
+        } else if (style === 'mecha') {
+            // Réacteurs + épaulières
+            roundRectSub(ctx, -r * 1.15, -r * 0.68, r * 0.62, r * 0.5, r * 0.12);
+            roundRectSub(ctx, -r * 1.15, r * 0.18, r * 0.62, r * 0.5, r * 0.12);
+            roundRectSub(ctx, -r * 0.42, -r * 1.22, r * 0.8, r * 0.5, r * 0.12);
+            roundRectSub(ctx, -r * 0.42, r * 0.72, r * 0.8, r * 0.5, r * 0.12);
+        } else if (style === 'chef' || style === 'mage') {
+            // Pas de sac (baguette / robe) : rien de plus que le corps
         } else if (style === 'astro') {
             // Réservoir + tuyères
             roundRectSub(ctx, -r * 0.98, -r * 0.6, r * 0.66, r * 1.2, r * 0.24);

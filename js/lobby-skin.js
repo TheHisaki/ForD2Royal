@@ -392,13 +392,339 @@ function astroBody() {
     );
 }
 
+// Petite étoile à 4 branches (constellations, scintillements)
+function star(x, y, s, cls = 'f-white') {
+    return `<path class="${cls}" d="M${x} ${y - s} Q${x} ${y} ${x + s} ${y} Q${x} ${y} ${x} ${y + s} Q${x} ${y} ${x - s} ${y} Q${x} ${y} ${x} ${y - s} Z"/>`;
+}
+
+/* ===================== CHEF RACLETTE (peu commun) ===================== */
+
+function chefBody() {
+    // Carreaux du pantalon de cuisine
+    let checks = '';
+    for (let row = 0; row < 5; row++) {
+        const y = 170 + row * 16;
+        const off = row % 2 ? 8 : 0;
+        for (const x0 of [48, 74]) {
+            checks += `<rect class="f-check" x="${x0 + off}" y="${y}" width="8" height="8"/>`;
+        }
+    }
+    return (
+        // Baguette en travers du dos
+        '<g transform="rotate(-38 70 120)">' +
+        '<rect class="f-wood" x="58" y="40" width="24" height="150" rx="12"/>' +
+        '<path class="s-fold sk-detail" d="M62 64 L76 72 M62 90 L76 98 M62 116 L76 124 M62 142 L76 150 M62 168 L76 176"/>' +
+        '</g>' +
+        // Pantalon à carreaux
+        '<rect class="f-pants" x="46" y="160" width="22" height="90" rx="7"/>' +
+        '<rect class="f-pants" x="72" y="160" width="22" height="90" rx="7"/>' +
+        `<g class="sk-detail">${checks}</g>` +
+        '<rect class="f-shade" x="84" y="166" width="8" height="80" rx="3"/>' +
+        // Sabots de cuisine
+        '<path class="f-shoes" d="M30 268 Q28 248 48 246 H68 V268 Z"/>' +
+        '<path class="f-shoes" d="M72 246 H92 Q112 248 110 268 H72 Z"/>' +
+        '<rect class="f-sole" x="29" y="262" width="40" height="8" rx="4"/>' +
+        '<rect class="f-sole" x="71" y="262" width="40" height="8" rx="4"/>' +
+        // Veste de chef croisée + 2 rangées de boutons
+        '<path class="f-outfit" d="M42 102 Q70 92 98 102 Q102 136 100 170 Q70 178 40 170 Q38 136 42 102 Z"/>' +
+        '<path class="f-shade" d="M72 96 Q86 97 98 102 Q102 136 100 170 Q86 174 72 175 Z"/>' +
+        '<path class="s-plate sk-detail" d="M56 100 Q64 112 62 136"/>' +
+        '<circle class="f-gold" cx="58" cy="114" r="3.2" style="stroke-width:2"/><circle class="f-gold" cx="82" cy="114" r="3.2" style="stroke-width:2"/>' +
+        '<circle class="f-gold" cx="59" cy="128" r="3.2" style="stroke-width:2"/><circle class="f-gold" cx="81" cy="128" r="3.2" style="stroke-width:2"/>' +
+        // Tablier + poche + lacet
+        '<path class="f-cloth" d="M48 136 H92 L97 208 Q70 216 43 208 Z"/>' +
+        '<path class="f-shade" d="M72 136 H92 L97 208 Q84 212 72 213 Z"/>' +
+        '<rect class="f-cloth" x="58" y="150" width="24" height="16" rx="3"/>' +
+        '<path class="s-plate" d="M42 138 H98"/>' +
+        '<path class="s-fold sk-detail" d="M56 176 L54 204 M84 176 L86 204"/>' +
+        // Manches retroussées + mains + cuillère en bois
+        '<path class="f-outfit-d" d="M46 104 Q34 106 30 120 L24 158 Q24 166 32 167 Q40 167 41 160 L47 124 Z"/>' +
+        '<path class="f-outfit-d" d="M94 104 Q106 106 110 120 L116 158 Q116 166 108 167 Q100 167 99 160 L93 124 Z"/>' +
+        '<rect class="f-outfit" x="21" y="148" width="22" height="10" rx="4"/>' +
+        '<rect class="f-outfit" x="97" y="148" width="22" height="10" rx="4"/>' +
+        thick('M112 174 L126 124', 's-wood') +
+        '<ellipse class="f-wood" cx="128" cy="114" rx="8" ry="11" transform="rotate(16 128 114)"/>' +
+        '<circle class="f-skin" cx="30" cy="170" r="9.5"/>' +
+        '<circle class="f-skin" cx="110" cy="170" r="9.5"/>' +
+        // Cou + foulard rouge noué
+        '<rect class="f-skin" x="61" y="84" width="18" height="14" rx="4"/>' +
+        '<path class="f-accent" d="M52 92 Q70 104 88 92 L86 102 Q70 112 54 102 Z"/>' +
+        '<path class="f-accent sk-scarf" d="M68 104 L58 122 L69 118 L72 106 Z"/>' +
+        '<circle class="f-accent" cx="70" cy="104" r="5"/>' +
+        // Tête : oreilles, visage, favoris, yeux rieurs, gros nez, moustache
+        '<circle class="f-skin" cx="39" cy="62" r="7"/>' +
+        '<circle class="f-skin" cx="101" cy="62" r="7"/>' +
+        '<ellipse class="f-skin" cx="70" cy="60" rx="31" ry="32"/>' +
+        '<path class="f-shade-soft" d="M84 32 Q102 42 101 62 Q99 84 80 92 Q95 76 95 60 Q95 42 84 32 Z"/>' +
+        '<path class="f-hair" d="M39 58 Q40 44 46 40 L48 64 Z M101 58 Q100 44 94 40 L92 64 Z"/>' +
+        '<g class="sk-detail">' +
+        '<path class="s-brow" d="M50 52 Q57 48 64 51 M76 51 Q83 48 90 52"/>' +
+        '<path class="s-brow" d="M53 62 Q58 57 63 62 M77 62 Q82 57 87 62"/>' +
+        '<ellipse class="f-blush" cx="49" cy="72" rx="5" ry="3"/><ellipse class="f-blush" cx="91" cy="72" rx="5" ry="3"/>' +
+        '</g>' +
+        '<ellipse class="f-skin" cx="70" cy="69" rx="7" ry="6"/>' +
+        '<path class="f-hair" d="M70 75 Q60 71 52 75 Q46 79 41 73 Q43 86 56 83 Q64 82 70 78 Q76 82 84 83 Q97 86 99 73 Q94 79 88 75 Q80 71 70 75 Z"/>' +
+        '<path class="f-mouth" d="M64 85 Q70 91 76 85 Z"/>' +
+        // Toque bouffante
+        '<path class="f-cloth" d="M44 28 Q30 20 36 8 Q40 -4 54 -2 Q60 -10 72 -8 Q86 -12 92 0 Q106 2 104 14 Q110 24 96 28 Z"/>' +
+        '<path class="f-shade sk-detail" d="M84 -6 Q92 0 92 0 Q106 2 104 14 Q110 24 96 28 L84 28 Q90 12 84 -6 Z"/>' +
+        '<path class="s-fold sk-detail" d="M56 24 Q54 10 58 0 M70 24 V-6 M84 24 Q86 10 82 0"/>' +
+        '<rect class="f-cloth" x="42" y="22" width="56" height="16" rx="4"/>'
+    );
+}
+
+/* ===================== CAPITAINE CORSAIRE (rare) ===================== */
+
+function pirateBody() {
+    return (
+        // Pans du manteau (derrière les jambes), liseré doré
+        '<path class="f-outfit-d" d="M40 150 L35 236 Q50 243 62 232 L66 168 Z M100 150 L105 236 Q90 243 78 232 L74 168 Z"/>' +
+        '<path class="s-neon sk-detail" d="M35 236 Q50 243 62 232 M105 236 Q90 243 78 232"/>' +
+        // Culotte crème
+        '<rect class="f-pants" x="46" y="160" width="22" height="56" rx="7"/>' +
+        '<rect class="f-pants" x="72" y="160" width="22" height="54" rx="7"/>' +
+        '<rect class="f-shade" x="84" y="166" width="8" height="44" rx="3"/>' +
+        // Botte à revers (gauche)
+        '<path class="f-shoes" d="M44 206 H70 V246 L72 268 H32 Q30 252 46 248 Z"/>' +
+        '<rect class="f-shoes" x="41" y="200" width="32" height="12" rx="3"/>' +
+        '<path class="s-fold sk-detail" d="M48 228 L64 230"/>' +
+        // Jambe de bois (droite) + sangle
+        '<path class="f-wood" d="M76 212 H90 L86 262 H80 Z"/>' +
+        '<path class="s-fold sk-detail" d="M79 232 H88 M80 248 H87"/>' +
+        '<ellipse class="f-belt" cx="83" cy="264" rx="6.5" ry="4"/>' +
+        '<rect class="f-belt" x="73" y="206" width="20" height="9" rx="3"/>' +
+        // Chemise à jabot
+        '<path class="f-cloth" d="M54 100 H86 L77 150 H63 Z"/>' +
+        '<path class="s-fold sk-detail" d="M62 108 Q70 113 78 108 M63 118 Q70 123 77 118 M65 128 Q70 133 75 128 M66 138 Q70 142 74 138"/>' +
+        // Manteau ouvert, revers dorés, boutons
+        '<path class="f-outfit" d="M42 102 Q50 96 60 98 L68 152 L66 172 Q52 174 40 168 Q38 136 42 102 Z"/>' +
+        '<path class="f-outfit" d="M98 102 Q90 96 80 98 L72 152 L74 172 Q88 174 100 168 Q102 136 98 102 Z"/>' +
+        '<path class="f-shade" d="M98 102 Q90 96 80 98 L72 152 L74 172 Q88 174 100 168 Q102 136 98 102 Z"/>' +
+        '<path class="s-neon" d="M60 98 L68 152 M80 98 L72 152"/>' +
+        '<circle class="f-gold" cx="52" cy="118" r="3" style="stroke-width:2"/><circle class="f-gold" cx="53" cy="134" r="3" style="stroke-width:2"/>' +
+        '<circle class="f-gold" cx="88" cy="118" r="3" style="stroke-width:2"/><circle class="f-gold" cx="87" cy="134" r="3" style="stroke-width:2"/>' +
+        // Baudrier en diagonale
+        '<path class="s-strap" d="M45 104 L95 150"/>' +
+        '<path class="s-pack" d="M45 104 L95 150"/>' +
+        // Large ceinture + boucle dorée
+        '<rect class="f-belt" x="40" y="152" width="60" height="13" rx="3"/>' +
+        '<rect class="f-gold" x="62" y="150" width="16" height="17" rx="3"/>' +
+        '<rect class="f-belt" x="66" y="154" width="8" height="9" rx="1"/>' +
+        // Manches + revers dorés, main gauche, crochet à droite
+        '<path class="f-outfit" d="M46 104 Q34 106 30 120 L24 156 Q24 162 32 163 Q40 163 41 158 L47 124 Z"/>' +
+        '<path class="f-outfit" d="M94 104 Q106 106 110 120 L116 156 Q116 162 108 163 Q100 163 99 158 L93 124 Z"/>' +
+        '<rect class="f-gold" x="21" y="150" width="22" height="9" rx="3"/>' +
+        '<rect class="f-gold" x="97" y="150" width="22" height="9" rx="3"/>' +
+        '<circle class="f-skin" cx="30" cy="168" r="9.5"/>' +
+        thick('M110 160 V174 Q110 188 99 186', 's-steel') +
+        '<rect class="f-steel" x="101" y="157" width="18" height="8" rx="3"/>' +
+        // Perroquet sur l'épaule gauche (il dodeline)
+        '<g class="sk-bob">' +
+        '<path class="f-red" d="M27 98 L18 122 L28 116 L32 102 Z"/>' +
+        '<ellipse class="f-parrot" cx="32" cy="88" rx="11" ry="14"/>' +
+        '<ellipse class="f-parrot-d" cx="27" cy="92" rx="6" ry="11"/>' +
+        '<circle class="f-parrot" cx="35" cy="73" r="9"/>' +
+        '<path class="f-gold" d="M42 69 Q50 72 46 82 Q44 76 40 76 Z" style="stroke-width:2.5"/>' +
+        '<circle class="f-line" cx="37" cy="71" r="2.4"/>' +
+        '<circle class="f-white" cx="37.8" cy="70.2" r="0.9"/>' +
+        '</g>' +
+        // Cou
+        '<rect class="f-skin" x="61" y="84" width="18" height="14" rx="4"/>' +
+        // Tête : oreilles, visage, cache-œil, barbe, sourire à dent en or
+        '<circle class="f-skin" cx="39" cy="62" r="7"/>' +
+        '<circle class="f-skin" cx="101" cy="62" r="7"/>' +
+        '<ellipse class="f-skin" cx="70" cy="62" rx="31" ry="32"/>' +
+        '<path class="f-shade-soft" d="M84 34 Q102 44 101 64 Q99 86 80 94 Q95 78 95 62 Q95 44 84 34 Z"/>' +
+        '<path class="f-hair" d="M40 66 Q42 98 70 102 Q98 98 100 66 Q92 80 84 80 Q70 86 56 80 Q48 80 40 66 Z"/>' +
+        '<path class="f-hair" d="M70 76 Q60 72 53 78 Q60 83 70 80 Q80 83 87 78 Q80 72 70 76 Z"/>' +
+        '<path class="f-mouth" d="M60 85 Q70 93 80 85 Z"/>' +
+        '<rect class="f-gold" x="71" y="85" width="4.5" height="4" rx="1" style="stroke-width:1.5"/>' +
+        '<g class="sk-detail">' +
+        '<path class="s-brow" d="M50 54 Q57 50 64 54"/>' +
+        '<g class="sk-eyes"><ellipse class="f-line" cx="58" cy="64" rx="4.5" ry="6"/><circle class="f-white" cx="59.6" cy="61.6" r="1.6"/></g>' +
+        '<path class="s-nose" d="M71 66 Q68 71 72 72"/>' +
+        '</g>' +
+        '<path class="s-strap" d="M38 50 L102 68"/>' +
+        '<ellipse class="f-line" cx="82" cy="63" rx="8.5" ry="7.5"/>' +
+        // Tricorne : plume, calotte, bord relevé doré, tête de mort
+        '<path class="f-red sk-plume" d="M90 14 Q106 -6 124 0 Q112 4 106 18 Z"/>' +
+        '<path class="f-pack" d="M44 36 Q44 6 70 6 Q96 6 96 36 Z"/>' +
+        '<path class="f-pack" d="M22 26 Q30 46 70 46 Q110 46 118 26 Q100 38 70 36 Q40 38 22 26 Z"/>' +
+        '<path class="s-neon" d="M22 26 Q40 38 70 36 Q100 38 118 26"/>' +
+        '<circle class="f-cloth" cx="70" cy="22" r="6.5" style="stroke-width:2"/>' +
+        '<path class="s-cross sk-detail" d="M61 30 L79 36 M79 30 L61 36"/>' +
+        '<circle class="f-line" cx="67.5" cy="21.5" r="1.6"/><circle class="f-line" cx="72.5" cy="21.5" r="1.6"/>'
+    );
+}
+
+/* ===================== MÉCHA TITAN (épique) ===================== */
+
+function mechaBody() {
+    return (
+        // Réacteurs dorsaux + flammes cyan
+        '<rect class="f-pack" x="28" y="84" width="22" height="70" rx="6"/>' +
+        '<rect class="f-pack" x="90" y="84" width="22" height="70" rx="6"/>' +
+        '<path class="s-fold sk-detail" d="M33 96 H45 M33 104 H45 M95 96 H107 M95 104 H107"/>' +
+        '<rect class="f-pants" x="31" y="150" width="16" height="12" rx="3"/>' +
+        '<rect class="f-pants" x="93" y="150" width="16" height="12" rx="3"/>' +
+        '<g class="sk-detail sk-flame">' +
+        '<path class="f-glow" d="M32 162 Q39 192 46 162 Z"/>' +
+        '<path class="f-glow" d="M94 162 Q101 192 108 162 Z"/>' +
+        '<path class="f-white" d="M36 162 Q39 177 42 162 Z"/>' +
+        '<path class="f-white" d="M98 162 Q101 177 104 162 Z"/>' +
+        '</g>' +
+        // Cuisses (articulations), tibias blindés, genouillères blanches
+        '<rect class="f-pants" x="47" y="160" width="20" height="42" rx="5"/>' +
+        '<rect class="f-pants" x="73" y="160" width="20" height="42" rx="5"/>' +
+        '<path class="f-outfit" d="M42 202 H70 L68 246 H46 Z"/>' +
+        '<path class="f-outfit" d="M70 202 H98 L94 246 H72 Z"/>' +
+        '<path class="f-shade" d="M84 202 H98 L94 246 H84 Z"/>' +
+        '<path class="f-hair" d="M45 194 H67 L65 214 Q56 221 47 214 Z"/>' +
+        '<path class="f-hair" d="M73 194 H95 L93 214 Q84 221 75 214 Z"/>' +
+        '<path class="s-neon sk-detail" d="M50 230 H64 M76 230 H90"/>' +
+        // Pieds massifs + bande jaune
+        '<path class="f-shoes" d="M28 268 L32 246 H68 V268 Z"/>' +
+        '<path class="f-shoes" d="M72 246 H108 L112 268 H72 Z"/>' +
+        '<rect class="f-pack" x="36" y="253" width="28" height="5" rx="2" style="stroke-width:2"/>' +
+        '<rect class="f-pack" x="76" y="253" width="28" height="5" rx="2" style="stroke-width:2"/>' +
+        // Bassin
+        '<path class="f-pants" d="M44 156 H96 L92 178 H48 Z"/>' +
+        '<rect class="f-hair" x="62" y="158" width="16" height="17" rx="3"/>' +
+        // Torse anguleux + plastron blanc + cœur à fusion
+        '<path class="f-outfit" d="M40 104 L54 96 H86 L100 104 L96 160 H44 Z"/>' +
+        '<path class="f-shade" d="M72 96 H86 L100 104 L96 160 H72 Z"/>' +
+        '<path class="f-hair" d="M52 104 H88 L84 134 Q70 141 56 134 Z"/>' +
+        '<circle class="f-belt" cx="70" cy="120" r="11.5"/>' +
+        '<circle class="f-glow sk-glow" cx="70" cy="120" r="7"/>' +
+        '<circle class="f-white" cx="67.5" cy="117.5" r="2"/>' +
+        '<path class="s-plate sk-detail" d="M50 142 H64 M50 148 H64 M76 142 H90 M76 148 H90"/>' +
+        '<path class="f-pack" d="M45 153 H95 L94.5 160 H45.5 Z" style="stroke-width:2.5"/>' +
+        '<path class="s-fold sk-detail" d="M52 153 L48 160 M62 153 L58 160 M72 153 L68 160 M82 153 L78 160 M92 153 L88 160"/>' +
+        // Bras mécaniques : articulations, avant-bras, poings
+        '<rect class="f-pants" x="25" y="112" width="17" height="32" rx="5"/>' +
+        '<rect class="f-pants" x="98" y="112" width="17" height="32" rx="5"/>' +
+        '<path class="f-outfit-d" d="M21 138 H45 L43 166 H23 Z"/>' +
+        '<path class="f-outfit-d" d="M95 138 H119 L117 166 H97 Z"/>' +
+        '<path class="s-neon sk-detail" d="M27 150 H39 M101 150 H113"/>' +
+        '<rect class="f-skin" x="20" y="163" width="24" height="19" rx="5"/>' +
+        '<rect class="f-skin" x="96" y="163" width="24" height="19" rx="5"/>' +
+        '<path class="s-plate sk-detail" d="M26 170 V178 M32 170 V178 M38 170 V178 M102 170 V178 M108 170 V178 M114 170 V178"/>' +
+        // Épaulières en bloc + bande jaune + rivets
+        '<path class="f-outfit" d="M16 108 Q18 92 36 90 H55 L53 120 H18 Z"/>' +
+        '<path class="f-outfit" d="M124 108 Q122 92 104 90 H85 L87 120 H122 Z"/>' +
+        '<rect class="f-pack" x="18" y="108" width="35" height="6" style="stroke-width:2.5"/>' +
+        '<rect class="f-pack" x="87" y="108" width="35" height="6" style="stroke-width:2.5"/>' +
+        '<g class="sk-detail"><circle class="f-line" cx="26" cy="99" r="2"/><circle class="f-line" cx="44" cy="97" r="2"/>' +
+        '<circle class="f-line" cx="114" cy="99" r="2"/><circle class="f-line" cx="96" cy="97" r="2"/></g>' +
+        '<path class="s-shine sk-detail" d="M22 102 Q26 95 36 94 M118 102 Q114 95 104 94"/>' +
+        // Cou mécanique
+        '<rect class="f-pants" x="60" y="84" width="20" height="16" rx="3"/>' +
+        // Tête : oreillettes, casque, masque, visière lumineuse, crête en V
+        '<rect class="f-outfit" x="31" y="44" width="11" height="26" rx="3"/>' +
+        '<rect class="f-outfit" x="98" y="44" width="11" height="26" rx="3"/>' +
+        '<path class="f-hair" d="M40 50 Q40 22 70 20 Q100 22 100 50 L98 82 Q70 92 42 82 Z"/>' +
+        '<path class="f-shade" d="M80 21 Q100 26 100 50 L98 82 Q90 86 80 88 Q92 70 92 50 Q90 30 80 21 Z"/>' +
+        '<path class="f-skin" d="M50 66 H90 L86 84 Q70 91 54 84 Z"/>' +
+        '<path class="s-plate sk-detail" d="M60 72 V82 M66 72 V84 M74 72 V84 M80 72 V82"/>' +
+        '<path class="f-line" d="M43 46 H97 L93 62 H47 Z"/>' +
+        '<path class="f-glow sk-glow" d="M50 50 H66 L64 57 H52 Z" style="stroke:none"/>' +
+        '<path class="f-glow sk-glow" d="M74 50 H90 L88 57 H76 Z" style="stroke:none"/>' +
+        '<path class="f-pack" d="M70 38 L42 6 L51 3 L70 26 L89 3 L98 6 Z"/>' +
+        '<path class="f-red" d="M64 32 L70 23 L76 32 L70 41 Z" style="stroke-width:2.5"/>' +
+        '<path class="s-shine sk-detail" d="M48 40 Q52 28 64 25"/>'
+    );
+}
+
+/* ===================== ARCHIMAGE CÉLESTE (légendaire) ===================== */
+
+function mageBody() {
+    // Rune à 8 branches du cercle magique
+    let rune = '';
+    for (let i = 0; i < 8; i++) {
+        const a = (i / 8) * Math.PI * 2;
+        const b = ((i + 3) / 8) * Math.PI * 2;
+        rune += `${i ? 'L' : 'M'}${(70 + Math.cos(a) * 56).toFixed(1)} ${(150 + Math.sin(a) * 56).toFixed(1)} ` +
+            `L${(70 + Math.cos(b) * 56).toFixed(1)} ${(150 + Math.sin(b) * 56).toFixed(1)} `;
+    }
+    return (
+        // Cercle de runes qui tourne derrière
+        '<g class="sk-detail sk-spin">' +
+        '<circle class="s-magic" cx="70" cy="150" r="66"/>' +
+        '<circle class="s-magic s-magic-thin" cx="70" cy="150" r="56"/>' +
+        `<path class="s-magic s-magic-thin" d="${rune}"/>` +
+        '<circle class="f-glow" cx="70" cy="84" r="4" style="stroke-width:2"/>' +
+        '<circle class="f-glow" cx="136" cy="150" r="4" style="stroke-width:2"/>' +
+        '<circle class="f-glow" cx="70" cy="216" r="4" style="stroke-width:2"/>' +
+        '<circle class="f-glow" cx="4" cy="150" r="4" style="stroke-width:2"/>' +
+        '</g>' +
+        // Orbes qui flottent autour
+        '<g class="sk-detail">' +
+        '<circle class="f-glow sk-orb" cx="14" cy="118" r="7"/>' +
+        '<circle class="f-glow sk-orb sk-orb-b" cx="126" cy="96" r="6"/>' +
+        '<circle class="f-glow sk-orb sk-orb-c" cx="124" cy="204" r="5"/>' +
+        '</g>' +
+        // Pieds sous la robe
+        '<ellipse class="f-shoes" cx="54" cy="262" rx="12" ry="7"/>' +
+        '<ellipse class="f-shoes" cx="86" cy="262" rx="12" ry="7"/>' +
+        // Robe longue évasée
+        '<path class="f-outfit" d="M44 100 Q70 90 96 100 L112 252 Q70 264 28 252 Z"/>' +
+        '<path class="f-shade" d="M72 94 Q86 95 96 100 L112 252 Q92 258 72 259 Z"/>' +
+        '<path class="f-pack" d="M64 160 H76 L80 259 Q70 261 60 259 Z"/>' +
+        thick('M28 252 Q70 264 112 252', 's-gold') +
+        // Constellations brodées
+        '<g class="sk-detail">' +
+        '<path class="s-const" d="M44 214 L52 196 L46 180 M92 220 L100 202 L94 188 L102 178"/>' +
+        star(44, 214, 3.5) + star(52, 196, 4.5, 'f-white sk-twinkle') + star(46, 180, 3) +
+        star(92, 220, 3.5) + star(100, 202, 4, 'f-white sk-twinkle sk-twinkle-b') + star(94, 188, 3) + star(102, 178, 3.5) +
+        '</g>' +
+        // Ceinture-écharpe + gemme
+        '<path class="f-pack" d="M40 150 Q70 160 100 150 L100 162 Q70 172 40 162 Z"/>' +
+        '<path class="f-glow sk-glow" d="M70 149 L77 158 L70 169 L63 158 Z" style="stroke-width:2.5"/>' +
+        // Manches évasées + poignets dorés + mains
+        '<path class="f-outfit-d" d="M46 104 Q32 106 28 124 L16 176 Q30 186 46 178 L50 128 Z"/>' +
+        '<path class="f-outfit-d" d="M94 104 Q108 106 112 124 L124 176 Q110 186 94 178 L90 128 Z"/>' +
+        thick('M16 176 Q30 186 46 178 M124 176 Q110 186 94 178', 's-gold') +
+        '<circle class="f-skin" cx="32" cy="180" r="8"/>' +
+        '<circle class="f-skin" cx="108" cy="180" r="8"/>' +
+        // Orbe de lumière tenu dans la main droite
+        '<circle class="f-glow sk-glow" cx="110" cy="162" r="11"/>' +
+        '<circle class="f-white" cx="106" cy="158" r="3"/>' +
+        // Col haut + broche
+        '<path class="f-outfit-d" d="M44 96 Q70 112 96 96 L98 84 Q70 100 42 84 Z"/>' +
+        thick('M42 84 Q70 100 98 84', 's-gold') +
+        '<circle class="f-pack" cx="70" cy="104" r="7"/>' +
+        '<circle class="f-glow sk-glow" cx="70" cy="104" r="3.8" style="stroke-width:2"/>' +
+        // Capuche pointue + croissant de lune au bout
+        '<path class="f-outfit" d="M34 74 Q30 30 60 14 Q78 4 104 -4 Q92 10 98 26 Q110 44 106 74 Q100 96 70 98 Q40 96 34 74 Z"/>' +
+        '<path class="f-shade" d="M82 10 Q100 2 104 -4 Q92 10 98 26 Q110 44 106 74 Q100 96 70 98 Q96 80 96 56 Q96 30 82 10 Z"/>' +
+        '<path class="f-pack" d="M100 -12 A8 8 0 1 0 112 2 A6 6 0 1 1 100 -12 Z" style="stroke-width:2.5"/>' +
+        // Ouverture sombre + yeux lumineux + liseré doré
+        '<path class="f-hair" d="M46 66 Q46 40 70 38 Q94 40 94 66 Q92 88 70 90 Q48 88 46 66 Z"/>' +
+        '<g class="sk-eyes">' +
+        '<ellipse class="f-glow sk-glow" cx="60" cy="64" rx="5.5" ry="3.5" style="stroke:none"/>' +
+        '<ellipse class="f-glow sk-glow" cx="80" cy="64" rx="5.5" ry="3.5" style="stroke:none"/>' +
+        '</g>' +
+        thick('M46 66 Q46 40 70 38 Q94 40 94 66 Q92 88 70 90 Q48 88 46 66 Z', 's-gold') +
+        '<path class="s-shine sk-detail" d="M42 56 Q44 36 58 24"/>' +
+        // Étoiles qui scintillent autour de la capuche
+        '<g class="sk-detail">' +
+        star(20, 40, 4, 'f-white sk-twinkle') + star(120, 32, 3.5, 'f-white sk-twinkle sk-twinkle-b') +
+        star(12, 84, 3, 'f-white sk-twinkle sk-twinkle-c') +
+        '</g>'
+    );
+}
+
 /* ===================== ASSEMBLAGE ===================== */
 
 const BODIES = {
     knight: knightBody,
     skeleton: skeletonBody,
     ninja: ninjaBody,
-    astro: astroBody
+    astro: astroBody,
+    chef: chefBody,
+    pirate: pirateBody,
+    mecha: mechaBody,
+    mage: mageBody
 };
 
 function svgOf(style, hair, goggles) {
