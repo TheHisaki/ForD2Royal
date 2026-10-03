@@ -2309,6 +2309,19 @@ body.item-dragging * { cursor: grabbing !important; }
 }
 
 .emote-option.is-empty { opacity: 0.27; filter: grayscale(1); }
+
+/* La roue suit seulement la direction de la souris : ses cases ne captent pas le curseur
+   (#hud button les rendrait cliquables et bloquerait le suivi de la souris) */
+#emoteWheel .emote-option { pointer-events: none; }
+
+/* Anti-spam : pendant l'attente, emotes grisées et compte à rebours au centre */
+#emoteWheel.is-cooldown .emote-option { opacity: 0.45; filter: grayscale(0.85); }
+#emoteWheel.is-cooldown .emote-option.is-selected { transform: translate(-50%, -50%) scale(1.04); }
+#emoteWheel.is-cooldown .emote-wheel-hint {
+    width: auto;
+    font-size: 22px;
+    color: #ffb3b3;
+}
 .emote-option.is-selected .emote-option-name { text-shadow: none; }
 
 @media (max-width: 760px), (max-height: 560px) {

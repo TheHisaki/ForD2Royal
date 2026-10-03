@@ -9,6 +9,7 @@ const MAX_PLAYERS_PER_ROOM = 4; // Escouade max par lobby
 const MAX_FIGHTERS = 24;        // places sur la carte (même valeur que js/game/main.js)
 const FLIGHT_DELAY = 6000;      // ms entre le lancement et le départ du vaisseau (chargement des pages)
 const PLAYER_GONE_DELAY = 10000; // ms sans connexion avant qu'un joueur soit éliminé (parti pour de bon)
+const EMOTE_MIN_GAP = 2500;      // ms minimum entre deux emotes d'un même joueur (anti-spam)
 
 // Identifiant de planeur reçu d'un client : court texte sûr, sinon rien
 function gliderId(v) {
@@ -743,6 +744,14 @@ class RoomManager {
         if (room.state !== 'game' || !ws.playerId) return;
         const sender = room.players.get(ws.playerId);
         if (!sender || sender.ws !== ws || sender.inLobby) return;
+
+        // Anti-spam des emotes : une toutes les 2,5 s au plus par joueur (le jeu en autorise une / 3 s)
+        if (data.type === 'emote') {
+            const now = Date.now();
+            if (now - (sender.lastEmoteAt || 0) < EMOTE_MIN_GAP) return;
+            sender.lastEmoteAt = now;
+            if (typeof data.e !== 'string' || data.e.length > 32) return;
+        }
 
         // L'émetteur est toujours celui de la socket (impossible de se faire passer pour un autre)
         data.id = ws.playerId;

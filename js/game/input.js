@@ -51,7 +51,8 @@ export class Input {
             pressed: false,
             released: false,
             downAt: 0,
-            pressDuration: 0
+            pressDuration: 0,
+            rdown: false        // clic droit maintenu (roue d'emotes)
         };
 
         addEventListener('keydown', (e) => {
@@ -84,6 +85,7 @@ export class Input {
             if (this.keys.has('Tab')) handlers.onMapHold?.(false);
             this.keys.clear();
             this.mouse.down = false;
+            this.mouse.rdown = false;
             this.mouse.released = true;
             this.mouse.pressDuration = 0;
         });
@@ -97,6 +99,11 @@ export class Input {
         // Le relâchement est gardé jusqu'à la prochaine frame : cela permet de distinguer
         // un tir court d'un maintien qui ouvre la roue d'emotes.
         canvas.addEventListener('mousedown', (e) => {
+            // Clic droit maintenu : roue d'emotes (le menu du navigateur est bloqué plus bas)
+            if (e.button === 2) {
+                this.mouse.rdown = true;
+                return;
+            }
             if (e.button !== 0) return;
             this.mouse.down = true;
             this.mouse.pressed = true;
@@ -105,6 +112,7 @@ export class Input {
             this.mouse.pressDuration = 0;
         });
         addEventListener('mouseup', (e) => {
+            if (e.button === 2) this.mouse.rdown = false;
             if (e.button !== 0) return;
             this.mouse.down = false;
             this.mouse.released = true;

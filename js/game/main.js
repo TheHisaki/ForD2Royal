@@ -549,14 +549,33 @@ function start() {
         }
     };
 
-    // ================= ROUE D'EMOTES =================
-    const EMOTE_HOLD_MS = 380;
+    // ================= ROUE D'EMOTES (clic droit maintenu, au centre de l'écran) =================
+    // Anti-spam : une emote toutes les EMOTE_COOLDOWN secondes. Les emotes reçues des autres
+    // joueurs sont aussi ignorées si elles arrivent plus vite (et le serveur les filtre aussi).
+    const EMOTE_COOLDOWN = 3;
+    const EMOTE_TIME = 2.8;          // durée d'affichage de la bulle
     const emoteWheel = document.getElementById('emoteWheel');
     const emoteOptions = emoteWheel ? [...emoteWheel.querySelectorAll('.emote-option')] : [];
+    const emoteHint = emoteWheel?.querySelector('.emote-wheel-hint');
     let emoteWheelOpen = false;
     let emoteSelected = -1;
     let emoteWheelCenter = { x: 0, y: 0 };
+    let lastEmoteAt = -Infinity;     // performance.now() de la dernière emote jouée
+    let emoteCdShown = '';
     const emoteBubbles = new Map();
+
+    // Secondes avant de pouvoir rejouer une emote (0 = prêt)
+    const emoteCooldownLeft = () => Math.max(0, EMOTE_COOLDOWN - (performance.now() - lastEmoteAt) / 1000);
+
+    // Affiche le temps d'attente au centre de la roue et grise les emotes pendant l'attente
+    function updateEmoteCooldownUi() {
+        const left = emoteCooldownLeft();
+        const txt = left > 0 ? `${Math.ceil(left)} s` : 'RELÂCHER';
+        if (txt === emoteCdShown) return;
+        emoteCdShown = txt;
+        if (emoteHint) emoteHint.textContent = txt;
+        emoteWheel?.classList.toggle('is-cooldown', left > 0);
+    }
 
     function equippedEmotes() {
         return Array.from({ length: Cosmetics.EMOTE_SLOTS || 4 }, (_, i) => Cosmetics.equippedOf('emote', i));
@@ -602,12 +621,15 @@ function start() {
             hud.mapOpen || settingsOpen || inventoryUI.open || endScreen.isOpen) return false;
         if (!equippedEmotes().some(Boolean)) return false;
         prepareEmoteWheel();
-        emoteWheelCenter = { x: input.mouse.x, y: input.mouse.y };
-        emoteWheel.style.left = `${emoteWheelCenter.x}px`;
-        emoteWheel.style.top = `${emoteWheelCenter.y}px`;
+        // Toujours au milieu de l'écran (la sélection se fait selon la direction de la souris)
+        emoteWheelCenter = { x: innerWidth / 2, y: innerHeight / 2 };
+        emoteWheel.style.left = '50%';
+        emoteWheel.style.top = '50%';
         emoteWheel.hidden = false;
         emoteWheelOpen = true;
         emoteSelected = -2;
+        emoteCdShown = '';
+        updateEmoteCooldownUi();
         updateEmoteSelection();
         return true;
     }
@@ -619,11 +641,16 @@ function start() {
         emoteWheelOpen = false;
         emoteSelected = -1;
         emoteWheel.hidden = true;
-        if (play && item) {
-            player.emote = { id: item.id, t: 2.8 };
-            SFX.play('click');
-            if (isMultiplayer) netSend({ type: 'emote', e: item.id });
+        if (!play || !item) return;
+        // Anti-spam : emote refusée tant que l'attente n'est pas finie
+        if (emoteCooldownLeft() > 0) {
+            SFX.play('dryFire');
+            return;
         }
+        lastEmoteAt = performance.now();
+        player.emote = { id: item.id, t: EMOTE_TIME };
+        SFX.play('click');
+        if (isMultiplayer) netSend({ type: 'emote', e: item.id });
     }
 
     function updateEmoteBubbles(dt) {
@@ -655,19 +682,19 @@ function start() {
         }
     }
 
-    // Le clic court reste un tir ; au-delà du délai, il devient une roue d'emotes.
+    // Clic droit maintenu : la roue est ouverte ; relâché : l'emote visée est jouée.
+    // Renvoie true tant que la roue est ouverte (pas de tir pendant ce temps).
     function updateEmoteInput() {
-        if (!input.mouse.down && input.mouse.released && emoteWheelOpen) {
-            closeEmoteWheel(true);
-            return true;
-        }
         if (emoteWheelOpen) {
+            if (!input.mouse.rdown) {
+                closeEmoteWheel(true);
+                return true;
+            }
             updateEmoteSelection();
+            updateEmoteCooldownUi();
             return true;
         }
-        if (input.mouse.down && performance.now() - input.mouse.downAt >= EMOTE_HOLD_MS) {
-            return openEmoteWheel();
-        }
+        if (input.mouse.rdown) return openEmoteWheel();
         return false;
     }
 
@@ -1008,8 +1035,12 @@ function start() {
             case 'emote': {
                 const fighter = fighterById(msg.id);
                 const item = getItem(msg.e);
-                if (!fighter || !item || item.type !== 'emote') break;
-                fighter.emote = { id: item.id, t: 2.8 };
+                if (!fighter || !item || item.type !== 'emote' || !fighter.alive) break;
+                // Anti-spam à la réception (au cas où un client ne respecte pas l'attente)
+                const now = performance.now();
+                if (now - (fighter._lastEmoteAt || -Infinity) < (EMOTE_COOLDOWN - 0.5) * 1000) break;
+                fighter._lastEmoteAt = now;
+                fighter.emote = { id: item.id, t: EMOTE_TIME };
                 SFX.play('click', { x: fighter.x, y: fighter.y, vol: 0.45 });
                 break;
             }
@@ -1167,11 +1198,8 @@ function start() {
     /* ----- Actions du joueur (tir, soin) ----- */
     function playerActions() {
         const pressed = input.consumePress();
-        // Un maintien ouvre la roue ; le relâchement valide l'emote sélectionnée.
-        if (updateEmoteInput()) {
-            input.consumeRelease();
-            return;
-        }
+        // Clic droit maintenu : roue d'emotes ; le relâchement joue l'emote visée
+        if (updateEmoteInput()) return;
         // Pas de tir tant qu'un panneau est ouvert (carte, paramètres, inventaire) OU si le joueur est K.O.
         if (!player.alive || player.dbno || player.phase !== 'ground' || hud.mapOpen || settingsOpen || inventoryUI.open) return;
         const held = player.inventory[player.slot];
