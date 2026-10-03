@@ -151,16 +151,19 @@ export class Renderer {
         this.ctx.imageSmoothingQuality = 'low';
     }
 
-    // flightMul < 1 : vue plus large pendant le vol. Le plancher automatique reste
-    // assez bas pour montrer toute la carte autour du bus en altitude.
+    // Échelle du SOL à l'écran. flightMul = 1 / hauteur de la caméra : en altitude la carte
+    // est plus loin donc plus petite. Les objets en l'air (vaisseau, joueurs en chute) sont
+    // agrandis à part (voir utils.airProject) et gardent leur taille normale.
     get zoom() {
         return this.baseZoom * Math.max(0.38, this.zoomMul * (this.flightMul ?? 1));
     }
 
-    // Change en douceur la largeur de vue (1 = normal)
-    setFlightView(target, dt) {
+    // Hauteur de la caméra (1 = au sol). snap : suit exactement l'altitude (pendant le vol),
+    // sinon transition douce.
+    setFlightView(target, dt, snap = false) {
         this.flightMul = this.flightMul ?? target;
-        this.flightMul += (target - this.flightMul) * Math.min(1, dt * 1.5);
+        if (snap) this.flightMul = target;
+        else this.flightMul += (target - this.flightMul) * Math.min(1, dt * 1.5);
     }
 
     zoomBy(f) {
@@ -537,6 +540,10 @@ export class Renderer {
         frameView.minY = v.minY;
         frameView.maxX = v.maxX;
         frameView.maxY = v.maxY;
+        // Hauteur de la caméra : flightMul = 1 / hauteur (sol 2x plus loin = carte 2x plus petite)
+        frameView.camX = this.cam.x;
+        frameView.camY = this.cam.y;
+        frameView.camH = 1 / (this.flightMul ?? 1);
         this._trackMotion(dt);
 
         // Zone saine de la corruption (null si pas de corruption, ou vue entièrement saine)

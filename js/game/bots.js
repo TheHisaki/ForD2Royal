@@ -9,8 +9,8 @@
 import { WORLD_SIZE, B, PLAYER, isWater } from './config.js';
 import { sampleGround } from './world.js';
 import { Player } from './player.js';
-import { clamp, pick } from './utils.js';
-import { drawFalling } from './drop.js?v=10';
+import { clamp, pick, airProject } from './utils.js';
+import { drawFalling, fallHeight } from './drop.js?v=11';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
 import { hasBackpackArt } from './backpack-art.js';
@@ -124,6 +124,7 @@ const _near = [];
 const _rects = [];
 const _lootList = [];   // tableau temporaire pour la recherche de butin
 const _labels = [];     // bots dont on dessine le pseudo (réutilisé à chaque image)
+const _airPt = {};      // point projeté en perspective (bots en chute)
 
 // Distance au carré entre un point et un segment (évite Math.hypot dans les boucles)
 function segDist2(px, py, ax, ay, dx, dy, l2) {
@@ -1492,23 +1493,33 @@ export class BotManager {
     drawAir(ctx, time, v) {
         const m = AIR_DRAW_MARGIN;
         const SQUAD_COLORS = { 1: '#00e5ff', 2: '#ffd21e', 3: '#ff4fd8', 4: '#00ff88' };
+        const pr = _airPt;
         for (const bot of this.bots) {
             if (!bot.alive || bot.phase !== 'air') continue;
-            if (v && (bot.x < v.minX - m || bot.x > v.maxX + m ||
-                      bot.y < v.minY - m || bot.y > v.maxY + m)) continue;
+            // Position en perspective (un bot haut dans le ciel est écarté du centre)
+            // drawFalling fait son propre culling (personnage OU ombre au sol visible)
             drawFalling(ctx, bot, time);
 
             // Coéquipier allié en vol : flèche et nom bien visibles dès le saut
-            if (bot.team === (this.player?.team ?? 1)) {
+            if (bot.team !== (this.player?.team ?? 1)) continue;
+            // Même perspective que le personnage : position décalée et taille x k
+            airProject(bot.x, bot.y, fallHeight(bot.altitude), pr);
+            if (pr.alpha <= 0) continue;
+            if (v && (pr.x < v.minX - m * pr.k || pr.x > v.maxX + m * pr.k ||
+                      pr.y < v.minY - m * pr.k || pr.y > v.maxY + m * pr.k)) continue;
+            {
                 const teamCol = SQUAD_COLORS[bot.squadSlot || 2] || '#ffd21e';
                 const bob = Math.sin((time || 0) * 6) * 4;
-                const arrowY = bot.y - 75 + bob;
+                const arrowY = -75 + bob;
 
                 ctx.save();
+                ctx.globalAlpha *= pr.alpha;
+                ctx.translate(pr.x, pr.y);
+                ctx.scale(pr.k, pr.k);
                 ctx.beginPath();
-                ctx.moveTo(bot.x - 9, arrowY - 10);
-                ctx.lineTo(bot.x + 9, arrowY - 10);
-                ctx.lineTo(bot.x, arrowY);
+                ctx.moveTo(-9, arrowY - 10);
+                ctx.lineTo(9, arrowY - 10);
+                ctx.lineTo(0, arrowY);
                 ctx.closePath();
                 ctx.fillStyle = teamCol;
                 ctx.fill();
@@ -1522,9 +1533,9 @@ export class BotManager {
                 ctx.lineJoin = 'round';
                 ctx.lineWidth = 4;
                 ctx.strokeStyle = OUTLINE;
-                ctx.strokeText(bot.name, bot.x, arrowY - 12);
+                ctx.strokeText(bot.name, 0, arrowY - 12);
                 ctx.fillStyle = teamCol;
-                ctx.fillText(bot.name, bot.x, arrowY - 12);
+                ctx.fillText(bot.name, 0, arrowY - 12);
                 ctx.restore();
             }
         }

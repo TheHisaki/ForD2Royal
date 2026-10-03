@@ -1979,7 +1979,7 @@ body.item-dragging * { cursor: grabbing !important; }
     :root { --hud-zoom: 1; }
 }
 
-#hud > * { zoom: 1; }
+#hud > * { zoom: var(--hud-zoom); }
 
 /* La ligne d'aide n'est pas agrandie (elle passerait sous les barres et la hotbar) :
    elle passe en haut, sous le nom du lieu (elle disparaît après 10 s),

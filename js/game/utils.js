@@ -26,7 +26,34 @@ export function shadeHex(hex, amt) {
    quand l'appelant ne transmet pas les bornes de vue.
    Par défaut : tout est "visible" (aucun culling tant que le Renderer n'a pas tourné).
 */
-export const frameView = { minX: -Infinity, minY: -Infinity, maxX: Infinity, maxY: Infinity };
+export const frameView = {
+    minX: -Infinity, minY: -Infinity, maxX: Infinity, maxY: Infinity,
+    // Caméra vue de dessus : position au sol et hauteur au-dessus du sol.
+    // Unité de hauteur = distance normale caméra / personnage au sol (camH = 1 au sol).
+    camX: 0, camY: 0, camH: 1
+};
+
+/*
+   Perspective verticale : un objet à la hauteur h (même unité que camH) est plus
+   proche de la caméra que le sol, donc dessiné plus grand ET écarté du centre
+   (parallaxe). Dans le repère monde (déjà à l'échelle du sol), il faut :
+   position = cam + (pos - cam) * k et taille × k, avec k = camH / (camH - h).
+   Un objet que la caméra suit à distance normale (gap = 1) garde donc sa taille
+   habituelle à l'écran, quelle que soit la hauteur : la carte, elle, rapetisse.
+*/
+const AIR_MIN_GAP = 0.3;   // objet presque à hauteur de caméra : on borne l'agrandissement
+const AIR_FADE_GAP = 0.6;  // en dessous de cet écart, il s'efface (il passe "au-dessus" de nous)
+
+export function airProject(x, y, h, out = {}) {
+    const v = frameView;
+    const gap = v.camH - h;
+    const k = v.camH / Math.max(AIR_MIN_GAP, gap);
+    out.x = v.camX + (x - v.camX) * k;
+    out.y = v.camY + (y - v.camY) * k;
+    out.k = k;
+    out.alpha = gap >= AIR_FADE_GAP ? 1 : clamp((gap - AIR_MIN_GAP) / (AIR_FADE_GAP - AIR_MIN_GAP), 0, 1);
+    return out;
+}
 
 // Le point (x, y) élargi de "margin" touche-t-il la vue de l'image en cours ?
 export function inFrameView(x, y, margin = 0) {

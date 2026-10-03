@@ -6,13 +6,13 @@
 // ?v=10 : force le navigateur à recharger les modules changés (synchro multijoueur, emotes)
 import { generateWorld, surfaceAt } from './world.js?v=9';
 import { Player } from './player.js?v=9';
-import { Renderer } from './renderer.js?v=10';
+import { Renderer } from './renderer.js?v=11';
 import { Hud } from './hud.js?v=10';
 import { Input } from './input.js?v=10';
-import { Drop, drawFalling } from './drop.js?v=10';
+import { Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight } from './drop.js?v=11';
 import { Combat } from './combat.js?v=9';
 import { Loot } from './loot.js?v=9';
-import { BotManager, roofAlphaAt } from './bots.js?v=10';
+import { BotManager, roofAlphaAt } from './bots.js?v=11';
 import { Corruption } from './corruption.js?v=9';
 import { CombatHud } from './combat-hud.js?v=10';
 import { Effects } from './effects.js?v=9';
@@ -32,8 +32,6 @@ const SPECTATE_DELAY = 1200; // ms après la mort : la caméra passe sur le tueu
 const DEFEAT_DELAY = 1400;   // ms après la mort : écran de fin
 const VICTORY_DELAY = 900;
 const STEP_TIME = 0.3;   // un nuage de poussière tous les 0,3 s en marchant
-const SHIP_VIEW = 0.42;   // vue très large depuis le bus (altitude élevée)
-const GROUND_VIEW = 1;    // vue normale une fois au sol
 
 // Sons
 const GLIDER_ALT = 2 / 3;      // ouverture après 1/3 de la chute (voir drop.js)
@@ -503,7 +501,7 @@ function start() {
 
     const canvas = document.getElementById('gameCanvas');
     renderer = new Renderer(canvas, world);
-    renderer.setFlightView(SHIP_VIEW, 1);
+    renderer.setFlightView(flightViewAt(1), 1, true); // caméra à la hauteur du vaisseau
     renderer.follow(drop.ship, 0, true);
     renderer.warmup();
 
@@ -1816,7 +1814,8 @@ function start() {
         },
         overlay: (ctx, v) => {
             corruption.drawWorld(ctx, v, time); // au-dessus du sol et des toits, sous le vaisseau et les chutes
-            bots.drawAir(ctx, time, v);   // v : on ne dessine que les bots proches de l'écran
+            drawSkyHaze(ctx, v);          // voile d'altitude : le sol paraît lointain depuis le ciel
+            bots.drawAir(ctx, time, v);   // culling fait dans drawFalling (position en perspective)
             if (isMultiplayer) {
                 for (const mate of remotePlayersMap.values()) {
                     if (mate.alive && mate.phase === 'air') drawFalling(ctx, mate, time);
@@ -2069,24 +2068,23 @@ function start() {
         const watched = spectator.update() || player;
         updateAudio(dt, watched);
 
-        // Vue très large depuis le bus, puis resserrement progressif vers le sol.
-        // Smoothstep : la vue reste large au début, puis se resserre davantage à l'approche
-        // de l'atterrissage pour donner une vraie sensation de descente.
-        const view = player.phase === 'ship' ? SHIP_VIEW : player.phase === 'air'
-            ? (() => {
-                const progress = 1 - Math.max(0, Math.min(1, player.altitude ?? 0));
-                const eased = progress * progress * (3 - 2 * progress);
-                return SHIP_VIEW + (GROUND_VIEW - SHIP_VIEW) * eased;
-            })()
-            : GROUND_VIEW;
-        renderer.setFlightView(view, dt);
+        // Caméra en perspective : elle reste à distance normale au-dessus de ce qu'elle suit
+        // (vaisseau puis joueur). Plus on est haut, plus le sol est loin et la carte petite ;
+        // le vaisseau et le joueur, eux, gardent leur taille. En descendant, la carte
+        // grossit de plus en plus vite (comme une vraie approche du sol).
+        if (player.phase === 'ship') renderer.setFlightView(flightViewAt(1), dt, true);
+        else if (player.phase === 'air') renderer.setFlightView(flightViewAt(player.altitude), dt, true);
+        else renderer.setFlightView(1, dt);
         renderer.follow(player.phase === 'ship' ? drop.ship : watched, dt);
         renderer.render(watched, dt, time, hooks);
         updateEmoteBubbles(dt);
         if (player.phase === 'air' && altMeterEl) {
             // Écart en pixels d'écran, ramené à l'échelle du HUD agrandi (--hud-zoom)
             const hz = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hud-zoom')) || 1;
-            const off = Math.round((renderer.zoom * 135 + 12) / hz);
+            // Taille réelle du joueur à l'écran = échelle du sol x agrandissement de perspective
+            const camH = 1 / (renderer.flightMul ?? 1);
+            const k = camH / Math.max(0.3, camH - fallHeight(player.altitude));
+            const off = Math.round((renderer.zoom * k * 120 + 12) / hz);
             if (off !== lastAltOffset) {
                 lastAltOffset = off;
                 altMeterEl.style.setProperty('--alt-offset', `${off}px`);

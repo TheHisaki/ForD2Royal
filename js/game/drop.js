@@ -5,7 +5,7 @@
    ================================== */
 
 import { WORLD_SIZE } from './config.js';
-import { clamp, inFrameView, fighterSeed } from './utils.js';
+import { clamp, inFrameView, fighterSeed, airProject, frameView } from './utils.js';
 import { drawPlayer, drawStyledHead } from './draw.js';
 import { GLIDER_ART } from '../glider-art.js';
 import { drawBackpack } from './backpack-art.js';
@@ -14,7 +14,40 @@ const SHIP_EXTENT = 320;     // rayon (unités) couvrant le vaisseau et son ombr
 const SHIP_SPEED = 620;      // unités / s
 const FALL_TIME = 12;        // secondes de chute (3x plus longtemps qu'avant)
 const AIR_SPEED = 520;       // on se dirige plus vite en l'air qu'au sol
-const SHIP_ALTITUDE_SCALE = 2; // le vaisseau vole 2x plus haut (écart avec son ombre)
+/*
+   Hauteur réelle du vaisseau, en "distances caméra normales" (la caméra reste toujours à
+   la même distance au-dessus de ce qu'elle suit). Depuis le vaisseau, le sol est donc
+   1 + SHIP_HEIGHT fois plus loin : la carte paraît ~2,4x plus petite (on en voit beaucoup
+   plus), alors que le vaisseau et le joueur gardent leur taille normale à l'écran.
+*/
+export const SHIP_HEIGHT = 1.4;
+const SUN_X = 65;            // décalage de l'ombre au sol par unité de hauteur (soleil en haut à gauche)
+const SUN_Y = 90;
+
+// Hauteur d'un combattant en chute (altitude 1 = hauteur du vaisseau, 0 = sol)
+export function fallHeight(alt) {
+    return clamp(alt || 0, 0, 1) * SHIP_HEIGHT;
+}
+
+// Échelle du sol quand la caméra suit un objet à cette altitude (1 = au sol)
+export function flightViewAt(alt) {
+    return 1 / (1 + fallHeight(alt));
+}
+
+const _shipProj = {};
+const _fallProj = {};
+
+// Voile d'air entre la caméra et le sol : la carte paraît plus lointaine en altitude.
+// À dessiner après le sol et avant ce qui vole (v = bornes de la vue, repère monde).
+export function drawSkyHaze(ctx, v) {
+    const depth = clamp((frameView.camH - 1) / SHIP_HEIGHT, 0, 1);
+    if (depth <= 0.01) return;
+    ctx.save();
+    ctx.globalAlpha = depth * 0.22;
+    ctx.fillStyle = '#cfe4ff';
+    ctx.fillRect(v.minX, v.minY, v.maxX - v.minX, v.maxY - v.minY);
+    ctx.restore();
+}
 const ISLAND_MARGIN = 450;   // on ne peut sauter qu'au-dessus de l'île
 const AUTO_JUMP_GRACE = 0.16; // laisse le compteur afficher « 0 s » avant l'éjection
 const OUTLINE = '#0a1030';
@@ -161,23 +194,28 @@ export class Drop {
 
     // Au-dessus de tout le reste
     draw(ctx, player, time) {
-        // Fumée (les bouffées hors écran sont sautées)
-        ctx.fillStyle = '#ffffff';
-        for (const t of this.trail) {
-            const rad = 14 + (1 - t.life) * 26;
-            if (!inFrameView(t.x, t.y, rad)) continue;
-            ctx.globalAlpha = t.life * 0.55;
-            ctx.beginPath();
-            ctx.arc(t.x, t.y, rad, 0, Math.PI * 2);
-            ctx.fill();
+        // Ombre du vaisseau au sol : dessinée sous tout ce qui vole
+        if (this.ship.active) drawShipShadow(ctx, this.ship);
+
+        // Fumée : à la hauteur du vaisseau (même perspective que lui)
+        const pr = _shipProj;
+        airProject(0, 0, SHIP_HEIGHT, pr);
+        if (pr.alpha > 0) {
+            ctx.fillStyle = '#ffffff';
+            for (const t of this.trail) {
+                airProject(t.x, t.y, SHIP_HEIGHT, pr);
+                const rad = (14 + (1 - t.life) * 26) * pr.k;
+                if (!inFrameView(pr.x, pr.y, rad)) continue;
+                ctx.globalAlpha = t.life * 0.55 * pr.alpha;
+                ctx.beginPath();
+                ctx.arc(pr.x, pr.y, rad, 0, Math.PI * 2);
+                ctx.fill();
+            }
+            ctx.globalAlpha = 1;
         }
-        ctx.globalAlpha = 1;
 
         if (player.phase === 'air') drawFalling(ctx, player, time);
-        // Vaisseau + ombre : ~300 unités autour de son centre
-        if (this.ship.active && inFrameView(this.ship.x, this.ship.y, SHIP_EXTENT)) {
-            drawShip(ctx, this.ship, time);
-        }
+        if (this.ship.active) drawShip(ctx, this.ship, time);
     }
 }
 
@@ -268,10 +306,18 @@ function gliderColors(pack) {
 export function drawFalling(ctx, p, time) {
     const alt = clamp(p.altitude || 0, 0, 1);
     const r = p.r || 26;
-    const s = 1 + alt * 0.9;             // plus gros quand il est haut
+    const h = fallHeight(alt);
+    // Perspective : plus proche de la caméra que le sol -> plus grand et décalé (parallaxe).
+    // Celui que la caméra suit garde sa taille normale à l'écran pendant toute la chute.
+    const pr = airProject(p.x, p.y, h, _fallProj);
+    if (pr.alpha <= 0) return;           // au-dessus de la caméra : hors champ
+    const s = pr.k;
+    // L'ombre reste au sol, à la verticale (décalée par le soleil)
+    const shx = p.x + h * SUN_X;
+    const shy = p.y + h * SUN_Y;
     // Hors de la vue de l'image en cours (voir utils.frameView) : rien à dessiner.
-    // Marge : envergure + lignes de vent + traînées + décalage de l'ombre.
-    if (!inFrameView(p.x, p.y, r * s * 6 + 80)) return;
+    // Marge : envergure + lignes de vent + traînées.
+    if (!inFrameView(pr.x, pr.y, r * s * 6) && !inFrameView(shx, shy, r * 3)) return;
 
     const f = {
         t: time || 0,
@@ -281,13 +327,16 @@ export function drawFalling(ctx, p, time) {
         vy: p.vy || 0,
         speed: Math.hypot(p.vx || 0, p.vy || 0),
         s,
+        px: pr.x,                        // position à l'écran (projetée)
+        py: pr.y,
         sh: 0.45 + 0.55 * (1 - alt),     // l'ombre grossit en se rapprochant...
         shA: 0.1 + (1 - alt) * 0.16,     // ... et devient plus nette
-        shx: p.x + alt * 40,             // décalage de l'ombre (soleil en haut à gauche)
-        shy: p.y + alt * 55
+        shx,
+        shy
     };
 
     ctx.save();
+    ctx.globalAlpha *= pr.alpha;
     ctx.lineJoin = 'round';
     if (alt > OPEN_ALT) drawSkydiver(ctx, p, f);
     else drawGliding(ctx, p, f);
@@ -329,7 +378,7 @@ function drawSkydiver(ctx, p, f) {
     ctx.globalAlpha = ga;
 
     ctx.save();
-    ctx.translate(p.x, p.y);
+    ctx.translate(f.px, f.py);
     ctx.scale(s, s);
     ctx.lineCap = 'round';
     drawWind(ctx, f, false); // lignes de vent derrière le personnage
@@ -562,7 +611,7 @@ function drawGliding(ctx, p, f) {
 
     // ----- Personnage (sous le planeur) -----
     ctx.save();
-    ctx.translate(p.x, p.y);
+    ctx.translate(f.px, f.py);
     ctx.scale(s, s);
     ctx.translate(-p.x, -p.y);
     drawPlayer(ctx, p, t);
@@ -572,7 +621,7 @@ function drawGliding(ctx, p, f) {
 
     // ----- Planeur -----
     ctx.save();
-    ctx.translate(p.x, p.y);
+    ctx.translate(f.px, f.py);
     ctx.scale(s, s);
     ctx.rotate(aim + yaw);
     ctx.translate(0, off);
@@ -779,23 +828,40 @@ function drawWing(ctx, r, bank, colors, spanR, spanL) {
     ctx.fill();
 }
 
-// Vaisseau vu de dessus, orienté vers la droite puis tourné selon son angle
-function drawShip(ctx, ship, time) {
-    // Ombre sur le sol (le vaisseau vole haut)
+// Ombre du vaisseau sur le sol : taille réelle, au niveau de la carte (donc bien plus
+// petite que le vaisseau, qui est proche de la caméra) et décalée par le soleil
+function drawShipShadow(ctx, ship) {
+    const x = ship.x + SHIP_HEIGHT * SUN_X;
+    const y = ship.y + SHIP_HEIGHT * SUN_Y;
+    if (!inFrameView(x, y, 160)) return;
     ctx.save();
-    ctx.translate(
-        ship.x + 90 * SHIP_ALTITUDE_SCALE,
-        ship.y + 120 * SHIP_ALTITUDE_SCALE
-    );
+    ctx.translate(x, y);
     ctx.rotate(ship.angle);
-    ctx.fillStyle = 'rgba(12, 24, 40, 0.2)';
+    ctx.fillStyle = 'rgba(12, 24, 40, 0.22)';
     ctx.beginPath();
-    ctx.ellipse(0, 0, 150, 110, 0, 0, Math.PI * 2);
+    ctx.ellipse(0, 0, 140, 46, 0, 0, Math.PI * 2);      // coque
+    ctx.moveTo(30, 30);                                  // ailes
+    ctx.lineTo(-70, 125);
+    ctx.lineTo(-115, 125);
+    ctx.lineTo(-95, 0);
+    ctx.lineTo(-115, -125);
+    ctx.lineTo(-70, -125);
+    ctx.lineTo(30, -30);
+    ctx.closePath();
     ctx.fill();
     ctx.restore();
+}
+
+// Vaisseau vu de dessus, orienté vers la droite puis tourné selon son angle.
+// Dessiné à sa hauteur (perspective) : taille normale quand la caméra le suit.
+function drawShip(ctx, ship, time) {
+    const pr = airProject(ship.x, ship.y, SHIP_HEIGHT, _shipProj);
+    if (pr.alpha <= 0 || !inFrameView(pr.x, pr.y, SHIP_EXTENT * pr.k)) return;
 
     ctx.save();
-    ctx.translate(ship.x, ship.y);
+    ctx.globalAlpha *= pr.alpha;
+    ctx.translate(pr.x, pr.y);
+    ctx.scale(pr.k, pr.k);
     ctx.rotate(ship.angle);
     ctx.lineJoin = 'round';
     ctx.lineWidth = 6;
