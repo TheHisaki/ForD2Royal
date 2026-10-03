@@ -63,7 +63,8 @@ class NetworkManager {
         const pickaxe = cos?.equippedOf('pickaxe')?.id || 'pioche-defaut';
         const backpack = cos?.equippedOf('backpack')?.id || null;
         const colors = cos?.equipped?.game || null;
-        return { skin, pickaxeSkin: pickaxe, backpack, colors };
+        const glider = cos?.equippedOf('glider')?.id || null;
+        return { skin, pickaxeSkin: pickaxe, backpack, colors, glider };
     }
 
     init() {
@@ -171,6 +172,7 @@ class NetworkManager {
             skin: skinData.skin,
             backpack: skinData.backpack,
             pickaxeSkin: skinData.pickaxeSkin,
+            glider: skinData.glider,
             colors: skinData.colors
         };
 
@@ -191,6 +193,7 @@ class NetworkManager {
             skin: skinData.skin,
             backpack: skinData.backpack,
             pickaxeSkin: skinData.pickaxeSkin,
+            glider: skinData.glider,
             colors: skinData.colors
         };
 
@@ -241,6 +244,7 @@ class NetworkManager {
             skin: skinData.skin,
             backpack: skinData.backpack,
             pickaxeSkin: skinData.pickaxeSkin,
+            glider: skinData.glider,
             colors: skinData.colors
         });
     }

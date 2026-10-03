@@ -6,6 +6,7 @@
    ================================== */
 
 import { pickaxeUrl } from './pickaxe-art.js';
+import { GLIDER_ART, gliderUrl } from './glider-art.js';
 
 const O = '#0a1030';
 
@@ -123,6 +124,11 @@ function backpack(it) {
 /* ===================== PLANEURS ===================== */
 
 function glider(it) {
+    // Planeur à forme (soucoupe, dragon, feuille...) : même dessin qu'en jeu, en image
+    if (it.style && GLIDER_ART[it.style]) {
+        const url = gliderUrl(it.style, it.colors, 240, 0.9);
+        return svg(url ? `<image href="${url}" x="0" y="0" width="120" height="120" stroke="none"/>` : '', 'item-glider');
+    }
     const [c1, c2] = it.colors;
     const frame = '#1d2440';
     // 6 panneaux (3 par demi-aile) entre le bord d'attaque et le bord de fuite

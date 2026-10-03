@@ -10,6 +10,11 @@ const MAX_FIGHTERS = 24;        // places sur la carte (même valeur que js/game
 const FLIGHT_DELAY = 6000;      // ms entre le lancement et le départ du vaisseau (chargement des pages)
 const PLAYER_GONE_DELAY = 10000; // ms sans connexion avant qu'un joueur soit éliminé (parti pour de bon)
 
+// Identifiant de planeur reçu d'un client : court texte sûr, sinon rien
+function gliderId(v) {
+    return typeof v === 'string' && /^[a-z0-9-]{1,32}$/.test(v) ? v : null;
+}
+
 function generateRoomCode() {
     let code = '';
     for (let i = 0; i < 6; i++) {
@@ -69,6 +74,7 @@ class RoomManager {
             backpack: hostData.backpack || null,
             colors: hostData.colors || null,
             pickaxeSkin: hostData.pickaxeSkin || 'pioche-defaut',
+            glider: gliderId(hostData.glider),
             ready: false,
             slot: 1, // Hôte toujours slot 1
             ws
@@ -192,6 +198,7 @@ class RoomManager {
             backpack: playerData.backpack || playerData.player?.backpack || null,
             colors: playerData.colors || playerData.player?.colors || null,
             pickaxeSkin: playerData.pickaxeSkin || playerData.player?.pickaxeSkin || 'pioche-defaut',
+            glider: gliderId(playerData.glider || playerData.player?.glider),
             ready: false,
             slot: freeSlot,
             ws
@@ -266,6 +273,7 @@ class RoomManager {
         if (data.backpack !== undefined) player.backpack = data.backpack;
         if (data.colors) player.colors = data.colors;
         if (data.pickaxeSkin) player.pickaxeSkin = data.pickaxeSkin;
+        if (data.glider) player.glider = gliderId(data.glider);
 
         this.broadcastToRoom(room, {
             type: 'player_updated',
@@ -467,6 +475,7 @@ class RoomManager {
                     backpack: p.backpack,
                     colors: p.colors,
                     pickaxeSkin: p.pickaxeSkin,
+                    glider: p.glider || null,
                     ready: p.ready,
                     slot: p.slot,
                     team: teamId,
@@ -818,6 +827,7 @@ class RoomManager {
             backpack: p.backpack || null,
             colors: p.colors,
             pickaxeSkin: p.pickaxeSkin,
+            glider: p.glider || null,
             ready: p.ready,
             slot: p.slot,
             team: p.team || 1,

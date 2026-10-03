@@ -148,6 +148,7 @@ function start() {
         if (pack && pack.color && !pack.none) player.colors.pack = pack.color;
         const glider = Cosmetics.equippedOf('glider');
         if (glider && Array.isArray(glider.colors)) player.gliderColors = glider.colors;
+        if (glider?.style) player.gliderStyle = glider.style; // forme spéciale (js/glider-art.js)
         const pick = Cosmetics.equippedOf('pickaxe');
         if (pick) {
             player.pickaxeSkin = pick.id;
@@ -804,6 +805,12 @@ function start() {
             if (bp?.color && !bp.none) mate.colors.pack = bp.color;
         }
         if (rp.pickaxeSkin) mate.pickaxeSkin = rp.pickaxeSkin;
+        // Planeur équipé par l'autre joueur (couleurs + forme)
+        const gl = rp.glider ? getItem?.(rp.glider) : null;
+        if (gl?.type === 'glider') {
+            mate.gliderColors = gl.colors;
+            mate.gliderStyle = gl.style || null;
+        }
         mate._targetX = mate.x;
         mate._targetY = mate.y;
         mate._targetAngle = mate.angle;

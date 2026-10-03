@@ -12,7 +12,10 @@ import { Player } from './player.js';
 import { clamp, pick } from './utils.js';
 import { drawFalling } from './drop.js';
 import { WEAPONS, HEALS } from './weapons.js';
-import { SKINS as SKIN_CATALOG } from '../cosmetics.js';
+import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
+
+// Planeurs que les bots peuvent avoir (classiques et à forme)
+const BOT_GLIDERS = ITEMS.filter(it => it.type === 'glider' && Array.isArray(it.colors));
 
 export const BOT_NAMES = [
     'xX_Snip3r_Xx', 'NoobMaster', 'PiouPiou', 'BaguetteTurbo', 'Kevin_du_93',
@@ -343,6 +346,10 @@ export class BotManager {
             }
             bot.pickaxeSkin = rpick(['pioche-defaut', 'pioche-laser', 'pioche-royale', 'pioche-cosmique', 'pioche-maudite', 'pioche-bonbon']);
             if (bot.inventory?.[0]) bot.inventory[0].pickaxeSkin = bot.pickaxeSkin;
+            // Planeur du catalogue au hasard (même tirage sur toutes les machines : graine partagée)
+            const gl = rpick(BOT_GLIDERS);
+            bot.gliderColors = gl.colors;
+            bot.gliderStyle = gl.style || null;
             bot.phase = 'ship';
             bot.altitude = 1;
             bot.angle = drop.angle;

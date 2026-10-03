@@ -149,14 +149,26 @@ const BACKPACKS = [
         desc: 'Le sac assorti au Gardien Royal.' }
 ].map(s => ({ ...s, type: 'backpack' }));
 
-// Planeur : 2 couleurs de panneaux (utilisées en jeu) + motif de l'aperçu
+// Planeur : 2 couleurs (utilisées en jeu) ; style = forme dessinée par js/glider-art.js
+// (sans style : aile classique en chevron, dessinée par js/game/drop.js)
 const GLIDERS = [
     { id: 'aile-standard', name: 'Aile Standard', rarity: 'common', price: 0, starter: true,
         series: 'Essentiels', colors: ['#ffe03d', '#3a8dff'], desc: 'Fiable, jaune et bleue.' },
-    { id: 'voile-neon', name: 'Voile Néon', rarity: 'rare', price: 700,
-        series: 'Ombres de la ville', colors: ['#ff2fd0', '#1c1a2e'], desc: 'Visible de toute l\'île la nuit.' },
+    { id: 'feuille-geante', name: 'Grande Feuille', rarity: 'uncommon', price: 400,
+        series: 'Essentiels', style: 'leaf', colors: ['#9ad94e', '#3f8f3a'],
+        desc: 'Une feuille de ginkgo assez grande pour planer. Silencieuse et écolo.' },
+    { id: 'voile-neon', name: 'Soucoupe Néon', rarity: 'rare', price: 700,
+        series: 'Ombres de la ville', style: 'saucer', colors: ['#ff2fd0', '#4a4f7a'],
+        desc: 'Une soucoupe bordée de néons. Ses propriétaires la cherchent encore.' },
+    { id: 'dirigeable', name: 'Gros Dirigeable', rarity: 'rare', price: 800,
+        series: 'Au-delà du vaisseau', style: 'blimp', colors: ['#b4bfd0', '#ff5470'],
+        desc: 'Lent, énorme, et pourtant il arrive toujours à bon port.' },
     { id: 'aile-dragon', name: 'Aile de Dragon', rarity: 'epic', price: 1000,
-        series: 'Royaume déchu', colors: ['#e8323c', '#ffb21f'], desc: 'Les écailles, c\'est du tissu. Promis.' },
+        series: 'Royaume déchu', style: 'dragon', colors: ['#e8323c', '#ffb21f'],
+        desc: 'De vraies ailes de dragon, griffes et queue comprises.' },
+    { id: 'scarabee-bionique', name: 'Scarabée Bionique', rarity: 'epic', price: 1200,
+        series: 'Ombres de la ville', style: 'beetle', colors: ['#2f7cf6', '#ffd23a'],
+        desc: 'Carapace blindée, ailes qui vibrent et petits réacteurs dans le dos.' },
     { id: 'nuee-corrompue', name: 'Nuée Corrompue', rarity: 'legendary', price: 1500,
         series: 'Nuit de la corruption', colors: ['#b04cff', '#1b1426'], desc: 'Un planeur tissé dans la corruption elle-même.' },
     { id: 'pass-aile-pixel', name: 'Aile Pixel', rarity: 'epic', price: 0, pass: true,

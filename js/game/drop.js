@@ -7,6 +7,7 @@
 import { WORLD_SIZE } from './config.js';
 import { clamp, inFrameView, fighterSeed } from './utils.js';
 import { drawPlayer, drawStyledHead } from './draw.js';
+import { GLIDER_ART } from '../glider-art.js';
 
 const SHIP_EXTENT = 320;     // rayon (unités) couvrant le vaisseau et son ombre, pour le culling
 const SHIP_SPEED = 620;      // unités / s
@@ -525,6 +526,8 @@ function drawGliding(ctx, p, f) {
     const spanL = (1 + 0.2 * bank) * flat;
     // Planeur choisi dans le casier (joueur), sinon couleurs tirées du sac
     const colors = p.gliderColors || gliderColors(p.colors && p.colors.pack);
+    // Forme spéciale (soucoupe, dragon, feuille, dirigeable, scarabée) ou aile classique
+    const art = (p.gliderStyle && GLIDER_ART[p.gliderStyle]) || null;
 
     // ----- Ombre au sol : personnage + aile, en un seul bloc -----
     ctx.save();
@@ -535,8 +538,14 @@ function drawGliding(ctx, p, f) {
     ctx.moveTo(r * 0.95, 0);
     ctx.ellipse(0, 0, r * 0.95, r * 0.9, 0, 0, TAU);
     if (gs > 0.01) {
-        tracePoly(ctx, WING_HALF, r * gs, r * gs * spanR, false);
-        tracePoly(ctx, WING_HALF, r * gs, -r * gs * spanL, true);
+        if (art) {
+            const [scx, srx, sry] = art.shadow;
+            ctx.moveTo(r * (scx + srx) * gs, 0);
+            ctx.ellipse(r * scx * gs, 0, r * srx * gs, r * sry * gs * flat, 0, 0, TAU);
+        } else {
+            tracePoly(ctx, WING_HALF, r * gs, r * gs * spanR, false);
+            tracePoly(ctx, WING_HALF, r * gs, -r * gs * spanL, true);
+        }
     }
     ctx.fillStyle = SHADOW;
     ctx.globalAlpha *= f.shA;
@@ -574,9 +583,14 @@ function drawGliding(ctx, p, f) {
             const gy = ax * sn + ay * c - off;
             const sy = side * (side > 0 ? spanR : spanL) * r * gs;
             for (let q = 0; q < 2; q++) {
-                const u = q === 0 ? 0.3 : 0.62;
                 ctx.moveTo(gx, gy);
-                ctx.lineTo(r * wingX(u, false) * gs, wingY(u, false) * sy);
+                if (art) {
+                    const [ax2, ay2] = art.anchors[q];
+                    ctx.lineTo(r * ax2 * gs, ay2 * sy);
+                } else {
+                    const u = q === 0 ? 0.3 : 0.62;
+                    ctx.lineTo(r * wingX(u, false) * gs, wingY(u, false) * sy);
+                }
             }
         }
         ctx.strokeStyle = 'rgba(10, 16, 48, 0.75)';
@@ -585,8 +599,14 @@ function drawGliding(ctx, p, f) {
 
         ctx.save();
         ctx.scale(gs, gs);
-        drawWingTrails(ctx, f, aim + yaw, spanR, spanL);
-        drawWing(ctx, r, bank, colors, spanR, spanL);
+        drawWingTrails(ctx, f, aim + yaw, spanR, spanL, art && art.tip);
+        if (art) {
+            // Perspective du virage : la forme s'aplatit un peu en largeur
+            ctx.scale(1, flat);
+            art.draw(ctx, r, colors, t, 3.2);
+        } else {
+            drawWing(ctx, r, bank, colors, spanR, spanL);
+        }
         ctx.restore();
     }
 
@@ -610,7 +630,8 @@ function drawGliding(ctx, p, f) {
 }
 
 // Traînées blanches au bout des ailes, à l'opposé du déplacement (sinon vers l'arrière)
-function drawWingTrails(ctx, f, rot, spanR, spanL) {
+// tip = bout d'aile [x, y] en rayons pour les planeurs à forme (sinon celui de l'aile classique)
+function drawWingTrails(ctx, f, rot, spanR, spanL, tip = null) {
     const { t, r } = f;
     const c = Math.cos(-rot);
     const sn = Math.sin(-rot);
@@ -627,8 +648,8 @@ function drawWingTrails(ctx, f, rot, spanR, spanL) {
     for (const side of WING_SIDES) {
         const sy = side * (side > 0 ? spanR : spanL) * r;
         // Milieu du bout d'aile (entre bord d'attaque et bord de fuite)
-        const tx = (r * wingX(1, true) + r * wingX(1, false)) / 2;
-        const ty = (wingY(1, true) * sy + wingY(1, false) * sy) / 2;
+        const tx = tip ? r * tip[0] : (r * wingX(1, true) + r * wingX(1, false)) / 2;
+        const ty = tip ? tip[1] * sy : (wingY(1, true) * sy + wingY(1, false) * sy) / 2;
         // Filet continu très léger
         ctx.beginPath();
         ctx.moveTo(tx, ty);
