@@ -44,7 +44,15 @@ function shouldBlock(e) {
 export class Input {
     constructor(canvas, handlers = {}) {
         this.keys = new Set();
-        this.mouse = { x: innerWidth / 2 + 100, y: innerHeight / 2 };
+        this.mouse = {
+            x: innerWidth / 2 + 100,
+            y: innerHeight / 2,
+            down: false,
+            pressed: false,
+            released: false,
+            downAt: 0,
+            pressDuration: 0
+        };
 
         addEventListener('keydown', (e) => {
             this.keys.add(e.code);
@@ -72,10 +80,12 @@ export class Input {
             this.keys.delete(e.code);
             if (e.code === 'Tab') handlers.onMapHold?.(false);
         });
-        // Évite de "rester bloqué" en marche (ou carte ouverte) quand la fenêtre perd le focus
         addEventListener('blur', () => {
             if (this.keys.has('Tab')) handlers.onMapHold?.(false);
             this.keys.clear();
+            this.mouse.down = false;
+            this.mouse.released = true;
+            this.mouse.pressDuration = 0;
         });
 
         canvas.addEventListener('mousemove', (e) => {
@@ -83,16 +93,22 @@ export class Input {
             this.mouse.y = e.clientY;
         });
 
-        // Clic gauche : down = maintenu, pressed = vient d'être enfoncé (remis à false par consumePress)
-        this.mouse.down = false;
-        this.mouse.pressed = false;
+        // Clic gauche : down = maintenu, pressed = vient d'être enfoncé.
+        // Le relâchement est gardé jusqu'à la prochaine frame : cela permet de distinguer
+        // un tir court d'un maintien qui ouvre la roue d'emotes.
         canvas.addEventListener('mousedown', (e) => {
             if (e.button !== 0) return;
             this.mouse.down = true;
             this.mouse.pressed = true;
+            this.mouse.released = false;
+            this.mouse.downAt = performance.now();
+            this.mouse.pressDuration = 0;
         });
         addEventListener('mouseup', (e) => {
-            if (e.button === 0) this.mouse.down = false;
+            if (e.button !== 0) return;
+            this.mouse.down = false;
+            this.mouse.released = true;
+            this.mouse.pressDuration = Math.max(0, performance.now() - this.mouse.downAt);
         });
         // Pas de menu clic droit ni de glisser d'image (icônes de la hotbar) dans le jeu
         addEventListener('contextmenu', (e) => { if (!isTextField(e.target)) e.preventDefault(); });
@@ -118,6 +134,13 @@ export class Input {
         const p = this.mouse.pressed;
         this.mouse.pressed = false;
         return p;
+    }
+
+    // Renvoie true une seule fois au relâchement du clic gauche
+    consumeRelease() {
+        const r = this.mouse.released;
+        this.mouse.released = false;
+        return r;
     }
 
     // Direction voulue (-1, 0 ou 1 sur chaque axe)

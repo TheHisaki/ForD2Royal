@@ -13,6 +13,7 @@ const SHIP_SPEED = 620;      // unités / s
 const FALL_TIME = 4;         // secondes de chute
 const AIR_SPEED = 520;       // on se dirige plus vite en l'air qu'au sol
 const ISLAND_MARGIN = 450;   // on ne peut sauter qu'au-dessus de l'île
+const AUTO_JUMP_GRACE = 0.16; // laisse le compteur afficher « 0 s » avant l'éjection
 const OUTLINE = '#0a1030';
 
 function seededRandom(seed) {
@@ -65,8 +66,12 @@ export class Drop {
         };
     }
 
+    get autoJumpAt() {
+        return this.exitAt + SHIP_SPEED * AUTO_JUMP_GRACE;
+    }
+
     get canJump() {
-        return this.dist >= this.enterAt && this.dist <= this.exitAt;
+        return this.dist >= this.enterAt && this.dist <= this.autoJumpAt;
     }
 
     // Secondes avant le saut automatique
@@ -125,8 +130,8 @@ export class Drop {
             player.x = clamp(this.ship.x, 0, WORLD_SIZE);
             player.y = clamp(this.ship.y, 0, WORLD_SIZE);
             player.angle = this.angle;
-            // Saut automatique avant de quitter l'île
-            if (this.dist >= this.exitAt) this.jump(player);
+            // Saut automatique après 0 s : on laisse le HUD afficher la dernière valeur avant l'éjection.
+            if (this.dist >= this.autoJumpAt) this.jump(player);
         } else if (player.phase === 'air') {
             const a = input.axis();
             const len = Math.hypot(a.x, a.y);

@@ -636,8 +636,8 @@ export class Hud {
         }
         if (!inShip) return;
 
-        const msg = d.canJump
-            ? `pour sauter|Saut auto dans ${Math.ceil(d.timeLeft)} s`
+        const msg = d.dist >= d.enterAt
+            ? `pour sauter|Saut auto dans ${Math.max(0, Math.floor(d.timeLeft))} s`
             : `Arrivée au-dessus de l'île...|`;
         if (msg === this._dropMsg) return;
         this._dropMsg = msg;

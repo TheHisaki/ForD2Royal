@@ -216,7 +216,7 @@ const server = http.createServer((req, res) => {
 // Créer le serveur WebSocket pour le multijoueur temps-réel
 // Messages de partie relayés tels quels aux autres joueurs (l'émetteur est ajouté par le serveur)
 const GAME_MESSAGES = new Set([
-    'p_state', 'p_fire', 'p_hit', 'kill', 'dbno', 'revive',
+    'p_state', 'p_fire', 'p_hit', 'kill', 'dbno', 'revive', 'emote',
     'b_sync', 'world_sync', 'chest_open', 'loot_spawn', 'loot_take'
 ]);
 

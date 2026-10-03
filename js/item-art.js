@@ -25,45 +25,97 @@ const shine = (d, w = 3, a = 0.55) => `<path d="${d}" fill="none" stroke="#fff" 
 /* ===================== SACS À DOS ===================== */
 
 function backpack(it) {
-    const c = it.color;
+    const c = it.color || '#2b7fc1';
     const d = shade(c, -0.3);
-    const a = it.accent;
-    // Bretelles (derrière) + corps + rabat
-    let s =
-        `<path d="M36 34 Q26 60 30 92 M84 34 Q94 60 90 92" fill="none" stroke-width="11"/>` +
-        `<path d="M36 34 Q26 60 30 92 M84 34 Q94 60 90 92" fill="none" stroke="${shade(a, -0.2)}" stroke-width="5"/>` +
-        `<rect x="28" y="26" width="64" height="80" rx="18" fill="${c}"/>` +
-        `<path d="M72 28 Q92 30 92 50 V88 Q92 104 76 106 H70 Z" fill="${d}" stroke="none" opacity="0.55"/>` +
-        `<rect x="28" y="26" width="64" height="80" rx="18" fill="none"/>` +
-        `<path d="M44 18 Q60 10 76 18 L76 30 H44 Z" fill="${d}"/>` +
-        `<path d="M28 50 Q60 60 92 50 L92 44 Q60 54 28 44 Z" fill="${d}"/>` +
-        shine('M36 42 Q38 34 46 32');
-    if (it.motif === 'rocket') {
-        s += `<path d="M60 52 Q74 64 72 90 H48 Q46 64 60 52 Z" fill="${a}"/>` +
-            `<circle cx="60" cy="72" r="6" fill="#6fd0ff"/>` +
-            `<path d="M48 82 L40 96 L50 92 Z M72 82 L80 96 L70 92 Z" fill="${shade(c, 0.3)}"/>` +
-            `<path d="M52 92 Q60 108 68 92 Z" fill="#ffe03d"/>`;
-    } else if (it.motif === 'shield') {
-        s += `<path d="M42 56 H78 V76 Q78 92 60 100 Q42 92 42 76 Z" fill="${a}"/>` +
-            `<path d="M48 61 H72 V76 Q72 88 60 94 Q48 88 48 76 Z" fill="${c}" stroke-width="2.5"/>` +
-            `<path d="M57 64 H63 V72 H70 V78 H63 V88 H57 V78 H50 V72 H57 Z" fill="#fff" stroke-width="2"/>`;
-    } else if (it.motif === 'pixel') {
-        // Cœur en gros pixels (Passe de combat)
-        const px = [[1, 0], [3, 0], [0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [1, 3], [2, 3], [3, 3], [2, 4]];
-        s += `<rect x="40" y="58" width="40" height="36" rx="6" fill="${d}"/>` +
-            px.map(([x, y]) => `<rect x="${45 + x * 6}" y="${62 + y * 6}" width="6" height="6" fill="${a}" stroke="none"/>`).join('') +
-            `<rect x="47" y="64" width="3" height="3" fill="#fff" stroke="none" opacity="0.8"/>`;
-    } else if (it.motif === 'lantern') {
-        s += `<rect x="46" y="54" width="28" height="40" rx="5" fill="#1a0a30"/>` +
-            `<path d="M60 62 Q70 76 60 88 Q50 76 60 62 Z" fill="${a}" stroke-width="2.5"/>` +
-            `<path d="M60 70 Q64 78 60 84 Q56 78 60 70 Z" fill="#f1d9ff" stroke="none"/>` +
-            `<path d="M46 66 H74 M46 82 H74 M60 54 V58" fill="none" stroke="${shade(a, 0.2)}" stroke-width="2.5"/>` +
-            `<rect x="42" y="50" width="36" height="7" rx="3" fill="${a}"/>` +
-            `<rect x="42" y="91" width="36" height="7" rx="3" fill="${a}"/>`;
+    const a = it.accent || '#8eeaff';
+    const strap = shade(c, -0.5);
+    let s = '';
+
+    // Les cinq sacs principaux ont cinq silhouettes différentes : carapace, ailes,
+    // cape, queue et pack technologique. Les objets du passe gardent leurs motifs.
+    if (it.motif === 'shell') {
+        // Blue Crab Shell : carapace ronde, anneaux segmentés et petites pattes latérales
+        s += `<path d="M39 32 Q27 52 32 88 M81 32 Q93 52 88 88" fill="none" stroke="${strap}" stroke-width="11"/>` +
+            `<ellipse cx="60" cy="62" rx="35" ry="43" fill="${d}"/>` +
+            `<ellipse cx="60" cy="58" rx="30" ry="38" fill="${c}"/>` +
+            `<path d="M60 21 V96 M31 57 H89 M38 35 Q60 47 82 35 M38 81 Q60 69 82 81" fill="none" stroke="${a}" stroke-width="3" opacity="0.8"/>` +
+            `<path d="M32 47 Q19 42 18 53 Q19 61 31 58 M88 47 Q101 42 102 53 Q101 61 89 58" fill="${c}"/>` +
+            `<circle cx="60" cy="58" r="8" fill="${a}"/>` +
+            `<circle cx="57" cy="55" r="2.5" fill="#fff" stroke="none"/>` +
+            shine('M43 39 Q50 28 62 26', 3, 0.7);
+    } else if (it.motif === 'wings') {
+        // Blue Fairy Wings : deux ailes séparées et un petit noyau de sac
+        s += `<path d="M43 38 Q31 52 34 91 M77 38 Q89 52 86 91" fill="none" stroke="${strap}" stroke-width="9"/>` +
+            `<path d="M55 58 Q38 30 22 38 Q10 46 24 65 Q33 76 55 75 Z" fill="${c}"/>` +
+            `<path d="M65 58 Q82 30 98 38 Q110 46 96 65 Q87 76 65 75 Z" fill="${c}"/>` +
+            `<path d="M55 64 Q39 57 25 48 M55 70 Q39 69 29 62 M65 64 Q81 57 95 48 M65 70 Q81 69 91 62" fill="none" stroke="${a}" stroke-width="3"/>` +
+            `<path d="M50 56 Q60 48 70 56 L68 86 Q60 96 52 86 Z" fill="${d}"/>` +
+            `<ellipse cx="60" cy="68" rx="7" ry="12" fill="${a}"/>` +
+            `<circle cx="57" cy="64" r="2" fill="#fff" stroke="none"/>` +
+            shine('M24 43 Q36 38 48 53', 2.5, 0.65);
+    } else if (it.motif === 'cape') {
+        // Blue Falcon Cape : plumes en éventail, fermoir et ailettes de faucon
+        s += `<path d="M42 31 Q34 57 39 87 M78 31 Q86 57 81 87" fill="none" stroke="${strap}" stroke-width="10"/>` +
+            `<path d="M47 31 Q60 22 73 31 L91 83 Q78 101 60 106 Q42 101 29 83 Z" fill="${c}"/>` +
+            `<path d="M47 34 Q39 57 43 86 Q51 98 60 101 V29 Z" fill="${a}" opacity="0.72" stroke="none"/>` +
+            `<path d="M73 34 Q81 57 77 86 Q69 98 60 101 V29 Z" fill="${d}" opacity="0.72" stroke="none"/>` +
+            `<path d="M33 74 Q21 64 18 50 Q32 51 45 63 M87 74 Q99 64 102 50 Q88 51 75 63" fill="${a}"/>` +
+            `<path d="M60 25 L66 42 L60 52 L54 42 Z" fill="${a}"/>` +
+            `<circle cx="60" cy="44" r="7" fill="#ffe03d"/>` +
+            `<path d="M57 41 L63 41 L60 47 Z" fill="#1d3d72" stroke="none"/>` +
+            shine('M45 42 Q48 34 55 31', 3, 0.65);
+    } else if (it.motif === 'fishtail') {
+        // Blue Fish Tail : corps central fin et deux nageoires qui sortent du sac
+        s += `<path d="M42 35 Q30 57 36 88 M78 35 Q90 57 84 88" fill="none" stroke="${strap}" stroke-width="10"/>` +
+            `<path d="M44 40 Q60 29 76 40 L78 83 Q60 99 42 83 Z" fill="${c}"/>` +
+            `<path d="M46 49 Q60 58 74 49 M45 61 Q60 70 75 61 M44 73 Q60 82 76 73" fill="none" stroke="${a}" stroke-width="3"/>` +
+            `<path d="M45 75 Q25 83 15 101 Q38 102 59 87 Z" fill="${a}"/>` +
+            `<path d="M75 75 Q95 83 105 101 Q82 102 61 87 Z" fill="${a}"/>` +
+            `<path d="M60 37 V89" fill="none" stroke="${d}" stroke-width="4"/>` +
+            `<circle cx="60" cy="45" r="6" fill="#d9fbff"/>` +
+            `<circle cx="59" cy="44" r="2" fill="#1d3d72" stroke="none"/>` +
+            shine('M49 45 Q56 37 64 36', 2.5, 0.7);
+    } else if (it.motif === 'tech') {
+        // Blue Pack : sac compact, coque rigide, écran cyan et modules latéraux
+        s += `<path d="M40 28 Q29 51 33 93 M80 28 Q91 51 87 93" fill="none" stroke="${strap}" stroke-width="10"/>` +
+            `<path d="M41 29 Q60 18 79 29 L87 88 Q84 103 60 105 Q36 103 33 88 Z" fill="${d}"/>` +
+            `<path d="M45 32 Q60 24 75 32 L81 84 Q78 96 60 98 Q42 96 39 84 Z" fill="${c}"/>` +
+            `<path d="M43 48 H77 M42 77 H78" fill="none" stroke="${a}" stroke-width="4"/>` +
+            `<rect x="49" y="53" width="22" height="17" rx="4" fill="#08264d"/>` +
+            `<path d="M54 61 H66 M60 56 V66" fill="none" stroke="${a}" stroke-width="2"/>` +
+            `<rect x="28" y="51" width="12" height="25" rx="4" fill="${a}"/>` +
+            `<rect x="80" y="51" width="12" height="25" rx="4" fill="${a}"/>` +
+            `<circle cx="34" cy="57" r="2" fill="#fff" stroke="none"/><circle cx="86" cy="57" r="2" fill="#fff" stroke="none"/>` +
+            `<path d="M60 24 V13 M55 16 H65" fill="none" stroke="${a}" stroke-width="3"/>` +
+            shine('M47 37 Q55 29 65 29', 3, 0.65);
     } else {
-        s += `<rect x="40" y="62" width="40" height="30" rx="8" fill="${d}"/>` +
-            `<rect x="53" y="58" width="14" height="10" rx="3" fill="${a}"/>` +
-            shine('M46 70 H58', 2.5, 0.4);
+        // Motifs conservés pour les objets du passe et les anciens profils.
+        s += `<path d="M36 34 Q26 60 30 92 M84 34 Q94 60 90 92" fill="none" stroke="${strap}" stroke-width="11"/>` +
+            `<path d="M36 34 Q26 60 30 92 M84 34 Q94 60 90 92" fill="none" stroke="${shade(a, -0.2)}" stroke-width="5"/>` +
+            `<rect x="28" y="26" width="64" height="80" rx="18" fill="${c}"/>` +
+            `<path d="M72 28 Q92 30 92 50 V88 Q92 104 76 106 H70 Z" fill="${d}" stroke="none" opacity="0.55"/>` +
+            `<rect x="28" y="26" width="64" height="80" rx="18" fill="none"/>` +
+            `<path d="M44 18 Q60 10 76 18 L76 30 H44 Z" fill="${d}"/>` +
+            `<path d="M28 50 Q60 60 92 50 L92 44 Q60 54 28 44 Z" fill="${d}"/>` +
+            shine('M36 42 Q38 34 46 32');
+        if (it.motif === 'rocket') {
+            s += `<path d="M60 52 Q74 64 72 90 H48 Q46 64 60 52 Z" fill="${a}"/>` +
+                `<circle cx="60" cy="72" r="6" fill="#6fd0ff"/>` +
+                `<path d="M48 82 L40 96 L50 92 Z M72 82 L80 96 L70 92 Z" fill="${shade(c, 0.3)}"/>` +
+                `<path d="M52 92 Q60 108 68 92 Z" fill="#ffe03d"/>`;
+        } else if (it.motif === 'shield') {
+            s += `<path d="M42 56 H78 V76 Q78 92 60 100 Q42 92 42 76 Z" fill="${a}"/>` +
+                `<path d="M48 61 H72 V76 Q72 88 60 94 Q48 88 48 76 Z" fill="${c}" stroke-width="2.5"/>` +
+                `<path d="M57 64 H63 V72 H70 V78 H63 V88 H57 V78 H50 V72 H57 Z" fill="#fff" stroke-width="2"/>`;
+        } else if (it.motif === 'pixel') {
+            const px = [[1, 0], [3, 0], [0, 1], [1, 1], [2, 1], [3, 1], [4, 1], [0, 2], [1, 2], [2, 2], [3, 2], [4, 2], [1, 3], [2, 3], [3, 3], [2, 4]];
+            s += `<rect x="40" y="58" width="40" height="36" rx="6" fill="${d}"/>` +
+                px.map(([x, y]) => `<rect x="${45 + x * 6}" y="${62 + y * 6}" width="6" height="6" fill="${a}" stroke="none"/>`).join('');
+        } else if (it.motif === 'lantern') {
+            s += `<rect x="46" y="54" width="28" height="40" rx="5" fill="#1a0a30"/>` +
+                `<path d="M60 62 Q70 76 60 88 Q50 76 60 62 Z" fill="${a}" stroke-width="2.5"/>` +
+                `<path d="M46 66 H74 M46 82 H74 M60 54 V58" fill="none" stroke="${shade(a, 0.2)}" stroke-width="2.5"/>`;
+        }
     }
     return svg(s, 'item-backpack');
 }

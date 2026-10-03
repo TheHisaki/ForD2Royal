@@ -126,21 +126,21 @@ export const SKINS = [
    "default" = le sac de la tenue (pas de changement de couleur).
 */
 const BACKPACKS = [
-    { id: 'sac-tenue', name: 'Sac de la tenue', rarity: 'common', price: 0, starter: true, none: true,
-        series: 'Essentiels', motif: 'classic', color: '#ffc93c', accent: '#232845',
-        desc: 'Le sac assorti à ta tenue.' },
-    { id: 'sac-baroudeur', name: 'Baroudeur', rarity: 'uncommon', price: 300,
-        series: 'Essentiels', motif: 'classic', color: '#3a8dff', accent: '#ffe03d',
-        desc: 'Assez de poches pour tous les bandages de l\'île.' },
-    { id: 'sac-fusee', name: 'Mini Fusée', rarity: 'rare', price: 600,
-        series: 'Au-delà du vaisseau', motif: 'rocket', color: '#ff8a1f', accent: '#f4f6fb',
-        desc: 'Ne décolle pas. Enfin, pas encore.' },
-    { id: 'sac-ecu', name: 'Écu du Royaume', rarity: 'epic', price: 800,
-        series: 'Royaume déchu', motif: 'shield', color: '#b3262e', accent: '#ffd24a',
-        desc: 'Un bouclier dans le dos, au cas où.' },
-    { id: 'sac-lanterne', name: 'Lanterne Maudite', rarity: 'legendary', price: 1000,
-        series: 'Nuit de la corruption', motif: 'lantern', color: '#3b0a66', accent: '#b04cff',
-        desc: 'Sa flamme violette brille plus fort près de la corruption.' },
+    { id: 'sac-tenue', name: 'Blue Crab Shell', rarity: 'common', price: 0, starter: true, none: true,
+        series: 'Essentiels', motif: 'shell', color: '#1b89c9', accent: '#48d9ff',
+        desc: 'Une carapace brillante inspirée des profondeurs.' },
+    { id: 'sac-baroudeur', name: 'Blue Fairy Wings', rarity: 'uncommon', price: 300,
+        series: 'Essentiels', motif: 'wings', color: '#6e78c8', accent: '#b7c7ff',
+        desc: 'Deux ailes légères qui semblent prêtes à décoller.' },
+    { id: 'sac-fusee', name: 'Blue Falcon Cape', rarity: 'rare', price: 600,
+        series: 'Au-delà du vaisseau', motif: 'cape', color: '#1e4e92', accent: '#48b9ff',
+        desc: 'Une cape aérodynamique aux plumes bleues.' },
+    { id: 'sac-ecu', name: 'Blue Fish Tail', rarity: 'epic', price: 800,
+        series: 'Royaume déchu', motif: 'fishtail', color: '#2875a8', accent: '#71d8f2',
+        desc: 'Une queue marine souple, faite pour les grands plongeons.' },
+    { id: 'sac-lanterne', name: 'Blue Pack', rarity: 'legendary', price: 1000,
+        series: 'Nuit de la corruption', motif: 'tech', color: '#1a78a8', accent: '#55e6f4',
+        desc: 'Un pack compact et technologique aux reflets cyan.' },
     { id: 'pass-sac-pixel', name: 'Cœur Pixel', rarity: 'rare', price: 0, pass: true,
         series: 'Passe Saison 1', motif: 'pixel', color: '#2ee6c8', accent: '#ff4fc8',
         desc: 'Un cœur en gros pixels, offert à tous les joueurs du passe.' },
@@ -165,7 +165,7 @@ const GLIDERS = [
         series: 'Passe Saison 1', colors: ['#e0b23a', '#6b3fa0'], desc: 'Or et violet : on te voit arriver de loin.' }
 ].map(s => ({ ...s, type: 'glider' }));
 
-// Emote : pictogramme (dessin de l'aperçu). Pas encore jouables en partie.
+// Emote : pictogramme (dessin de l'aperçu) + animation de partie via la roue d'emotes.
 const EMOTES = [
     { id: 'emote-salut', name: 'Salut !', rarity: 'common', price: 0, starter: true,
         series: 'Essentiels', icon: 'wave', color: '#ffe03d', desc: 'Un grand signe de la main.' },

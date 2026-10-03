@@ -8,7 +8,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/game.css?v=6">
+    <link rel="stylesheet" href="css/game.css?v=7">
     <link rel="stylesheet" href="css/settings.css?v=6">
     <link rel="stylesheet" href="css/end-screen.css?v=6">
 </head>
@@ -107,7 +107,7 @@
         </div>
 
         <!-- Bas centre : aide -->
-        <div id="hudHelp">ZQSD : bouger · Clic : tirer · R : recharger · E : ouvrir / ramasser · 1-5 : armes · Tab : carte · Molette (clic) / I : inventaire · N : son · P : paramètres</div>
+        <div id="hudHelp">ZQSD : bouger · Clic : tirer · Maintenir clic gauche : emotes · R : recharger · E : ouvrir / ramasser · 1-5 : armes · Tab : carte · Molette (clic) / I : inventaire · N : son · P : paramètres</div>
 
         <!-- Fil des éliminations -->
         <div id="killFeed" aria-live="polite"></div>
@@ -163,6 +163,27 @@
             <span class="drop-key">ESPACE</span>
             <span class="drop-text">pour sauter</span>
             <span class="drop-timer"></span>
+        </div>
+
+        <!-- Roue d'emotes : elle s'ouvre après un maintien du clic gauche -->
+        <div id="emoteWheel" hidden aria-label="Roue d'emotes">
+            <div class="emote-wheel-ring"></div>
+            <div class="emote-wheel-center">
+                <span class="emote-wheel-center-art"></span>
+                <span class="emote-wheel-hint">RELÂCHER</span>
+            </div>
+            <button class="emote-option" data-emote-slot="0" type="button" tabindex="-1">
+                <span class="emote-option-art"></span><span class="emote-option-name"></span>
+            </button>
+            <button class="emote-option" data-emote-slot="1" type="button" tabindex="-1">
+                <span class="emote-option-art"></span><span class="emote-option-name"></span>
+            </button>
+            <button class="emote-option" data-emote-slot="2" type="button" tabindex="-1">
+                <span class="emote-option-art"></span><span class="emote-option-name"></span>
+            </button>
+            <button class="emote-option" data-emote-slot="3" type="button" tabindex="-1">
+                <span class="emote-option-art"></span><span class="emote-option-name"></span>
+            </button>
         </div>
 
         <!-- Bannière joueur K.O. -->
@@ -438,6 +459,6 @@
     })();
     </script>
 
-    <script type="module" src="js/game/main.js?v=9"></script>
+    <script type="module" src="js/game/main.js?v=10"></script>
 </body>
 </html>

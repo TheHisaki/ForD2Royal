@@ -3,12 +3,12 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=9 : force le navigateur à recharger les modules changés (synchro multijoueur)
+// ?v=10 : force le navigateur à recharger les modules changés (synchro multijoueur, emotes)
 import { generateWorld, surfaceAt } from './world.js?v=9';
 import { Player } from './player.js?v=9';
 import { Renderer } from './renderer.js?v=9';
-import { Hud } from './hud.js?v=9';
-import { Input } from './input.js?v=9';
+import { Hud } from './hud.js?v=10';
+import { Input } from './input.js?v=10';
 import { Drop, drawFalling } from './drop.js?v=9';
 import { Combat } from './combat.js?v=9';
 import { Loot } from './loot.js?v=9';
@@ -21,6 +21,7 @@ import { drawPlayer, drawDying } from './draw.js?v=9';
 import { SFX } from '../sfx.js?v=9';
 import { Settings } from '../settings.js?v=9';
 import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=9';
+import { itemArt } from '../item-art.js?v=10';
 import { InventoryUI } from './inventory-ui.js?v=9';
 import { EndScreen, Spectator } from './end-screen.js?v=9';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=9';
@@ -547,12 +548,134 @@ function start() {
         }
     };
 
+    // ================= ROUE D'EMOTES =================
+    const EMOTE_HOLD_MS = 380;
+    const emoteWheel = document.getElementById('emoteWheel');
+    const emoteOptions = emoteWheel ? [...emoteWheel.querySelectorAll('.emote-option')] : [];
+    let emoteWheelOpen = false;
+    let emoteSelected = -1;
+    let emoteWheelCenter = { x: 0, y: 0 };
+    const emoteBubbles = new Map();
+
+    function equippedEmotes() {
+        return Array.from({ length: Cosmetics.EMOTE_SLOTS || 4 }, (_, i) => Cosmetics.equippedOf('emote', i));
+    }
+
+    function prepareEmoteWheel() {
+        const emotes = equippedEmotes();
+        emoteOptions.forEach((option, i) => {
+            const art = option.querySelector('.emote-option-art');
+            const name = option.querySelector('.emote-option-name');
+            const item = emotes[i];
+            option.classList.toggle('is-empty', !item);
+            option.classList.remove('is-selected');
+            if (art) art.innerHTML = item ? itemArt(item) : '<span aria-hidden="true">—</span>';
+            if (name) name.textContent = item?.name || 'Emote vide';
+        });
+    }
+
+    function updateEmoteSelection() {
+        if (!emoteWheelOpen) return;
+        const dx = input.mouse.x - emoteWheelCenter.x;
+        const dy = input.mouse.y - emoteWheelCenter.y;
+        const distance = Math.hypot(dx, dy);
+        let selected = -1;
+        if (distance > 48) {
+            // 0 = haut, puis droite, bas, gauche, comme la roue de référence.
+            const angle = (Math.atan2(dy, dx) + Math.PI / 2 + Math.PI * 2) % (Math.PI * 2);
+            selected = Math.floor((angle + Math.PI / 4) / (Math.PI / 2)) % 4;
+            if (!equippedEmotes()[selected]) selected = -1;
+        }
+        if (selected === emoteSelected) return;
+        emoteSelected = selected;
+        const centerArt = emoteWheel.querySelector('.emote-wheel-center-art');
+        if (centerArt) {
+            const item = selected >= 0 ? equippedEmotes()[selected] : null;
+            centerArt.innerHTML = item ? itemArt(item) : '<span class="emote-wheel-figure" aria-hidden="true">●</span>';
+        }
+        emoteOptions.forEach((option, i) => option.classList.toggle('is-selected', i === selected));
+    }
+
+    function openEmoteWheel() {
+        if (!emoteWheel || emoteWheelOpen || !player.alive || player.dbno || player.phase !== 'ground' ||
+            hud.mapOpen || settingsOpen || inventoryUI.open || endScreen.isOpen) return false;
+        if (!equippedEmotes().some(Boolean)) return false;
+        prepareEmoteWheel();
+        emoteWheelCenter = { x: input.mouse.x, y: input.mouse.y };
+        emoteWheel.style.left = `${emoteWheelCenter.x}px`;
+        emoteWheel.style.top = `${emoteWheelCenter.y}px`;
+        emoteWheel.hidden = false;
+        emoteWheelOpen = true;
+        emoteSelected = -2;
+        updateEmoteSelection();
+        return true;
+    }
+
+    function closeEmoteWheel(play = true) {
+        if (!emoteWheelOpen) return;
+        const chosen = emoteSelected;
+        const item = chosen >= 0 ? equippedEmotes()[chosen] : null;
+        emoteWheelOpen = false;
+        emoteSelected = -1;
+        emoteWheel.hidden = true;
+        if (play && item) {
+            player.emote = { id: item.id, t: 2.8 };
+            SFX.play('click');
+            if (isMultiplayer) netSend({ type: 'emote', e: item.id });
+        }
+    }
+
+    function updateEmoteBubbles(dt) {
+        for (const fighter of fighters) {
+            if (fighter.emote) {
+                fighter.emote.t -= dt;
+                if (fighter.emote.t <= 0) fighter.emote = null;
+            }
+            const emote = fighter.emote;
+            let bubble = emoteBubbles.get(fighter.id);
+            if (!emote) {
+                bubble?.remove();
+                emoteBubbles.delete(fighter.id);
+                continue;
+            }
+            if (!bubble) {
+                bubble = document.createElement('div');
+                bubble.className = 'emote-bubble';
+                document.body.appendChild(bubble);
+                emoteBubbles.set(fighter.id, bubble);
+            }
+            const item = getItem(emote.id);
+            bubble.innerHTML = item ? itemArt(item) : '';
+            const pos = renderer.worldToScreen(fighter.x, fighter.y - (fighter.r || 26) * 2.2);
+            bubble.style.left = `${Math.round(pos.x)}px`;
+            bubble.style.top = `${Math.round(pos.y)}px`;
+            bubble.style.setProperty('--emote-life', `${Math.min(1, emote.t / 0.35)}`);
+            bubble.classList.toggle('is-local', fighter === player);
+        }
+    }
+
+    // Le clic court reste un tir ; au-delà du délai, il devient une roue d'emotes.
+    function updateEmoteInput() {
+        if (!input.mouse.down && input.mouse.released && emoteWheelOpen) {
+            closeEmoteWheel(true);
+            return true;
+        }
+        if (emoteWheelOpen) {
+            updateEmoteSelection();
+            return true;
+        }
+        if (input.mouse.down && performance.now() - input.mouse.downAt >= EMOTE_HOLD_MS) {
+            return openEmoteWheel();
+        }
+        return false;
+    }
+
     const input = new Input(canvas, {
         // Pas de carte par-dessus l'écran de fin (Tab y sert à déplacer le focus)
         onMap: () => { if (!endScreen.isOpen) hud.toggleMap(); },
         onMapHold: (down) => { if (!down || !endScreen.isOpen) hud.toggleMap(down); },
         onEscape: () => {
-            // Écran de fin : Échap = regarder la partie ; en spectateur : revoir les résultats
+            closeEmoteWheel(false);
             if (!settingsOpen && !hud.mapOpen) {
                 if (endScreen.isOpen && endScreen.canWatch) {
                     endScreen.watch();
@@ -875,6 +998,14 @@ function start() {
             case 'authority':
                 setAuthority(msg.authorityId);
                 break;
+            case 'emote': {
+                const fighter = fighterById(msg.id);
+                const item = getItem(msg.e);
+                if (!fighter || !item || item.type !== 'emote') break;
+                fighter.emote = { id: item.id, t: 2.8 };
+                SFX.play('click', { x: fighter.x, y: fighter.y, vol: 0.45 });
+                break;
+            }
             case 'player_gone': {
                 // Joueur parti pour de bon (retour au lobby, onglet fermé) : éliminé sur TOUTES
                 // les machines (pas seulement chez l'hôte, qui est peut-être celui qui part).
@@ -1029,13 +1160,18 @@ function start() {
     /* ----- Actions du joueur (tir, soin) ----- */
     function playerActions() {
         const pressed = input.consumePress();
+        // Un maintien ouvre la roue ; le relâchement valide l'emote sélectionnée.
+        if (updateEmoteInput()) {
+            input.consumeRelease();
+            return;
+        }
         // Pas de tir tant qu'un panneau est ouvert (carte, paramètres, inventaire) OU si le joueur est K.O.
         if (!player.alive || player.dbno || player.phase !== 'ground' || hud.mapOpen || settingsOpen || inventoryUI.open) return;
         const held = player.inventory[player.slot];
         if (!held) return;
         if (held.kind === 'heal') {
             if (pressed) combat.startUse(player);
-        } else if (input.mouse.down || pressed) {
+        } else if ((input.mouse.down || pressed) && !emoteWheelOpen) {
             // "pressed" aussi : un clic très court (relâché avant l'image) doit quand même tirer
             combat.tryFire(player, pressed);
         }
@@ -1765,8 +1901,8 @@ function start() {
         const aim = renderer.screenToWorld(input.mouse.x, input.mouse.y);
         drop.update(dt, player, input, aim.x, aim.y);
 
-        // Éjection automatique du vaisseau un peu AVANT la fin de l'île
-        if (player.phase === 'ship' && drop.canJump && drop.timeLeft <= 1.5) drop.jump(player);
+        // Éjection automatique après un court instant où l'interface peut afficher exactement 0 s.
+        if (player.phase === 'ship' && drop.dist >= drop.autoJumpAt) drop.jump(player);
 
         // Corruption : démarrée par l'hôte (les autres se calent sur world_sync)
         if (corruption.state === 'idle' && isHost && (!drop.ship.active || player.phase === 'ground' ||
@@ -1890,6 +2026,7 @@ function start() {
         renderer.setFlightView(view, dt);
         renderer.follow(player.phase === 'ship' ? drop.ship : watched, dt);
         renderer.render(watched, dt, time, hooks);
+        updateEmoteBubbles(dt);
         if (player.phase === 'air' && altMeterEl) {
             // Écart en pixels d'écran, ramené à l'échelle du HUD agrandi (--hud-zoom)
             const hz = parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--hud-zoom')) || 1;

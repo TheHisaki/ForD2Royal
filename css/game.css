@@ -2185,3 +2185,218 @@ body.item-dragging * { cursor: grabbing !important; }
     background: linear-gradient(90deg, #2d7bff, var(--accent-cyan));
     transition: width 0.05s linear;
 }
+
+/* ================= ROUE D'EMOTES ================= */
+
+#emoteWheel {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    z-index: 40;
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.82);
+    transition: opacity 0.12s ease-out, transform 0.16s cubic-bezier(0.2, 1.35, 0.4, 1);
+}
+
+#emoteWheel:not([hidden]) {
+    opacity: 1;
+    transform: scale(1);
+}
+
+#emoteWheel[hidden] { display: block; visibility: hidden; }
+
+.emote-wheel-ring,
+.emote-wheel-center {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+}
+
+.emote-wheel-ring {
+    width: 246px;
+    height: 246px;
+    background:
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.08) 0 30%, transparent 30.5%),
+        conic-gradient(from -45deg, rgba(79, 216, 255, 0.18) 0 24%, rgba(8, 20, 56, 0.88) 24.5% 25%, rgba(79, 216, 255, 0.18) 25.5% 49%, rgba(8, 20, 56, 0.88) 49.5% 50%, rgba(79, 216, 255, 0.18) 50.5% 74%, rgba(8, 20, 56, 0.88) 74.5% 75%, rgba(79, 216, 255, 0.18) 75.5% 99.5%, rgba(8, 20, 56, 0.88) 99.5% 100%);
+    border: 2px solid rgba(174, 226, 255, 0.82);
+    box-shadow: 0 0 0 5px rgba(8, 20, 56, 0.34), 0 0 28px rgba(79, 216, 255, 0.42), inset 0 0 28px rgba(0, 0, 0, 0.38);
+}
+
+.emote-wheel-center {
+    width: 78px;
+    height: 78px;
+    display: grid;
+    place-items: center;
+    background: radial-gradient(circle at 35% 28%, #667ba8, #1c2c59 62%, #091536);
+    border: 3px solid #d6f6ff;
+    box-shadow: 0 0 0 4px rgba(8, 20, 56, 0.74), 0 0 18px rgba(79, 216, 255, 0.65);
+}
+
+.emote-wheel-hint {
+    width: 52px;
+    text-align: center;
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 14px;
+    line-height: 0.95;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 3px #081333;
+}
+
+.emote-option {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 112px;
+    min-height: 90px;
+    padding: 8px 5px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: #fff;
+    border: 1px solid rgba(214, 246, 255, 0.32);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(30, 57, 111, 0.94), rgba(7, 18, 53, 0.94));
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.45), inset 0 1px rgba(255, 255, 255, 0.12);
+    transform: translate(-50%, -50%);
+    transition: background 0.1s, border-color 0.1s, box-shadow 0.1s, transform 0.1s;
+}
+
+.emote-option[data-emote-slot='0'] { left: 0; top: -112px; }
+.emote-option[data-emote-slot='1'] { left: 112px; top: 0; }
+.emote-option[data-emote-slot='2'] { left: 0; top: 112px; }
+.emote-option[data-emote-slot='3'] { left: -112px; top: 0; }
+
+.emote-option.is-selected {
+    color: #071739;
+    border-color: #ffe03d;
+    background: linear-gradient(180deg, #ffe97a, #ffb800);
+    box-shadow: 0 0 0 3px rgba(255, 224, 61, 0.42), 0 0 24px rgba(255, 224, 61, 0.82);
+    transform: translate(-50%, -50%) scale(1.12);
+}
+
+.emote-option-art {
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+}
+
+.emote-option-art svg {
+    width: 52px;
+    height: 52px;
+    display: block;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+
+.emote-option-name {
+    max-width: 108px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.emote-option.is-empty { opacity: 0.27; filter: grayscale(1); }
+.emote-option.is-selected .emote-option-name { text-shadow: none; }
+
+@media (max-width: 760px), (max-height: 560px) {
+    .emote-wheel-ring { width: 210px; height: 210px; }
+    .emote-option { width: 94px; min-height: 78px; }
+    .emote-option[data-emote-slot='0'] { top: -96px; }
+    .emote-option[data-emote-slot='1'] { left: 96px; }
+    .emote-option[data-emote-slot='2'] { top: 96px; }
+    .emote-option[data-emote-slot='3'] { left: -96px; }
+    .emote-option-art, .emote-option-art svg { width: 44px; height: 44px; }
+    .emote-option-name { max-width: 92px; font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #emoteWheel { transition: none; }
+}
+
+/* Emote joué au-dessus du combattant */
+.emote-bubble {
+    position: fixed;
+    z-index: 28;
+    width: 62px;
+    height: 62px;
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+    animation: emoteBubbleIn 0.22s cubic-bezier(0.2, 1.35, 0.4, 1) both;
+    filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.6));
+}
+
+.emote-bubble::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -7px;
+    width: 12px;
+    height: 12px;
+    transform: translateX(-50%) rotate(45deg);
+    background: #fff;
+    border-right: 2px solid #0a1030;
+    border-bottom: 2px solid #0a1030;
+}
+
+.emote-bubble svg {
+    position: relative;
+    z-index: 1;
+    width: 62px;
+    height: 62px;
+    display: block;
+    border: 3px solid #0a1030;
+    border-radius: 50%;
+    background: #fff;
+}
+
+@keyframes emoteBubbleIn {
+    from { opacity: 0; transform: translate(-50%, -75%) scale(0.7); }
+    to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+}
+
+.emote-wheel-center-art {
+    position: absolute;
+    top: 7px;
+    left: 7px;
+    width: 64px;
+    height: 64px;
+    border-radius: 50%;
+    overflow: hidden;
+    opacity: 0.9;
+}
+
+.emote-wheel-center-art svg {
+    width: 64px;
+    height: 64px;
+    display: block;
+}
+
+.emote-wheel-center-art + .emote-wheel-hint {
+    position: relative;
+    z-index: 2;
+    padding: 2px 4px;
+    border-radius: 3px;
+    background: rgba(6, 16, 43, 0.66);
+}
+
+.emote-wheel-figure {
+    display: grid;
+    width: 52px;
+    height: 52px;
+    place-items: center;
+    color: #ffe03d;
+    font-size: 36px;
+}
