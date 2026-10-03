@@ -5,7 +5,7 @@
    ================================== */
 
 import { WORLD_SIZE } from './config.js';
-import { clamp, inFrameView, fighterSeed, airProject, frameView } from './utils.js';
+import { clamp, inFrameView, fighterSeed, airProject, frameView, rectPointDist } from './utils.js';
 import { drawPlayer, drawStyledHead } from './draw.js';
 import { GLIDER_ART } from '../glider-art.js';
 import { drawBackpack } from './backpack-art.js';
@@ -53,6 +53,140 @@ export function fallCameraGap(alt) {
 
 const _shipProj = {};
 const _fallProj = {};
+
+/* ===================== ATTERRISSAGE SUR UN TOIT =====================
+   On ne peut pas se poser sur un toit : en le touchant, le combattant glisse
+   (de plus en plus vite, comme sur une pente) jusqu'au bord le plus proche,
+   saute du bord et atterrit au sol à côté de la maison, sur un endroit libre.
+   Pendant la glissade il reste en phase 'air' (dessiné au-dessus des toits,
+   pas de tir) avec roofSlide = état de l'animation.
+*/
+const ROOF_ALT = 0.025;      // hauteur d'un toit (unité d'altitude : 1 = vaisseau)
+const ROOF_OVERHANG = 8;     // débord du toit (voir drawRoof dans draw.js)
+const SLIDE_SPEED0 = 55;     // vitesse au début de la glissade (unités / s)
+const SLIDE_ACCEL = 360;     // la pente fait accélérer (~0,5 à 0,8 s sur le toit)
+const DROP_TIME = 0.45;      // saut du bord du toit jusqu'au sol (s)
+const EXIT_GAP = 16;         // distance au mur à l'atterrissage (en plus du rayon)
+const EXIT_SHIFTS = [0, 45, -45, 90, -90, 140, -140, 200, -200];
+const _near = [];
+
+// Bâtiment dont le toit est sous ce point (null sinon)
+export function roofAt(world, x, y) {
+    if (!world || !world.buildings) return null;
+    const o = ROOF_OVERHANG;
+    for (const b of world.buildings) {
+        if (x > b.x - o && x < b.x + b.w + o && y > b.y - o && y < b.y + b.h + o) return b;
+    }
+    return null;
+}
+
+// Endroit libre pour atterrir : hors des maisons, des murs, des arbres et des rochers
+function spotFree(world, x, y, r) {
+    if (x < r || y < r || x > WORLD_SIZE - r || y > WORLD_SIZE - r) return false;
+    for (const b of world.buildings) if (rectPointDist(b, x, y) < r + 4) return false;
+    const near = world.collide ? world.collide.query(x - r, y - r, x + r, y + r, _near) : [];
+    for (let i = 0; i < near.length; i++) {
+        const c = near[i];
+        if (c.kind === 'circle') {
+            if (Math.hypot(x - c.x, y - c.y) < r + c.r) return false;
+        } else if (rectPointDist(c, x, y) < r) {
+            return false;
+        }
+    }
+    return true;
+}
+
+// Bord du toit le plus proche + point d'atterrissage libre juste à l'extérieur
+function roofExit(world, b, x, y, r) {
+    const o = ROOF_OVERHANG;
+    const gap = r + EXIT_GAP;
+    const sides = [
+        { d: x - b.x, nx: -1, ny: 0 },
+        { d: b.x + b.w - x, nx: 1, ny: 0 },
+        { d: y - b.y, nx: 0, ny: -1 },
+        { d: b.y + b.h - y, nx: 0, ny: 1 }
+    ].sort((a, c) => a.d - c.d);
+    let first = null;
+    for (const s of sides) {
+        for (const shift of EXIT_SHIFTS) {
+            // Position le long du bord (bornée à la longueur du mur)
+            const ax = s.nx ? x : clamp(x + shift, b.x + 10, b.x + b.w - 10);
+            const ay = s.ny ? y : clamp(y + shift, b.y + 10, b.y + b.h - 10);
+            const edgeX = s.nx < 0 ? b.x - o : s.nx > 0 ? b.x + b.w + o : ax;
+            const edgeY = s.ny < 0 ? b.y - o : s.ny > 0 ? b.y + b.h + o : ay;
+            const landX = s.nx < 0 ? b.x - gap : s.nx > 0 ? b.x + b.w + gap : ax;
+            const landY = s.ny < 0 ? b.y - gap : s.ny > 0 ? b.y + b.h + gap : ay;
+            const exit = { edgeX, edgeY, landX, landY };
+            if (!first) first = exit;
+            if (spotFree(world, landX, landY, r)) return exit;
+        }
+    }
+    return first; // tout est encombré : bord le plus proche (les collisions au sol feront le reste)
+}
+
+// À appeler pendant la chute : true si le combattant vient de toucher un toit
+export function tryRoofLanding(f, world) {
+    if (f.roofSlide || f.altitude > ROOF_ALT) return false;
+    const b = roofAt(world, f.x, f.y);
+    if (!b) return false;
+    const e = roofExit(world, b, f.x, f.y, f.r || 26);
+    const len = Math.hypot(e.edgeX - f.x, e.edgeY - f.y);
+    const dir = len > 0.5 ? Math.atan2(e.edgeY - f.y, e.edgeX - f.x) : Math.atan2(e.landY - f.y, e.landX - f.x);
+    f.roofSlide = {
+        stage: 0, t: 0, v: SLIDE_SPEED0, dist: 0, len, dir,
+        sx: f.x, sy: f.y, ...e, ox: 0, oy: 0,
+        color: b.snow ? '#eef3f8' : b.roof
+    };
+    f.altitude = ROOF_ALT;
+    f.angle = dir;
+    f.vx = Math.cos(dir) * SLIDE_SPEED0;
+    f.vy = Math.sin(dir) * SLIDE_SPEED0;
+    f.moving = false;
+    return true;
+}
+
+// Avance la glissade ; renvoie true au moment où le combattant touche le sol
+export function updateRoofSlide(f, dt) {
+    const s = f.roofSlide;
+    if (!s) return false;
+    s.t += dt;
+    f.moving = false;
+    if (s.stage === 0) {
+        // Sur le toit : accélère jusqu'au bord
+        s.v += SLIDE_ACCEL * dt;
+        s.dist = Math.min(s.len, s.dist + s.v * dt);
+        const u = s.len > 0 ? s.dist / s.len : 1;
+        f.x = s.sx + (s.edgeX - s.sx) * u;
+        f.y = s.sy + (s.edgeY - s.sy) * u;
+        f.vx = Math.cos(s.dir) * s.v;
+        f.vy = Math.sin(s.dir) * s.v;
+        f.altitude = ROOF_ALT;
+        if (s.dist >= s.len) {
+            s.stage = 1;
+            s.t = 0;
+            s.ox = f.x;
+            s.oy = f.y;
+            s.dir = Math.atan2(s.landY - f.y, s.landX - f.x) || s.dir;
+            f.angle = s.dir;
+        }
+        return false;
+    }
+    // Saut du bord : petit bond puis chute jusqu'au sol, à côté de la maison
+    const u = Math.min(1, s.t / DROP_TIME);
+    const e = u * (2 - u); // freine un peu à l'arrivée
+    f.x = s.ox + (s.landX - s.ox) * e;
+    f.y = s.oy + (s.landY - s.oy) * e;
+    f.altitude = Math.max(0, ROOF_ALT * (1 - u * u) + 0.012 * Math.sin(Math.PI * u));
+    if (u < 1) return false;
+    f.x = s.landX;
+    f.y = s.landY;
+    f.altitude = 0;
+    f.phase = 'ground';
+    f.vx = Math.cos(s.dir) * 80; // un pas de réception dans l'élan
+    f.vy = Math.sin(s.dir) * 80;
+    f.roofSlide = null;
+    return true;
+}
 
 // Voile d'air entre la caméra et le sol : la carte paraît plus lointaine en altitude.
 // À dessiner après le sol et avant ce qui vole (v = bornes de la vue, repère monde).
@@ -140,8 +274,17 @@ export class Drop {
         this.ship.active = this.dist <= this.length;
     }
 
-    jump(player) {
-        if (player.phase !== 'ship' || !this.canJump) return false;
+    // force : éjection automatique (même si la fenêtre de saut est déjà dépassée).
+    // Avant, le saut auto exigeait aussi canJump (dist <= autoJumpAt) : comme il ne se
+    // déclenche qu'à dist >= autoJumpAt, il ne marchait presque jamais et le joueur
+    // restait coincé dans le vaisseau jusqu'à sa disparition.
+    jump(player, force = false) {
+        if (player.phase !== 'ship') return false;
+        if (!force && !this.canJump) return false;
+        if (force && this.exitAt !== null && this.dist > this.autoJumpAt) {
+            // En retard (onglet en arrière-plan, recalage réseau) : éjecté au bord de l'île
+            Object.assign(player, this.pointAt(this.autoJumpAt));
+        }
         player.phase = 'air';
         player.altitude = 1;
         player.vx = Math.cos(this.angle) * 200; // garde un peu l'élan du vaisseau
@@ -183,8 +326,11 @@ export class Drop {
             player.x = clamp(this.ship.x, 0, WORLD_SIZE);
             player.y = clamp(this.ship.y, 0, WORLD_SIZE);
             player.angle = this.angle;
-            // Saut automatique après 0 s : on laisse le HUD afficher la dernière valeur avant l'éjection.
-            if (this.dist >= this.autoJumpAt) this.jump(player);
+            // Saut automatique après 0 s (ou si le vaisseau a disparu) : éjection forcée
+            if (this.dist >= this.autoJumpAt || !this.ship.active) this.jump(player, true);
+        } else if (player.phase === 'air' && player.roofSlide) {
+            // Glissade sur un toit : pas de pilotage, on glisse jusqu'au bord puis on saute au sol
+            updateRoofSlide(player, dt);
         } else if (player.phase === 'air') {
             const a = input.axis();
             const len = Math.hypot(a.x, a.y);
@@ -197,6 +343,8 @@ export class Drop {
             player.moving = false;
             player.altitude -= dt / FALL_TIME;
 
+            // Arrivée sur un toit : on glisse jusqu'au bord et on atterrit à côté de la maison
+            if (tryRoofLanding(player, this.world)) return;
             if (player.altitude <= 0) {
                 // Atterrissage : on se dégage si on tombe sur un arbre ou un mur
                 player.altitude = 0;
@@ -355,8 +503,71 @@ export function drawFalling(ctx, p, time) {
     ctx.save();
     ctx.globalAlpha *= pr.alpha;
     ctx.lineJoin = 'round';
-    if (alt > OPEN_ALT) drawSkydiver(ctx, p, f);
+    if (p.roofSlide) drawRoofSlide(ctx, p, f);
+    else if (alt > OPEN_ALT) drawSkydiver(ctx, p, f);
     else drawGliding(ctx, p, f);
+    ctx.restore();
+}
+
+/* ----- Glissade sur un toit ----- */
+// Sur le toit : traces de glissade derrière, corps qui perd l'équilibre.
+// Au bord : petit bond (le personnage grossit, son ombre se détache) puis réception.
+function drawRoofSlide(ctx, p, f) {
+    const s = p.roofSlide;
+    const { t, r } = f;
+    const hop = s.stage === 1 ? Math.sin(Math.PI * clamp(s.t / DROP_TIME, 0, 1)) : 0;
+    const cx = Math.cos(s.dir);
+    const cy = Math.sin(s.dir);
+
+    // Ombre : sous les pieds sur le toit, puis décalée et plus petite pendant le bond
+    ctx.save();
+    ctx.globalAlpha *= 0.24 - hop * 0.08;
+    ctx.fillStyle = SHADOW;
+    ctx.beginPath();
+    ctx.ellipse(p.x + hop * 14, p.y + hop * 20, r * (0.95 - hop * 0.2), r * (0.85 - hop * 0.2), 0, 0, TAU);
+    ctx.fill();
+    ctx.restore();
+
+    // Traces de glissade sur le toit (deux sillons + traits de vitesse)
+    if (s.stage === 0 && s.dist > 4) {
+        const len = Math.min(s.dist, 26 + s.v * 0.09);
+        const nx = -cy * r * 0.36;
+        const ny = cx * r * 0.36;
+        const bx = p.x - cx * r * 0.55;
+        const by = p.y - cy * r * 0.55;
+        ctx.save();
+        ctx.lineCap = 'round';
+        ctx.strokeStyle = 'rgba(10, 16, 48, 0.28)';
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        for (const k of SIDES) {
+            ctx.moveTo(bx + nx * k, by + ny * k);
+            ctx.lineTo(bx + nx * k - cx * len, by + ny * k - cy * len);
+        }
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.lineWidth = 2.5;
+        ctx.beginPath();
+        for (let i = 0; i < 3; i++) {
+            const ph = (t * 3.2 + i / 3) % 1;
+            const o = (i - 1) * r * 0.55;
+            const d0 = r * 0.9 + ph * len * 0.8;
+            ctx.moveTo(p.x - cy * o - cx * d0, p.y + cx * o - cy * d0);
+            ctx.lineTo(p.x - cy * o - cx * (d0 + r * 0.7), p.y + cx * o - cy * (d0 + r * 0.7));
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Personnage : bascule de gauche à droite sur le toit, agrandi pendant le bond
+    const wobble = s.stage === 0 ? Math.sin(t * 24) * 0.2 : (1 - hop) * 0.15;
+    const sc = f.s * (1 + hop * 0.22);
+    ctx.save();
+    ctx.translate(f.px, f.py);
+    ctx.scale(sc, sc);
+    ctx.rotate(wobble);
+    ctx.translate(-p.x, -p.y);
+    drawPlayer(ctx, p, t);
     ctx.restore();
 }
 

@@ -1045,6 +1045,39 @@ export class Effects {
         }
     }
 
+    // Glissade sur un toit : morceaux de tuiles (couleur du toit) projetés vers l'arrière
+    // + un peu de poussière. dir = sens de la glissade. Au-dessus des toits (couche TOP).
+    roofDebris(x, y, color, dir, count = 2) {
+        if (this._far(x, y)) return;
+        const back = dir + Math.PI;
+        for (let i = 0; i < count; i++) {
+            const a = back + rand(-0.65, 0.65);
+            const sp = rand(60, 180);
+            const p = this._spawn(CUBE, TOP, x + rand(-6, 6), y + rand(-6, 6), rand(0.35, 0.6));
+            p.vx = Math.cos(a) * sp;
+            p.vy = Math.sin(a) * sp;
+            p.drag = 3;
+            p.z = 2;
+            p.vz = rand(50, 130);
+            p.gz = 650;
+            p.size = rand(2, 3.4);
+            p.size2 = p.size * 0.75;
+            p.rot = rand(0, TAU);
+            p.vrot = rand(6, 14) * sign();
+            p.color = color || '#b8322b';
+            p.color2 = OUTLINE;
+            p.width = 1;
+        }
+        const d = this._spawn(DOT, TOP, x + rand(-4, 4), y + rand(-4, 4), 0.35);
+        d.vx = Math.cos(back) * 30;
+        d.vy = Math.sin(back) * 30;
+        d.drag = 3;
+        d.size = rand(3, 4.5);
+        d.size2 = rand(9, 12);
+        d.alpha = 0.35;
+        d.color = pick(DUST);
+    }
+
     // Pas : poussière discrète sur terre, ondulation dans l'eau
     footstep(x, y, inWater) {
         if (this._far(x, y)) return;

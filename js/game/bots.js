@@ -10,7 +10,7 @@ import { WORLD_SIZE, B, PLAYER, isWater } from './config.js';
 import { sampleGround } from './world.js';
 import { Player } from './player.js';
 import { clamp, pick, airProject } from './utils.js';
-import { drawFalling, fallHeight } from './drop.js?v=12';
+import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=13';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
 import { hasBackpackArt } from './backpack-art.js';
@@ -660,6 +660,12 @@ export class BotManager {
     updateAir(bot, dt) {
         const br = bot.brain;
 
+        // Tombé sur un toit : glisse jusqu'au bord puis atterrit à côté de la maison
+        if (bot.roofSlide) {
+            if (updateRoofSlide(bot, dt)) this.landBot(bot);
+            return;
+        }
+
         // Si le bot est coéquipier du joueur : plane EN FORMATION à côté du joueur humain le plus proche
         if (bot.humanSquad) {
             const squadTarget = this.squadLead(bot, true);
@@ -697,16 +703,23 @@ export class BotManager {
         bot.moving = false;
         bot.altitude -= dt / FALL_TIME;
 
+        if (tryRoofLanding(bot, this.world)) return;
         if (bot.altitude <= 0) {
             bot.altitude = 0;
             bot.phase = 'ground';
             bot.vx *= 0.3;
             bot.vy *= 0.3;
-            br.aim = bot.angle;
-            br.sx = bot.x;
-            br.sy = bot.y;
-            br.think = Math.random() * 0.2;
+            this.landBot(bot);
         }
+    }
+
+    // Arrivée au sol (après la chute ou la glissade sur un toit) : le cerveau repart d'ici
+    landBot(bot) {
+        const br = bot.brain;
+        br.aim = bot.angle;
+        br.sx = bot.x;
+        br.sy = bot.y;
+        br.think = Math.random() * 0.2;
     }
 
     updateGround(bot, dt) {

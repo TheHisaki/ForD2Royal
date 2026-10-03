@@ -11,13 +11,13 @@ import { Hud } from './hud.js?v=10';
 import { Input } from './input.js?v=10';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT
-} from './drop.js?v=12';
+} from './drop.js?v=13';
 import { Combat } from './combat.js?v=9';
 import { Loot } from './loot.js?v=9';
-import { BotManager, roofAlphaAt } from './bots.js?v=12';
+import { BotManager, roofAlphaAt } from './bots.js?v=13';
 import { Corruption } from './corruption.js?v=9';
 import { CombatHud } from './combat-hud.js?v=10';
-import { Effects } from './effects.js?v=9';
+import { Effects } from './effects.js?v=13';
 import { HEALS, WEAPONS } from './weapons.js?v=9';
 import { drawPlayer, drawDying } from './draw.js?v=9';
 import { SFX } from '../sfx.js?v=9';
@@ -134,6 +134,7 @@ function start() {
 
     // Départ dans le vaisseau (trajet synchronisé par la graine en multijoueur)
     const drop = new Drop(gameSeed);
+    drop.world = world; // toits : glissade jusqu'au sol à côté de la maison
     const player = new Player(drop.ship.x, drop.ship.y);
     player.phase = 'ship';
     player.team = 1;
@@ -1380,6 +1381,26 @@ function start() {
                 f._prevAlt = alt;
             }
 
+            // Glissade sur un toit : tuiles qui sautent + bruit de pas sur les tuiles
+            const slide = f.roofSlide;
+            if (slide) {
+                f._slideT = (f._slideT || 0) + dt;
+                if (slide.stage === 0 && f._slideT > 0.05) {
+                    f._slideT = 0;
+                    effects.roofDebris(f.x - Math.cos(slide.dir) * f.r * 0.6, f.y - Math.sin(slide.dir) * f.r * 0.6,
+                        slide.color, slide.dir, 2);
+                    if ((f._slideSteps = (f._slideSteps || 0) + 1) % 2 === 0) {
+                        SFX.play('step', { x: f.x, y: f.y, surface: 'tile', vol: f === player ? 0.9 : 0.5 });
+                    }
+                }
+                if (slide.stage === 1 && !f._slideJumped) {
+                    f._slideJumped = true; // départ du bord : gerbe de tuiles
+                    effects.roofDebris(f.x, f.y, slide.color, slide.dir, 7);
+                }
+            } else if (f._slideJumped) {
+                f._slideJumped = false;
+            }
+
             // Atterrissage : nuage de poussière (et petite secousse pour le joueur)
             if (f._prevPhase === 'air' && f.phase === 'ground') {
                 effects.landing(f.x, f.y);
@@ -1951,8 +1972,8 @@ function start() {
         const aim = renderer.screenToWorld(input.mouse.x, input.mouse.y);
         drop.update(dt, player, input, aim.x, aim.y);
 
-        // Éjection automatique après un court instant où l'interface peut afficher exactement 0 s.
-        if (player.phase === 'ship' && drop.dist >= drop.autoJumpAt) drop.jump(player);
+        // Éjection automatique (forcée) après l'affichage de 0 s, ou si le vaisseau a disparu
+        if (player.phase === 'ship' && (drop.dist >= drop.autoJumpAt || !drop.ship.active)) drop.jump(player, true);
 
         // Corruption : démarrée par l'hôte (les autres se calent sur world_sync)
         if (corruption.state === 'idle' && isHost && (!drop.ship.active || player.phase === 'ground' ||
