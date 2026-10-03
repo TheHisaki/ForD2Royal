@@ -9,12 +9,12 @@ import { Player } from './player.js?v=9';
 import { Renderer } from './renderer.js?v=9';
 import { Hud } from './hud.js?v=10';
 import { Input } from './input.js?v=10';
-import { Drop, drawFalling } from './drop.js?v=9';
+import { Drop, drawFalling } from './drop.js?v=10';
 import { Combat } from './combat.js?v=9';
 import { Loot } from './loot.js?v=9';
-import { BotManager, roofAlphaAt } from './bots.js?v=9';
+import { BotManager, roofAlphaAt } from './bots.js?v=10';
 import { Corruption } from './corruption.js?v=9';
-import { CombatHud } from './combat-hud.js?v=9';
+import { CombatHud } from './combat-hud.js?v=10';
 import { Effects } from './effects.js?v=9';
 import { HEALS, WEAPONS } from './weapons.js?v=9';
 import { drawPlayer, drawDying } from './draw.js?v=9';
@@ -34,7 +34,7 @@ const VICTORY_DELAY = 900;
 const STEP_TIME = 0.3;   // un nuage de poussière tous les 0,3 s en marchant
 
 // Sons
-const GLIDER_ALT = 0.45;       // le planeur s'ouvre sous cette altitude (voir drop.js)
+const GLIDER_ALT = 2 / 3;      // ouverture après 1/3 de la chute (voir drop.js)
 const SHIP_HEAR_DIST = 2500;   // on entend le vaisseau jusqu'à cette distance
 const HEARTBEAT_TIME = 0.95;   // un battement de cœur toutes les 0,95 s quand la vie est basse
 const LOW_HEALTH = 30;

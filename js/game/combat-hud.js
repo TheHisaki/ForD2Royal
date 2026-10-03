@@ -34,10 +34,10 @@ function fmtDps(dps) {
 const FEED_MAX = 5;
 const FEED_TIME = 6; // secondes d'affichage d'une élimination
 
-// Altimètre (1 d'altitude = 1000 m pour l'affichage)
-const ALT_METERS = 1000;
-const ALT_STEP = 10;       // pas d'affichage en mètres (la chute est rapide : ~25 changements / s)
-const GLIDER_ALT = 0.45;   // le planeur s'ouvre sous cette altitude (voir drop.js)
+// Altimètre : le bus démarre à 2000 m (2x l'altitude précédente)
+const ALT_METERS = 2000;
+const ALT_STEP = 10;       // pas d'affichage en mètres
+const GLIDER_ALT = 2 / 3;  // ouverture après le premier tiers de la chute (voir drop.js)
 const LAND_ALT = 0.1;      // en dessous : "Atterrissage"
 const ALT_HINTS = {
     fall: `Chute libre · planeur à ${Math.round(GLIDER_ALT * ALT_METERS)} m`,

@@ -10,7 +10,7 @@ import { WORLD_SIZE, B, PLAYER, isWater } from './config.js';
 import { sampleGround } from './world.js';
 import { Player } from './player.js';
 import { clamp, pick } from './utils.js';
-import { drawFalling } from './drop.js';
+import { drawFalling } from './drop.js?v=10';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
 import { hasBackpackArt } from './backpack-art.js';
@@ -33,7 +33,7 @@ export const BOT_NAMES = [
 
 // ----- Réglages -----
 const AIR_SPEED = 520;        // pilotage en l'air
-const FALL_TIME = 4;          // secondes de chute
+const FALL_TIME = 12;         // secondes de chute (3x plus longtemps qu'avant)
 const THINK_MIN = 0.22;       // le cerveau réfléchit toutes les 0,22 à 0,30 s
 const THINK_RAND = 0.08;
 const SIGHT = 800;            // distance de détection d'une cible

@@ -33,6 +33,8 @@ html,
 body {
     width: 100%;
     height: 100%;
+    overscroll-behavior: none;
+    touch-action: none;
 }
 
 body {
@@ -46,6 +48,7 @@ body {
 
 #gameCanvas {
     position: fixed;
+    touch-action: none;
     inset: 0;
     width: 100vw;
     height: 100vh;
@@ -1142,10 +1145,10 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
     transform: scaleX(1);
 }
 
-/* Repère d'ouverture du planeur (45 % de l'altitude, depuis la gauche) */
+/* Repère d'ouverture du planeur (2/3 de l'altitude, depuis la gauche) */
 .alt-open {
     position: absolute;
-    left: 45%;
+    left: 66.6667%;
     top: 0;
     bottom: 0;
     width: 4px;

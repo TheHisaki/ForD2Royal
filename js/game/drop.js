@@ -12,8 +12,9 @@ import { drawBackpack } from './backpack-art.js';
 
 const SHIP_EXTENT = 320;     // rayon (unités) couvrant le vaisseau et son ombre, pour le culling
 const SHIP_SPEED = 620;      // unités / s
-const FALL_TIME = 4;         // secondes de chute
+const FALL_TIME = 12;        // secondes de chute (3x plus longtemps qu'avant)
 const AIR_SPEED = 520;       // on se dirige plus vite en l'air qu'au sol
+const SHIP_ALTITUDE_SCALE = 2; // le vaisseau vole 2x plus haut (écart avec son ombre)
 const ISLAND_MARGIN = 450;   // on ne peut sauter qu'au-dessus de l'île
 const AUTO_JUMP_GRACE = 0.16; // laisse le compteur afficher « 0 s » avant l'éjection
 const OUTLINE = '#0a1030';
@@ -188,7 +189,7 @@ export class Drop {
 // contours d'aile précalculés, et rien n'est dessiné hors écran.
 
 const TAU = Math.PI * 2;
-const OPEN_ALT = 0.45;    // le planeur s'ouvre sous cette altitude
+const OPEN_ALT = 2 / 3;   // ouverture après 1/3 de la chute : 2/3 du vol sous planeur
 const DEPLOY_ALT = 0.07;  // "durée" du déploiement, mesurée en altitude
 const FOLD_ALT = 0.035;   // il se replie juste avant de toucher le sol
 const PANELS = 3;         // panneaux colorés par demi-aile
@@ -782,7 +783,10 @@ function drawWing(ctx, r, bank, colors, spanR, spanL) {
 function drawShip(ctx, ship, time) {
     // Ombre sur le sol (le vaisseau vole haut)
     ctx.save();
-    ctx.translate(ship.x + 90, ship.y + 120);
+    ctx.translate(
+        ship.x + 90 * SHIP_ALTITUDE_SCALE,
+        ship.y + 120 * SHIP_ALTITUDE_SCALE
+    );
     ctx.rotate(ship.angle);
     ctx.fillStyle = 'rgba(12, 24, 40, 0.2)';
     ctx.beginPath();

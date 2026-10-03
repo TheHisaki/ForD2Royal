@@ -9,13 +9,15 @@
    Sans ça, par exemple, la touche 4 en AZERTY (le caractère ') ouvre la
    « Recherche rapide » de Firefox, et / ouvre la recherche dans la page.
    On garde ce qui est utile : F5 / Ctrl+R (recharger), F11 (plein écran),
-   F12 / Ctrl+Maj+I (outils de dév.), Ctrl + / - / 0 (zoom), Ctrl+W / Ctrl+T (onglets),
+   F12 / Ctrl+Maj+I (outils de dév.), Ctrl+W / Ctrl+T (onglets),
    Échap, et tout ce qui se tape dans un vrai champ de texte.
+   Le zoom navigateur Ctrl/Cmd + / - / 0 est bloqué pendant le jeu.
 */
 const KEEP_FKEYS = new Set(['F5', 'F11', 'F12']);
 const BLOCKED_CTRL = new Set([
     'KeyF', 'KeyG', 'KeyS', 'KeyP', 'KeyD', 'KeyU', 'KeyH', 'KeyB', 'KeyE', 'KeyK', 'KeyO', 'KeyJ', 'KeyA', 'KeyQ', 'KeyZ'
 ]);
+const BLOCKED_ZOOM = new Set(['Equal', 'Minus', 'Digit0', 'NumpadAdd', 'NumpadSubtract', 'Numpad0']);
 
 function isTextField(el) {
     if (!(el instanceof Element)) return false;
@@ -34,6 +36,7 @@ function shouldBlock(e) {
     if (/^F\d+$/.test(e.code)) return !KEEP_FKEYS.has(e.code); // F1 aide, F3 recherche, F7 curseur...
     if (e.code === 'Escape') return false;
     if (e.ctrlKey || e.metaKey) {
+        if (BLOCKED_ZOOM.has(e.code)) return true; // Ctrl/Cmd +/-/0 : zoom navigateur
         if (e.shiftKey && ['KeyI', 'KeyJ', 'KeyC', 'KeyR'].includes(e.code)) return false; // outils de dév.
         return BLOCKED_CTRL.has(e.code); // Ctrl+F (chercher), Ctrl+S (enregistrer), Ctrl+P (imprimer)...
     }
@@ -133,8 +136,18 @@ export class Input {
 
         canvas.addEventListener('wheel', (e) => {
             e.preventDefault();
+            if (e.ctrlKey || e.metaKey) return; // Ctrl/Cmd+molette : aucun zoom, ni navigateur ni caméra
             handlers.onZoom?.(e.deltaY < 0 ? 1.1 : 1 / 1.1);
         }, { passive: false });
+
+        // Empêche le zoom navigateur à la molette avec Ctrl/Cmd, même hors du canvas.
+        addEventListener('wheel', (e) => {
+            if (e.ctrlKey || e.metaKey) e.preventDefault();
+        }, { passive: false });
+        // Safari/iOS utilise ces événements pour le pincement au lieu de wheel.
+        for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
+            addEventListener(type, (e) => e.preventDefault(), { passive: false });
+        }
     }
 
     // Renvoie true une seule fois par clic
