@@ -34,6 +34,23 @@ export function flightViewAt(alt) {
     return 1 / (1 + fallHeight(alt));
 }
 
+/*
+   Distance caméra -> joueur pendant la chute (1 = distance normale au sol).
+   Plus proche en vol : le parachutiste est ~1,4x plus grand à l'écran, à la même
+   échelle que le vaisseau qu'il vient de quitter. Près du sol, la caméra recule
+   doucement jusqu'à la distance normale (pas de saut d'échelle à l'atterrissage).
+   La pente de recul reste inférieure à celle de la descente : la carte ne fait
+   que grossir pendant toute la chute.
+*/
+const FALL_CAM_GAP = 0.7;
+const LAND_BLEND = 0.35;     // sous cette altitude, la caméra revient à la normale
+export function fallCameraGap(alt) {
+    const a = clamp(alt || 0, 0, 1);
+    if (a >= LAND_BLEND) return FALL_CAM_GAP;
+    const t = 1 - a / LAND_BLEND;
+    return FALL_CAM_GAP + (1 - FALL_CAM_GAP) * t * t * (3 - 2 * t);
+}
+
 const _shipProj = {};
 const _fallProj = {};
 

@@ -10,7 +10,7 @@ import { WORLD_SIZE, B, PLAYER, isWater } from './config.js';
 import { sampleGround } from './world.js';
 import { Player } from './player.js';
 import { clamp, pick, airProject } from './utils.js';
-import { drawFalling, fallHeight } from './drop.js?v=11';
+import { drawFalling, fallHeight } from './drop.js?v=12';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
 import { hasBackpackArt } from './backpack-art.js';

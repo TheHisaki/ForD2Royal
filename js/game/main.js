@@ -9,10 +9,12 @@ import { Player } from './player.js?v=9';
 import { Renderer } from './renderer.js?v=11';
 import { Hud } from './hud.js?v=10';
 import { Input } from './input.js?v=10';
-import { Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight } from './drop.js?v=11';
+import {
+    Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT
+} from './drop.js?v=12';
 import { Combat } from './combat.js?v=9';
 import { Loot } from './loot.js?v=9';
-import { BotManager, roofAlphaAt } from './bots.js?v=11';
+import { BotManager, roofAlphaAt } from './bots.js?v=12';
 import { Corruption } from './corruption.js?v=9';
 import { CombatHud } from './combat-hud.js?v=10';
 import { Effects } from './effects.js?v=9';
@@ -1833,6 +1835,7 @@ function start() {
     // Altimètre : reste juste sous le planeur quel que soit le zoom
     const altMeterEl = document.getElementById('altMeter');
     let lastAltOffset = -1;
+    let camGap = 1; // distance caméra -> ce qu'elle suit (1 = normal, plus proche en chute)
 
     let last = performance.now();
     let time = 0;
@@ -2072,9 +2075,11 @@ function start() {
         // (vaisseau puis joueur). Plus on est haut, plus le sol est loin et la carte petite ;
         // le vaisseau et le joueur, eux, gardent leur taille. En descendant, la carte
         // grossit de plus en plus vite (comme une vraie approche du sol).
-        if (player.phase === 'ship') renderer.setFlightView(flightViewAt(1), dt, true);
-        else if (player.phase === 'air') renderer.setFlightView(flightViewAt(player.altitude), dt, true);
-        else renderer.setFlightView(1, dt);
+        // Au saut, la caméra plonge vers le joueur (distance 1 -> 0,7) en ~1 s.
+        if (player.phase === 'ship') camGap = 1;
+        else camGap += (fallCameraGap(player.phase === 'air' ? player.altitude : 0) - camGap) * Math.min(1, dt * 3);
+        const followH = player.phase === 'ship' ? SHIP_HEIGHT : player.phase === 'air' ? fallHeight(player.altitude) : 0;
+        renderer.setFlightView(1 / (followH + camGap), dt, true);
         renderer.follow(player.phase === 'ship' ? drop.ship : watched, dt);
         renderer.render(watched, dt, time, hooks);
         updateEmoteBubbles(dt);
