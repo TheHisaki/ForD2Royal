@@ -120,6 +120,18 @@ export class CombatHud {
         this._lastHp = null;
         this._lastSh = 0;
 
+        // Bannière centrale : une seule animation à la fois, les titres suivants attendent.
+        this._kbQueue = [];
+        this._kbActive = false;
+        this._kbToken = 0;
+        this._kbTimer = null;
+        const killBanner = $('killBanner');
+        killBanner?.addEventListener('animationend', (event) => {
+            if (event.target === killBanner && event.animationName === 'killPop') {
+                this._finishKillBanner();
+            }
+        });
+
         $('replayBtn').addEventListener('click', () => location.reload());
     }
 
@@ -425,16 +437,56 @@ export class CombatHud {
         a.hint.textContent = ALT_HINTS[state];
     }
 
-    // Grande confirmation "ÉLIMINATION" au centre (animation relancée à chaque kill)
+    // Grande confirmation "ÉLIMINATION" au centre.
+    // Les demandes rapprochées sont affichées dans l'ordre, sans remplacer l'animation courante.
     killBanner(name) {
+        if (name === undefined || name === null) return;
+        this._kbQueue.push(String(name));
+        this._drainKillBanner();
+    }
+
+    _drainKillBanner() {
+        if (this._kbActive || !this._kbQueue.length) return;
         const el = this._kb || (this._kb = document.getElementById('killBanner'));
-        el.querySelector('.kb-name').textContent = name;
+        if (!el) return;
+
+        this._kbActive = true;
+        const token = ++this._kbToken;
+        el.querySelector('.kb-name').textContent = this._kbQueue.shift();
         el.hidden = false;
         el.classList.remove('show');
-        void el.offsetWidth;
+        void el.offsetWidth; // force le redémarrage propre de killPop
         el.classList.add('show');
+
+        // Fallback si animationend est interrompu ou absent (onglet en arrière-plan,
+        // navigateur ancien ou changement futur du CSS). Il ne peut terminer que sa lecture.
         clearTimeout(this._kbTimer);
-        this._kbTimer = setTimeout(() => { el.hidden = true; }, 1800);
+        const style = getComputedStyle(el);
+        const duration = this._cssTimeMs(style.animationDuration);
+        const delay = this._cssTimeMs(style.animationDelay);
+        this._kbTimer = setTimeout(() => {
+            if (token === this._kbToken) this._finishKillBanner();
+        }, Math.max(100, duration + delay + 100));
+    }
+
+    _finishKillBanner() {
+        if (!this._kbActive) return;
+        clearTimeout(this._kbTimer);
+        this._kbTimer = null;
+        this._kbActive = false;
+        const el = this._kb || document.getElementById('killBanner');
+        if (el) {
+            el.classList.remove('show');
+            el.hidden = true;
+        }
+        this._drainKillBanner();
+    }
+
+    _cssTimeMs(value) {
+        const raw = String(value || '0').split(',')[0].trim();
+        if (raw.endsWith('ms')) return Math.max(0, parseFloat(raw) || 0);
+        if (raw.endsWith('s')) return Math.max(0, (parseFloat(raw) || 0) * 1000);
+        return 0;
     }
 
     // Bords rouges plus forts selon les dégâts
