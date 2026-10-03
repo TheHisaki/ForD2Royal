@@ -438,6 +438,235 @@ export const GLIDER_ART = {
     }
 };
 
+/* ----- Planeurs « prestige » : plus de détails ----- */
+
+// Étoile à 5 branches tracée d'un seul trait (rune du grimoire)
+function runeStar(ctx, x, y, rad, rot = -Math.PI / 2) {
+    ctx.beginPath();
+    for (let i = 0; i <= 5; i++) {
+        const a = rot + (i * 2 * TAU) / 5;
+        const px = x + Math.cos(a) * rad;
+        const py = y + Math.sin(a) * rad;
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+    }
+}
+
+Object.assign(GLIDER_ART, {
+    // Grimoire Maudit : livre ouvert à plat, rune lumineuse, cristaux, ailes en lames recourbées
+    grimoire: {
+        anchors: [[0.45, 0.85], [-0.55, 0.9]],
+        tip: [-0.75, 2.45],
+        shadow: [0.0, 1.3, 2.35],
+        draw(ctx, r, [magic, cover], t, W) {
+            const pulse = 0.75 + 0.25 * Math.sin(t * 3);
+            for (const s of [1, -1]) {
+                // Lame : bord extérieur lisse, bord intérieur dentelé
+                ctx.beginPath();
+                ctx.moveTo(r * 0.6, r * 0.72 * s);
+                ctx.quadraticCurveTo(r * 1.05, r * 1.95 * s, -r * 0.75, r * 2.45 * s);
+                const teeth = 5;
+                for (let i = 1; i <= teeth * 2; i++) {
+                    const u = i / (teeth * 2);
+                    const x = -r * 0.75 + (r * 0.55) * u + Math.sin(u * Math.PI) * r * 0.35;
+                    const y = (r * 2.45 - (r * 1.65) * u) * s;
+                    const inset = i % 2 ? r * 0.2 : 0;
+                    ctx.lineTo(x - inset * 0.6, y - inset * s);
+                }
+                ctx.lineTo(-r * 0.15, r * 0.72 * s);
+                ctx.closePath();
+                ink(ctx, lin(ctx, 0, r * 0.7 * s, 0, r * 2.45 * s, ['#f2f6fb', '#a3aec0', '#4e566b']), W);
+                // Tranchant brillant
+                ctx.beginPath();
+                ctx.moveTo(r * 0.55, r * 0.85 * s);
+                ctx.quadraticCurveTo(r * 0.9, r * 1.9 * s, -r * 0.6, r * 2.35 * s);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+                ctx.lineWidth = 1.8;
+                ctx.stroke();
+                // Runes violettes gravées dans la lame
+                ctx.save();
+                ctx.globalAlpha *= pulse;
+                ctx.fillStyle = magic;
+                for (let i = 0; i < 4; i++) {
+                    const u = 0.2 + i * 0.18;
+                    const x = r * (0.45 - u * 1.05);
+                    const y = r * (1.0 + u * 1.25) * s;
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - r * 0.09);
+                    ctx.lineTo(x + r * 0.07, y);
+                    ctx.lineTo(x, y + r * 0.09);
+                    ctx.lineTo(x - r * 0.07, y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+                ctx.restore();
+                // Cristal violet à la base de la lame + rubis
+                ctx.beginPath();
+                ctx.moveTo(r * 0.35, r * 0.62 * s);
+                ctx.lineTo(r * 0.7, r * 0.95 * s);
+                ctx.lineTo(r * 0.3, r * 1.35 * s);
+                ctx.lineTo(-r * 0.05, r * 0.95 * s);
+                ctx.closePath();
+                ink(ctx, lin(ctx, 0, r * 0.62 * s, 0, r * 1.35 * s, ['#f5d6ff', magic, shade(magic, -0.5)]), W);
+                ctx.beginPath();
+                ctx.moveTo(r * 0.35, r * 0.7 * s);
+                ctx.lineTo(r * 0.3, r * 1.25 * s);
+                ctx.strokeStyle = 'rgba(255, 255, 255, 0.55)';
+                ctx.lineWidth = 1.3;
+                ctx.stroke();
+                circle(ctx, r * 0.8, r * 0.72 * s, r * 0.14);
+                ink(ctx, orb(ctx, r * 0.8, r * 0.72 * s, r * 0.14, ['#ffd0c8', '#ff4f3a', '#8a1406']), W * 0.6);
+            }
+            // Tranche des pages : lueur dorée à l'arrière
+            ctx.save();
+            ctx.globalAlpha *= 0.35 + 0.3 * pulse;
+            ctx.beginPath();
+            ctx.roundRect(-r * 1.05, -r * 0.95, r * 0.5, r * 1.9, r * 0.12);
+            ctx.fillStyle = '#ffe9a0';
+            ctx.fill();
+            ctx.restore();
+            ctx.beginPath();
+            ctx.roundRect(-r * 0.92, -r * 0.88, r * 0.3, r * 1.76, r * 0.06);
+            ink(ctx, lin(ctx, -r * 0.92, 0, -r * 0.62, 0, ['#fff6d8', '#e9c46a']), W * 0.7);
+            // Couverture + coins en métal
+            ctx.beginPath();
+            ctx.roundRect(-r * 0.75, -r * 0.98, r * 1.65, r * 1.96, r * 0.16);
+            ink(ctx, lin(ctx, 0, -r, 0, r, [shade(cover, 0.3), cover, shade(cover, -0.4)]), W);
+            for (const [cx2, cy2] of [[0.72, -0.8], [0.72, 0.8], [-0.57, -0.8], [-0.57, 0.8]]) {
+                ctx.beginPath();
+                ctx.roundRect(r * (cx2 - 0.16), r * (cy2 - 0.16), r * 0.32, r * 0.32, r * 0.06);
+                ink(ctx, lin(ctx, 0, r * (cy2 - 0.16), 0, r * (cy2 + 0.16), ['#e4ebf3', '#8794a8']), W * 0.6);
+            }
+            // Panneau de la rune
+            ctx.beginPath();
+            ctx.roundRect(-r * 0.45, -r * 0.62, r * 1.05, r * 1.24, r * 0.1);
+            ink(ctx, shade(cover, -0.45), W * 0.7);
+            const rx = r * 0.07;
+            ctx.save();
+            ctx.shadowColor = magic;
+            ctx.shadowBlur = 10 * pulse;
+            circle(ctx, rx, 0, r * 0.48);
+            ctx.strokeStyle = magic;
+            ctx.lineWidth = 2.2;
+            ctx.stroke();
+            runeStar(ctx, rx, 0, r * 0.44, 0);
+            ctx.stroke();
+            ctx.restore();
+        }
+    },
+
+    // Grue en Origami : papier plié en facettes claires / sombres, pointes colorées
+    origami: {
+        anchors: [[0.3, 0.9], [-0.35, 0.9]],
+        tip: [-0.2, 2.4],
+        shadow: [0.0, 1.9, 2.25],
+        draw(ctx, r, [paper, accent], t, W) {
+            const flap = 1 + Math.sin(t * 2.6) * 0.05;
+            const light = shade(paper, 0.35);
+            const mid = paper;
+            const dark = shade(paper, -0.35);
+            const facet = (pts, fill) => {
+                ctx.beginPath();
+                ctx.moveTo(pts[0] * r, pts[1] * r);
+                for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i] * r, pts[i + 1] * r);
+                ctx.closePath();
+                ink(ctx, fill, W * 0.8);
+            };
+            // Queue (pointe large en 2 facettes) et cou terminé par la tête colorée
+            facet([-0.55, 0.28, -2.05, 0.05, -0.75, 0], mid);
+            facet([-0.55, -0.28, -0.75, 0, -2.05, 0.05], dark);
+            facet([0.6, 0.22, 1.7, 0.02, 0.75, 0], light);
+            facet([0.6, -0.22, 0.75, 0, 1.7, 0.02], mid);
+            facet([1.55, -0.1, 1.7, 0.02, 2.1, 0.32], accent);
+            for (const s of [1, -1]) {
+                const tipY = 2.4 * flap * s;
+                // Aile large en 3 facettes (pli avant, pli arrière) + pointe colorée
+                facet([0.75, 0.25 * s, 1.0, 1.25 * flap * s, -0.05, tipY], s > 0 ? light : mid);
+                facet([0.75, 0.25 * s, -0.05, tipY, -0.15, 0.3 * s], s > 0 ? mid : dark);
+                facet([-0.15, 0.3 * s, -0.05, tipY, -0.85, 1.25 * flap * s, -0.75, 0.28 * s], s > 0 ? dark : shade(paper, -0.5));
+                facet([0.3, 1.85 * flap * s, 0.48, 1.85 * flap * s, -0.05, tipY], accent);
+                facet([-0.5, 1.75 * flap * s, -0.32, 1.85 * flap * s, -0.05, tipY], accent);
+            }
+            // Corps en losange (2 facettes)
+            facet([0.9, 0, 0, 0.42, -0.85, 0], light);
+            facet([0.9, 0, -0.85, 0, 0, -0.42], dark);
+            // Reflet sur le pli central
+            ctx.beginPath();
+            ctx.moveTo(r * 0.8, 0);
+            ctx.lineTo(-r * 0.75, 0);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.6)';
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+        }
+    },
+
+    // Montgolfière Festive : ballon rond à fuseaux de 2 couleurs, couronne étoilée, pompons
+    balloon: {
+        anchors: [[0.75, 1.3], [-0.95, 1.3]],
+        tip: [0.1, 2.05],
+        shadow: [0.1, 2.1, 2.1],
+        draw(ctx, r, [c1, c2], t, W) {
+            const cx = r * 0.1;
+            const R = r * 2.0;
+            const spin = t * 0.25;
+            const N = 12;
+            // Pompons qui dépassent du bord (sous le ballon)
+            for (let i = 0; i < N; i++) {
+                const a = spin + ((i + 0.5) / N) * TAU;
+                circle(ctx, cx + Math.cos(a) * (R + r * 0.12), Math.sin(a) * (R + r * 0.12), r * 0.14);
+                ink(ctx, i % 2 ? c1 : c2, W * 0.6);
+            }
+            // Fuseaux
+            for (let i = 0; i < N; i++) {
+                const a0 = spin + (i / N) * TAU;
+                const a1 = spin + ((i + 1) / N) * TAU;
+                ctx.beginPath();
+                ctx.moveTo(cx, 0);
+                ctx.arc(cx, 0, R, a0, a1);
+                ctx.closePath();
+                ctx.fillStyle = i % 2 ? c2 : c1;
+                ctx.fill();
+            }
+            // Volume : clair au centre, sombre au bord
+            circle(ctx, cx, 0, R);
+            const g = ctx.createRadialGradient(cx - R * 0.3, -R * 0.3, R * 0.05, cx, 0, R);
+            g.addColorStop(0, 'rgba(255, 255, 255, 0.55)');
+            g.addColorStop(0.5, 'rgba(255, 255, 255, 0)');
+            g.addColorStop(1, 'rgba(10, 16, 48, 0.4)');
+            ctx.fillStyle = g;
+            ctx.fill();
+            // Coutures
+            ctx.beginPath();
+            for (let i = 0; i < N; i++) {
+                const a = spin + (i / N) * TAU;
+                ctx.moveTo(cx + Math.cos(a) * r * 0.45, Math.sin(a) * r * 0.45);
+                ctx.lineTo(cx + Math.cos(a) * R, Math.sin(a) * R);
+            }
+            ctx.strokeStyle = 'rgba(10, 16, 48, 0.35)';
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+            // Galon doré + contour
+            circle(ctx, cx, 0, R * 0.82);
+            ctx.strokeStyle = 'rgba(255, 224, 61, 0.75)';
+            ctx.lineWidth = 2.4;
+            ctx.setLineDash([5, 4]);
+            ctx.stroke();
+            ctx.setLineDash([]);
+            circle(ctx, cx, 0, R);
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = W;
+            ctx.stroke();
+            // Couronne du sommet avec étoile
+            circle(ctx, cx, 0, r * 0.48);
+            ink(ctx, orb(ctx, cx, 0, r * 0.48, ['#fff6c8', '#ffd24a', '#c98a12']), W);
+            runeStar(ctx, cx, 0, r * 0.3, spin - Math.PI / 2);
+            ctx.closePath();
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+        }
+    }
+});
+
 /* ===================== ICÔNE DU CASIER ===================== */
 
 const urlCache = new Map();
