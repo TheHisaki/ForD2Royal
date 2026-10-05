@@ -19,6 +19,8 @@ const GROUP_INVITE_COOLDOWN = 20 * 1000; // délai minimum avant de réinviter l
 const AUTH_WINDOW = 10 * 60 * 1000;   // fenêtre de comptage des tentatives
 const AUTH_MAX_PER_IP = 20;           // connexions + créations par adresse IP
 const AUTH_MAX_FAILS_PER_NAME = 8;    // mots de passe faux pour un même pseudo
+const ADMIN_WEAPON_IDS = new Set(['pistol', 'smg', 'ar', 'shotgun', 'sniper']);
+const ADMIN_MAX_RARITY = 4;
 
 // Nom court de l'action renvoyé au client (le formulaire sait quoi débloquer)
 const ACCOUNT_ACTIONS = {
@@ -1474,6 +1476,15 @@ class RoomManager {
         if (room.state !== 'game' || !ws.playerId) return;
         const sender = room.players.get(ws.playerId);
         if (!sender || sender.ws !== ws || sender.inLobby) return;
+
+        if (data.type === 'admin_drop_weapon') {
+            if (!ws.isAdmin) return;
+            const weaponId = String(data.weaponId || '').toLowerCase();
+            const rarity = Number(data.rarity);
+            if (!ADMIN_WEAPON_IDS.has(weaponId) || !Number.isInteger(rarity) || rarity < 0 || rarity > ADMIN_MAX_RARITY) return;
+            data.weaponId = weaponId;
+            data.rarity = rarity;
+        }
 
         // Anti-spam des emotes : une toutes les 2,5 s au plus par joueur (le jeu en autorise une / 3 s)
         if (data.type === 'emote') {

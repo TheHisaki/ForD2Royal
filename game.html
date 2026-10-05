@@ -110,6 +110,37 @@
             </div>
         </div>
 
+        <!-- Outils administrateur en jeu (touche ²) -->
+        <div id="adminPanel" hidden role="dialog" aria-modal="false" aria-labelledby="adminPanelTitle">
+            <div class="admin-panel-head">
+                <h2 id="adminPanelTitle">ADMIN</h2>
+                <button type="button" id="adminPanelClose" aria-label="Fermer les outils admin">×</button>
+            </div>
+            <div class="admin-panel-categories" role="tablist" aria-label="Catégories admin">
+                <button type="button" class="admin-category is-active" role="tab" aria-selected="true">Give d’arme</button>
+            </div>
+            <div class="admin-panel-content" role="tabpanel">
+                <label for="adminWeaponSelect">Arme</label>
+                <select id="adminWeaponSelect">
+                    <option value="pistol">Pistolet</option>
+                    <option value="smg">Mitraillette</option>
+                    <option value="ar">Fusil d’assaut</option>
+                    <option value="shotgun">Fusil à pompe</option>
+                    <option value="sniper">Fusil de précision</option>
+                </select>
+                <label for="adminRaritySelect">Rareté</label>
+                <select id="adminRaritySelect">
+                    <option value="0">Commun</option>
+                    <option value="1">Peu commun</option>
+                    <option value="2">Rare</option>
+                    <option value="3">Épique</option>
+                    <option value="4">Légendaire</option>
+                </select>
+                <button type="button" id="adminDropWeaponBtn">Déposer devant moi</button>
+                <p id="adminPanelStatus" role="status" aria-live="polite">Touche ² pour fermer</p>
+            </div>
+        </div>
+
         <!-- Bas droite : matériaux + inventaire -->
         <div class="hud-bottom-right">
             <div class="materials">

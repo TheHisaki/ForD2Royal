@@ -751,7 +751,8 @@ class LobbyManager {
                 teamSize: this.teamSize,
                 bots: this.fillMatch,
                 fillMatch: this.fillMatch,
-                fillTeam: this.botsEnabled
+                fillTeam: this.botsEnabled,
+                isAdmin: Boolean(window.networkManager?.isAdmin)
             };
             // Partie hors ligne : pas d'équipes reçues du serveur
             if (!window.networkManager?.roomCode) delete cfg.teams;

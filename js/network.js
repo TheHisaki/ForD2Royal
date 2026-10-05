@@ -653,7 +653,7 @@ class NetworkManager {
                 try {
                     const cfg = JSON.parse(store.getItem('for2d-game-mode') || '{}');
                     for (const k of ['isMultiplayer', 'roomCode', 'seed', 'mySlot', 'myPlayerId', 'myTeam',
-                        'isHost', 'authorityId', 'roomPlayers', 'teams', 'returningFromGame', 'autoRoom']) {
+                        'isHost', 'isAdmin', 'authorityId', 'roomPlayers', 'teams', 'returningFromGame', 'autoRoom']) {
                         delete cfg[k];
                     }
                     store.setItem('for2d-game-mode', JSON.stringify(cfg));
@@ -1155,6 +1155,8 @@ class NetworkManager {
         // Sauvegarder la configuration de la partie dans sessionStorage ET localStorage pour game.html
         const teamSize = msg.mode === 'duo' ? 2 : msg.mode === 'trio' ? 3 : msg.mode === 'section' ? 4 : 1;
         const roomPlayers = (Array.isArray(msg.players) && msg.players.length > 0) ? msg.players : this.roomPlayers;
+        const localPlayer = roomPlayers.find(p => p?.id === this.getPlayerId());
+        const isAdmin = localPlayer ? localPlayer.isAdmin === true : this.isAdmin === true;
         const config = {
             mode: msg.mode || 'duo',
             modeName: (msg.mode || 'duo').toUpperCase(),
@@ -1172,6 +1174,7 @@ class NetworkManager {
             myPlayerId: this.getPlayerId(),
             myTeam: msg.myTeam || 1,
             isHost: !!this.isHost,
+            isAdmin,
             // Joueur qui simule les bots / la corruption pour toute la partie (désigné par le serveur)
             authorityId: msg.authorityId || null,
             // Salle créée toute seule (« Prêt » seul sans remplir la partie) : quittée au retour

@@ -66,6 +66,11 @@ export class Input {
             if (shouldBlock(e)) e.preventDefault();
             if (e.repeat) return;
 
+            if ((e.code === 'Backquote' || e.key === '²') && !e.ctrlKey && !e.metaKey && !e.altKey && !isTextField(e.target)) {
+                handlers.onAdminPanel?.();
+                return;
+            }
+
             if (e.code === 'Tab') handlers.onMapHold?.(true);   // carte tant que Tab est enfoncé
             if (e.code === 'Space') handlers.onJump?.();
             if (e.code === 'KeyE' || e.code === 'KeyF') handlers.onInteract?.();

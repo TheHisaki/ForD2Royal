@@ -18,7 +18,7 @@ import { BotManager, roofAlphaAt } from './bots.js?v=13';
 import { Corruption } from './corruption.js?v=9';
 import { CombatHud } from './combat-hud.js?v=11';
 import { Effects } from './effects.js?v=13';
-import { HEALS, WEAPONS } from './weapons.js?v=9';
+import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES } from './weapons.js?v=9';
 import { drawPlayer, drawDying } from './draw.js?v=9';
 import { SFX } from '../sfx.js?v=14';
 import { Settings } from '../settings.js?v=9';
@@ -69,6 +69,7 @@ function start() {
         gameConfig.teams = null;
         gameConfig.authorityId = null;
         gameConfig.isHost = false;
+        gameConfig.isAdmin = false;
         gameConfig.myTeam = 1;
     }
     if (roomParam) {
@@ -171,6 +172,7 @@ function start() {
 
     // Multijoueur WebSocket : détection et initialisation des coéquipiers réels
     const isMultiplayer = Boolean(gameConfig.isMultiplayer && gameConfig.roomCode && gameConfig.myPlayerId);
+    const adminEnabled = gameConfig.isAdmin === true;
     /*
        Hôte (« autorité ») : UN seul joueur de la partie simule les bots, la corruption
        et le vaisseau. C'est le serveur qui le désigne (authorityId) ; l'ancienne
@@ -205,6 +207,7 @@ function start() {
     let combatHud;
     let gameOver = false;
     let playerDeathShown = false;
+    let adminPanelOpen = false;
 
     // Statistiques de la partie du joueur (écran de fin + XP enregistrée dans le profil)
     const stats = {
@@ -531,8 +534,15 @@ function start() {
         const held = player.inventory?.[player.slot];
         return held?.kind === 'weapon' && held.weaponId === 'sniper';
     };
+    let zoomMode = '';
     const enforceZoomFloor = () => {
-        renderer.setZoomMin(isSniperEquipped() ? ZOOM.min : 1);
+        const sniper = isSniperEquipped();
+        const mode = sniper ? 'sniper' : 'classic';
+        renderer.setZoomMin(sniper ? ZOOM.min : 1);
+        if (mode !== zoomMode) {
+            renderer.zoomMul = sniper ? ZOOM.min : 1;
+            zoomMode = mode;
+        }
     };
     enforceZoomFloor();
 
@@ -586,6 +596,18 @@ function start() {
             if (i > 0) selectSlot(i);
         }
     };
+
+    function dropAdminWeapon(f, weaponId, rarity) {
+        const weapon = WEAPONS[weaponId];
+        const normalizedRarity = Math.max(0, Math.min(RARITIES.length - 1, Number(rarity) | 0));
+        if (!weapon || !LOOT_WEAPONS.includes(weaponId)) return null;
+        return loot.throwItem(f, {
+            kind: 'weapon',
+            weaponId: weapon.id,
+            rarity: normalizedRarity,
+            mag: weapon.magSize || 0
+        });
+    }
 
     // ================= ROUE D'EMOTES (clic droit maintenu, au centre de l'écran) =================
     // Anti-spam : une emote toutes les EMOTE_COOLDOWN secondes. Les emotes reçues des autres
@@ -741,6 +763,10 @@ function start() {
         onMap: () => { if (!endScreen.isOpen) hud.toggleMap(); },
         onMapHold: (down) => { if (!down || !endScreen.isOpen) hud.toggleMap(down); },
         onEscape: () => {
+            if (adminPanelOpen) {
+                toggleAdminPanel(false);
+                return;
+            }
             closeEmoteWheel(false);
             if (!settingsOpen && !hud.mapOpen) {
                 if (endScreen.isOpen && endScreen.canWatch) {
@@ -757,6 +783,7 @@ function start() {
             inventoryUI.toggle(false);
         },
         onSlot: (i) => { if (!player.dbno) selectSlot(i); },
+        onAdminPanel: () => toggleAdminPanel(),
         onZoom: (f) => renderer.zoomBy(f, isSniperEquipped() ? ZOOM.min : 1),
         // Le saut est transmis par p_state (changement de phase)
         onJump: () => { if (!player.dbno) drop.jump(player); },
@@ -830,6 +857,52 @@ function start() {
         // Clic sur le fond sombre ou sur la croix : fermeture
         if (e.target === settingsPanel || e.target.closest('[data-settings-close]')) toggleSettings(false);
     });
+
+    const adminPanel = document.getElementById('adminPanel');
+    const adminWeaponSelect = document.getElementById('adminWeaponSelect');
+    const adminRaritySelect = document.getElementById('adminRaritySelect');
+    const adminPanelStatus = document.getElementById('adminPanelStatus');
+    const adminPanelClose = document.getElementById('adminPanelClose');
+    const adminDropWeaponBtn = document.getElementById('adminDropWeaponBtn');
+
+    function toggleAdminPanel(force) {
+        if (!adminEnabled || !adminPanel) return;
+        const open = typeof force === 'boolean' ? force : !adminPanelOpen;
+        if (open === adminPanelOpen) return;
+        adminPanelOpen = open;
+        if (open) {
+            closeEmoteWheel(false);
+            hud.toggleMap(false);
+            toggleSettings(false);
+            inventoryUI?.toggle(false);
+            adminPanel.hidden = false;
+            adminWeaponSelect?.focus();
+        } else {
+            adminPanel.hidden = true;
+            if (adminPanel.contains(document.activeElement)) adminPanelClose?.focus();
+        }
+    }
+
+    function dropAdminWeaponFromPanel() {
+        if (!adminEnabled || !player.alive || player.dbno) return;
+        const weaponId = adminWeaponSelect?.value;
+        const rarity = Number(adminRaritySelect?.value || 0);
+        if (!LOOT_WEAPONS.includes(weaponId) || !WEAPONS[weaponId]) return;
+
+        if (isMultiplayer && !isHost) {
+            netSend({ type: 'admin_drop_weapon', weaponId, rarity });
+        } else {
+            dropAdminWeapon(player, weaponId, rarity);
+        }
+        if (adminPanelStatus) {
+            const weapon = WEAPONS[weaponId];
+            const rarityName = RARITIES[rarity]?.name || 'Commun';
+            adminPanelStatus.textContent = `${weapon.name} ${rarityName} déposé devant toi.`;
+        }
+    }
+
+    adminPanelClose?.addEventListener('click', () => toggleAdminPanel(false));
+    adminDropWeaponBtn?.addEventListener('click', dropAdminWeaponFromPanel);
 
     document.getElementById('loading')?.classList.add('done');
 
@@ -1183,6 +1256,12 @@ function start() {
                 if (c && !c.opened) loot.openChest(c, fighterById(msg.s), false);
                 break;
             }
+            case 'admin_drop_weapon':
+                if (isHost) {
+                    const owner = fighterById(msg.id);
+                    if (owner) dropAdminWeapon(owner, msg.weaponId, msg.rarity);
+                }
+                break;
             case 'loot_spawn':
                 if (Array.isArray(msg.items)) for (const d of msg.items) loot.addRemote(d);
                 break;
@@ -1216,6 +1295,7 @@ function start() {
                     id: player.id,
                     name: player.name,
                     slot: player.squadSlot,
+                    accountToken: localStorage.getItem('for2d-account-token') || undefined,
                     reconnectToken: gameConfig.roomReconnectToken,
                     inGame: true
                 }
@@ -1250,7 +1330,7 @@ function start() {
         // Clic droit maintenu : roue d'emotes ; le relâchement joue l'emote visée
         if (updateEmoteInput()) return;
         // Pas de tir tant qu'un panneau est ouvert (carte, paramètres, inventaire) OU si le joueur est K.O.
-        if (!player.alive || player.dbno || player.phase !== 'ground' || hud.mapOpen || settingsOpen || inventoryUI.open) return;
+        if (!player.alive || player.dbno || player.phase !== 'ground' || hud.mapOpen || settingsOpen || adminPanelOpen || inventoryUI.open) return;
         const held = player.inventory[player.slot];
         if (!held) return;
         if (held.kind === 'heal') {
