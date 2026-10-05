@@ -1388,7 +1388,28 @@ class LobbyManager {
         }
     }
 
+    updateModeArt() {
+        const host = document.querySelector('.mode-art-island');
+        const art = document.querySelector('.mode-art');
+        if (!host || !art) return;
+
+        const mode = this.currentGameMode === 'ESCOUADE'
+            ? 'section'
+            : String(this.currentGameMode || 'SOLO').toLowerCase();
+        const source = document.querySelector(`.mode-card[data-mode="${mode}"] .mode-card-scene`);
+        if (!source) return;
+        if (art.dataset.mode === mode && host.querySelector('.mode-main-scene')) return;
+
+        const scene = source.cloneNode(true);
+        scene.classList.remove('mode-card-scene');
+        scene.classList.add('mode-main-scene');
+        scene.setAttribute('aria-hidden', 'true');
+        host.replaceChildren(scene);
+        art.dataset.mode = mode;
+    }
+
     updateUI() {
+        this.updateModeArt();
         if (this.players[0]) this.players[0].isAdmin = Boolean(window.networkManager?.isAdmin);
 
         // Mettre à jour l'affichage des joueurs
