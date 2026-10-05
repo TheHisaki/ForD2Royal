@@ -98,6 +98,7 @@ export class Renderer {
         this.world = world;
         this.cam = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
         this.zoomMul = 1;
+        this.zoomTarget = 1;
         this.baseZoom = 1;
         this.dpr = 1;
         this.cssW = 1;
@@ -166,14 +167,25 @@ export class Renderer {
         else this.flightMul += (target - this.flightMul) * Math.min(1, dt * 1.5);
     }
 
+    setZoomTarget(target, min = ZOOM.min) {
+        const floor = Math.max(ZOOM.min, Math.min(Number(min) || ZOOM.min, ZOOM.max));
+        this.zoomTarget = clamp(Number(target) || 1, floor, ZOOM.max);
+    }
+
+    updateZoom(dt) {
+        const alpha = 1 - Math.exp(-Math.max(0, dt) * 10);
+        this.zoomMul += (this.zoomTarget - this.zoomMul) * alpha;
+    }
+
     setZoomMin(min = ZOOM.min) {
         const floor = Math.max(ZOOM.min, Math.min(Number(min) || ZOOM.min, ZOOM.max));
+        this.zoomTarget = clamp(this.zoomTarget, floor, ZOOM.max);
         this.zoomMul = clamp(this.zoomMul, floor, ZOOM.max);
     }
 
     zoomBy(f, min = ZOOM.min) {
         const floor = Math.max(ZOOM.min, Math.min(Number(min) || ZOOM.min, ZOOM.max));
-        this.zoomMul = clamp(this.zoomMul * f, floor, ZOOM.max);
+        this.zoomTarget = clamp(this.zoomTarget * f, floor, ZOOM.max);
     }
 
     // Coordonnées écran (CSS) -> coordonnées monde

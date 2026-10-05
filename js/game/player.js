@@ -40,6 +40,10 @@ export class Player {
         this.swingT = 0;
         this.usingItem = null;
         this.speedMul = 1;
+        this.adminSpeedMul = 1;
+        this.adminInvisible = false;
+        this.adminInvincible = false;
+        this.adminNoclip = false;
         this._near = [];
     }
 
@@ -51,7 +55,7 @@ export class Player {
 
         this.biome = sampleGround(this.x, this.y).biome;
         this.inWater = isWater(this.biome);
-        const speed = PLAYER.speed * (this.inWater ? PLAYER.waterFactor : 1) * (this.dbno ? 0.35 : this.speedMul);
+        const speed = PLAYER.speed * (this.inWater ? PLAYER.waterFactor : 1) * (this.dbno ? 0.35 : this.speedMul) * (this.adminSpeedMul || 1);
 
         // Accélération douce
         const t = Math.min(1, dt * 14);
@@ -80,6 +84,7 @@ export class Player {
     }
 
     resolveCollisions(world) {
+        if (this.adminNoclip) return;
         const r = this.r;
         const near = world.collide.query(this.x - r - 4, this.y - r - 4, this.x + r + 4, this.y + r + 4, this._near);
 

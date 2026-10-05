@@ -200,6 +200,15 @@ export class Combat {
         return true;
     }
 
+    adminHeal(f, kind) {
+        if (!f?.alive) return false;
+        if (kind === 'health') f.health = 100;
+        else if (kind === 'shield') f.shield = 100;
+        else return false;
+        this.events.onHealed?.(f, { id: kind, heal: kind === 'health' ? 100 : 0, shield: kind === 'shield' ? 100 : 0 });
+        return true;
+    }
+
     /*
        Bouclier d'abord, puis la vie.
        opts (optionnel) : { ignoreShield: true } → tout va directement dans la vie
@@ -216,6 +225,13 @@ export class Combat {
             if (weaponId !== 'corruption' && weaponId !== 'bleedout') {
                 this.events.onRemoteHit?.(victim, amount, attacker, weaponId);
             }
+            return;
+        }
+
+        // God mode admin : l’impact reste visible (flash, son, hitmarker),
+        // mais aucune vie/bouclier/DBNO ne change.
+        if (victim.adminInvincible) {
+            this.events.onDamage?.(victim, amount, attacker, victim.shield > 0, weaponId);
             return;
         }
 
@@ -331,7 +347,10 @@ export class Combat {
 
     _updateFighter(f, dt) {
         // ----- DBNO bleedout & squad wipe check -----
-        if (f.dbno && f.alive && !this.owns(f)) {
+        if (f.dbno && f.alive && f.adminInvincible) {
+            f.dbnoTimer = 35;
+            f.health = 100;
+        } else if (f.dbno && f.alive && !this.owns(f)) {
             // Copie d'un combattant distant : seul le compte à rebours avance (affichage)
             f.dbnoTimer = Math.max(0, (f.dbnoTimer || 0) - dt);
         } else if (f.dbno && f.alive) {

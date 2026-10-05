@@ -69,6 +69,14 @@ export const WEAPONS = {
 // Armes qu'on peut trouver au sol (la pioche n'en fait pas partie)
 export const LOOT_WEAPONS = ['pistol', 'smg', 'ar', 'shotgun', 'sniper'];
 
+// Zoom automatique du sniper : le légendaire utilise le plafond global.
+export const SNIPER_ZOOM_BY_RARITY = [1.12, 1.24, 1.36, 1.48, 1.60];
+
+export function sniperZoomForRarity(rarity) {
+    const index = Math.max(0, Math.min(SNIPER_ZOOM_BY_RARITY.length - 1, Number(rarity) | 0));
+    return SNIPER_ZOOM_BY_RARITY[index];
+}
+
 /* ===================== SOINS ===================== */
 
 export const HEALS = {

@@ -18,7 +18,7 @@ import { BotManager, roofAlphaAt } from './bots.js?v=13';
 import { Corruption } from './corruption.js?v=9';
 import { CombatHud } from './combat-hud.js?v=11';
 import { Effects } from './effects.js?v=13';
-import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES } from './weapons.js?v=9';
+import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=9';
 import { drawPlayer, drawDying } from './draw.js?v=9';
 import { SFX } from '../sfx.js?v=14';
 import { Settings } from '../settings.js?v=9';
@@ -27,7 +27,6 @@ import { itemArt } from '../item-art.js?v=10';
 import { InventoryUI } from './inventory-ui.js?v=9';
 import { EndScreen, Spectator } from './end-screen.js?v=9';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=9';
-import { ZOOM } from './config.js?v=9';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -530,21 +529,24 @@ function start() {
     renderer.follow(drop.ship, 0, true);
     renderer.warmup();
 
+    const equippedItem = () => player.inventory?.[player.slot] || null;
     const isSniperEquipped = () => {
-        const held = player.inventory?.[player.slot];
+        const held = equippedItem();
         return held?.kind === 'weapon' && held.weaponId === 'sniper';
     };
     let zoomMode = '';
-    const enforceZoomFloor = () => {
-        const sniper = isSniperEquipped();
-        const mode = sniper ? 'sniper' : 'classic';
-        renderer.setZoomMin(sniper ? ZOOM.min : 1);
+    const enforceZoomTarget = () => {
+        const held = equippedItem();
+        const sniper = held?.kind === 'weapon' && held.weaponId === 'sniper';
+        const rarity = sniper ? Math.max(0, Math.min(RARITIES.length - 1, Number(held.rarity) | 0)) : 0;
+        const mode = sniper ? `sniper:${rarity}` : 'classic';
+        const target = sniper ? sniperZoomForRarity(rarity) : 1;
         if (mode !== zoomMode) {
-            renderer.zoomMul = sniper ? ZOOM.min : 1;
+            renderer.setZoomTarget(target, sniper ? target : 1);
             zoomMode = mode;
         }
     };
-    enforceZoomFloor();
+    enforceZoomTarget();
 
     const hud = new Hud(world, player, fighters);
     hud.setFlight(drop);
@@ -579,7 +581,7 @@ function start() {
         if (!player.alive || player.dbno) return;
         if (i !== player.slot) SFX.play('slot'); // seulement si la case change vraiment
         player.slot = i;
-        enforceZoomFloor();
+        enforceZoomTarget();
         hud.selectSlot(i);
     };
     document.querySelectorAll('#hotbar .slot').forEach((btn, i) => btn.addEventListener('click', () => {
@@ -784,7 +786,13 @@ function start() {
         },
         onSlot: (i) => { if (!player.dbno) selectSlot(i); },
         onAdminPanel: () => toggleAdminPanel(),
-        onZoom: (f) => renderer.zoomBy(f, isSniperEquipped() ? ZOOM.min : 1),
+        onZoom: (f) => {
+            const held = equippedItem();
+            const floor = held?.kind === 'weapon' && held.weaponId === 'sniper'
+                ? sniperZoomForRarity(held.rarity)
+                : 1;
+            renderer.zoomBy(f, floor);
+        },
         // Le saut est transmis par p_state (changement de phase)
         onJump: () => { if (!player.dbno) drop.jump(player); },
         onInteract: interact,
@@ -864,8 +872,97 @@ function start() {
     const adminPanelStatus = document.getElementById('adminPanelStatus');
     const adminPanelClose = document.getElementById('adminPanelClose');
     const adminDropWeaponBtn = document.getElementById('adminDropWeaponBtn');
+    const adminCategoryButtons = [...document.querySelectorAll('[data-admin-category]')];
+    const adminPowerButtons = [...document.querySelectorAll('[data-admin-power]')];
 
-    function toggleAdminPanel(force) {
+    function setAdminStatus(text) {
+        if (adminPanelStatus) adminPanelStatus.textContent = text;
+    }
+
+    function selectAdminCategory(category) {
+        adminCategoryButtons.forEach((button) => {
+            const active = button.dataset.adminCategory === category;
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-selected', String(active));
+        });
+        document.querySelectorAll('[data-admin-pane]').forEach((pane) => {
+            pane.hidden = pane.dataset.adminPane !== category;
+        });
+    }
+
+    function updateAdminPowerButtons() {
+        const states = {
+            invisibility: player.adminInvisible === true,
+            invincible: player.adminInvincible === true,
+            speed: Number(player.adminSpeedMul || 1) > 1,
+            noclip: player.adminNoclip === true
+        };
+        adminPowerButtons.forEach((button) => {
+            const power = button.dataset.adminPower;
+            if (!(power in states)) return;
+            const active = states[power];
+            button.classList.toggle('is-active', active);
+            button.setAttribute('aria-pressed', String(active));
+        });
+    }
+
+    function applyAdminPowerState(msg) {
+        const target = fighterById(msg.targetId) || (msg.targetId === player.id ? player : null);
+        if (!target) return;
+        const power = msg.power;
+        const enabled = msg.enabled === true;
+        switch (power) {
+            case 'invisibility':
+                target.adminInvisible = enabled;
+                break;
+            case 'invincible':
+                target.adminInvincible = enabled;
+                break;
+            case 'speed':
+                target.adminSpeedMul = enabled ? Math.max(1, Math.min(3, Number(msg.value) || 2)) : 1;
+                break;
+            case 'noclip':
+                target.adminNoclip = enabled;
+                break;
+            case 'heal_health':
+                if (target.alive) combat.adminHeal?.(target, 'health');
+                break;
+            case 'heal_shield':
+                if (target.alive) combat.adminHeal?.(target, 'shield');
+                break;
+            default:
+                return;
+        }
+        if (target === player) updateAdminPowerButtons();
+    }
+
+    function sendAdminPower(power) {
+        if (!adminEnabled || !player.alive || player.dbno) return;
+        const action = power === 'heal_health' || power === 'heal_shield';
+        const enabled = action ? true : !(
+            power === 'invisibility' ? player.adminInvisible :
+            power === 'invincible' ? player.adminInvincible :
+            power === 'speed' ? Number(player.adminSpeedMul || 1) > 1 :
+            player.adminNoclip
+        );
+        const value = power === 'speed' ? 2 : undefined;
+        const message = { type: 'admin_power', power, enabled, value };
+        if (isMultiplayer) {
+            netSend(message);
+        } else {
+            applyAdminPowerState({ ...message, targetId: player.id });
+        }
+        setAdminStatus(action ? `Action ${power === 'heal_health' ? 'vie' : 'bouclier'} appliquée.` : `${power} : ${enabled ? 'activé' : 'désactivé'}.`);
+    }
+
+    adminCategoryButtons.forEach((button) => {
+        button.addEventListener('click', () => selectAdminCategory(button.dataset.adminCategory));
+    });
+    adminPowerButtons.forEach((button) => {
+        button.addEventListener('click', () => sendAdminPower(button.dataset.adminPower));
+    });
+    selectAdminCategory('give-weapon');
+    updateAdminPowerButtons();
         if (!adminEnabled || !adminPanel) return;
         const open = typeof force === 'boolean' ? force : !adminPanelOpen;
         if (open === adminPanelOpen) return;
@@ -889,7 +986,8 @@ function start() {
         const rarity = Number(adminRaritySelect?.value || 0);
         if (!LOOT_WEAPONS.includes(weaponId) || !WEAPONS[weaponId]) return;
 
-        if (isMultiplayer && !isHost) {
+        if (isMultiplayer) {
+            // Même l’autorité passe par le serveur : aucune permission ne repose sur isHost côté client.
             netSend({ type: 'admin_drop_weapon', weaponId, rarity });
         } else {
             dropAdminWeapon(player, weaponId, rarity);
@@ -1256,6 +1354,9 @@ function start() {
                 if (c && !c.opened) loot.openChest(c, fighterById(msg.s), false);
                 break;
             }
+            case 'admin_power_state':
+                applyAdminPowerState(msg);
+                break;
             case 'admin_drop_weapon':
                 if (isHost) {
                     const owner = fighterById(msg.id);
@@ -1799,7 +1900,7 @@ function start() {
     /* ----- Indicateurs de coéquipiers hors écran ----- */
     function drawTeammateOffscreen(ctx) {
         if (!teamMode || !player.alive) return;
-        const teammates = fighters.filter(f => f !== player && f.alive && f.team === player.team);
+        const teammates = fighters.filter(f => f !== player && f.alive && !f.adminInvisible && f.team === player.team);
         if (!teammates.length) return;
 
         const sw = renderer.cssW;
@@ -1888,7 +1989,7 @@ function start() {
         const SQUAD_COLORS = { 1: '#00e5ff', 2: '#ffd21e', 3: '#ff4fd8', 4: '#00ff88' };
         const m = 50;
         for (const mate of remotePlayersMap.values()) {
-            if (!mate.alive || mate.phase !== 'ground') continue;
+            if (!mate.alive || mate.adminInvisible || mate.phase !== 'ground') continue;
             if (v && (mate.x < v.minX - m || mate.x > v.maxX + m || mate.y < v.minY - m || mate.y > v.maxY + m)) continue;
             const roofA = roofAlphaAt(world, mate.x, mate.y);
             if (roofA > 0.9) continue;
@@ -1952,7 +2053,7 @@ function start() {
         entities: (ctx, v) => {
             for (const c of corpses) drawDying(ctx, c, time);
             for (const f of fighters) {
-                if (!f.alive || f.phase !== 'ground') continue;
+                if (!f.alive || f.adminInvisible || f.phase !== 'ground') continue;
                 if (f.x < v.minX - 80 || f.x > v.maxX + 80 || f.y < v.minY - 80 || f.y > v.maxY + 80) continue;
                 drawPlayer(ctx, f, time);
             }
@@ -1964,7 +2065,7 @@ function start() {
             bots.drawAir(ctx, time, v);   // culling fait dans drawFalling (position en perspective)
             if (isMultiplayer) {
                 for (const mate of remotePlayersMap.values()) {
-                    if (mate.alive && mate.phase === 'air') drawFalling(ctx, mate, time);
+                    if (mate.alive && !mate.adminInvisible && mate.phase === 'air') drawFalling(ctx, mate, time);
                 }
             }
             drop.draw(ctx, player, time);
@@ -2092,6 +2193,8 @@ function start() {
 
     function simulate(dt, withInput) {
         time += dt;
+        enforceZoomTarget();
+        renderer.updateZoom(dt);
         const aim = renderer.screenToWorld(input.mouse.x, input.mouse.y);
         drop.update(dt, player, input, aim.x, aim.y);
 
@@ -2224,7 +2327,7 @@ function start() {
         else camGap += (fallCameraGap(player.phase === 'air' ? player.altitude : 0) - camGap) * Math.min(1, dt * 3);
         const followH = player.phase === 'ship' ? SHIP_HEIGHT : player.phase === 'air' ? fallHeight(player.altitude) : 0;
         renderer.setFlightView(1 / (followH + camGap), dt, true);
-        enforceZoomFloor();
+        enforceZoomTarget();
         renderer.follow(player.phase === 'ship' ? drop.ship : watched, dt);
         renderer.render(watched, dt, time, hooks);
         updateEmoteBubbles(dt);

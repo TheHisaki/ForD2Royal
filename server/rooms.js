@@ -21,6 +21,7 @@ const AUTH_MAX_PER_IP = 20;           // connexions + créations par adresse IP
 const AUTH_MAX_FAILS_PER_NAME = 8;    // mots de passe faux pour un même pseudo
 const ADMIN_WEAPON_IDS = new Set(['pistol', 'smg', 'ar', 'shotgun', 'sniper']);
 const ADMIN_MAX_RARITY = 4;
+const ADMIN_POWERS = new Set(['invisibility', 'heal_health', 'heal_shield', 'invincible', 'speed', 'noclip']);
 
 // Nom court de l'action renvoyé au client (le formulaire sait quoi débloquer)
 const ACCOUNT_ACTIONS = {
@@ -1477,13 +1478,38 @@ class RoomManager {
         const sender = room.players.get(ws.playerId);
         if (!sender || sender.ws !== ws || sender.inLobby) return;
 
+        if (data.type === 'admin_power') {
+            if (!ws.isAdmin) return;
+            const power = String(data.power || '').toLowerCase();
+            if (!ADMIN_POWERS.has(power)) return;
+            const enabled = data.enabled === true;
+            const value = power === 'speed'
+                ? Math.max(1, Math.min(3, Number(data.value) || 2))
+                : undefined;
+            room.adminPowerSeq = (room.adminPowerSeq || 0) + 1;
+            this.broadcastToMatch(room, {
+                type: 'admin_power_state',
+                stateSeq: room.adminPowerSeq,
+                targetId: ws.playerId,
+                power,
+                enabled,
+                ...(value === undefined ? {} : { value })
+            });
+            return;
+        }
+
         if (data.type === 'admin_drop_weapon') {
             if (!ws.isAdmin) return;
             const weaponId = String(data.weaponId || '').toLowerCase();
             const rarity = Number(data.rarity);
             if (!ADMIN_WEAPON_IDS.has(weaponId) || !Number.isInteger(rarity) || rarity < 0 || rarity > ADMIN_MAX_RARITY) return;
-            data.weaponId = weaponId;
-            data.rarity = rarity;
+            this.broadcastToMatch(room, {
+                type: 'admin_drop_weapon',
+                id: ws.playerId,
+                weaponId,
+                rarity
+            });
+            return;
         }
 
         // Anti-spam des emotes : une toutes les 2,5 s au plus par joueur (le jeu en autorise une / 3 s)

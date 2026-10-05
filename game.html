@@ -117,28 +117,43 @@
                 <button type="button" id="adminPanelClose" aria-label="Fermer les outils admin">×</button>
             </div>
             <div class="admin-panel-categories" role="tablist" aria-label="Catégories admin">
-                <button type="button" class="admin-category is-active" role="tab" aria-selected="true">Give d’arme</button>
+                <button type="button" class="admin-category is-active" data-admin-category="give-weapon" role="tab" aria-selected="true" aria-controls="adminPaneGiveWeapon">Give d’arme</button>
+                <button type="button" class="admin-category" data-admin-category="hack" role="tab" aria-selected="false" aria-controls="adminPaneHack">Hack</button>
             </div>
-            <div class="admin-panel-content" role="tabpanel">
-                <label for="adminWeaponSelect">Arme</label>
-                <select id="adminWeaponSelect">
-                    <option value="pistol">Pistolet</option>
-                    <option value="smg">Mitraillette</option>
-                    <option value="ar">Fusil d’assaut</option>
-                    <option value="shotgun">Fusil à pompe</option>
-                    <option value="sniper">Fusil de précision</option>
-                </select>
-                <label for="adminRaritySelect">Rareté</label>
-                <select id="adminRaritySelect">
-                    <option value="0">Commun</option>
-                    <option value="1">Peu commun</option>
-                    <option value="2">Rare</option>
-                    <option value="3">Épique</option>
-                    <option value="4">Légendaire</option>
-                </select>
-                <button type="button" id="adminDropWeaponBtn">Déposer devant moi</button>
-                <p id="adminPanelStatus" role="status" aria-live="polite">Touche ² pour fermer</p>
+
+            <div class="admin-panel-pane" id="adminPaneGiveWeapon" data-admin-pane="give-weapon" role="tabpanel">
+                <div class="admin-panel-content">
+                    <label for="adminWeaponSelect">Arme</label>
+                    <select id="adminWeaponSelect">
+                        <option value="pistol">Pistolet</option>
+                        <option value="smg">Mitraillette</option>
+                        <option value="ar">Fusil d’assaut</option>
+                        <option value="shotgun">Fusil à pompe</option>
+                        <option value="sniper">Fusil de précision</option>
+                    </select>
+                    <label for="adminRaritySelect">Rareté</label>
+                    <select id="adminRaritySelect">
+                        <option value="0">Commun</option>
+                        <option value="1">Peu commun</option>
+                        <option value="2">Rare</option>
+                        <option value="3">Épique</option>
+                        <option value="4">Légendaire</option>
+                    </select>
+                    <button type="button" id="adminDropWeaponBtn">Déposer devant moi</button>
+                </div>
             </div>
+
+            <div class="admin-panel-pane" id="adminPaneHack" data-admin-pane="hack" role="tabpanel" hidden>
+                <div class="admin-hack-grid">
+                    <button type="button" class="admin-hack-btn" data-admin-power="invisibility" aria-pressed="false">Invisibilité</button>
+                    <button type="button" class="admin-hack-btn" data-admin-power="invincible" aria-pressed="false">Invincible</button>
+                    <button type="button" class="admin-hack-btn" data-admin-power="speed" aria-pressed="false">Vitesse ×2</button>
+                    <button type="button" class="admin-hack-btn" data-admin-power="noclip" aria-pressed="false">Noclip</button>
+                    <button type="button" class="admin-hack-btn is-action" data-admin-power="heal_health">Heal vie</button>
+                    <button type="button" class="admin-hack-btn is-action" data-admin-power="heal_shield">Heal bouclier</button>
+                </div>
+            </div>
+            <p id="adminPanelStatus" role="status" aria-live="polite">Touche ² pour fermer</p>
         </div>
 
         <!-- Bas droite : matériaux + inventaire -->

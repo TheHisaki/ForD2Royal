@@ -1748,6 +1748,38 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
     border-color: #ff98a8;
 }
 
+.admin-panel-pane[hidden] { display: none; }
+
+.admin-hack-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 7px;
+}
+
+.admin-hack-btn {
+    min-height: 34px;
+    padding: 7px 6px;
+    color: #ffdce2;
+    background: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 150, 165, 0.42);
+    border-radius: 5px;
+    font: 700 12px var(--font-body);
+    text-transform: none;
+    letter-spacing: 0;
+}
+
+.admin-hack-btn.is-active {
+    color: #fff;
+    background: linear-gradient(180deg, #ff5570, #b7002d);
+    border-color: #ffb0bb;
+    box-shadow: 0 0 12px rgba(255, 30, 64, 0.38);
+}
+
+.admin-hack-btn.is-action {
+    background: rgba(79, 216, 255, 0.16);
+    border-color: rgba(79, 216, 255, 0.5);
+}
+
 .admin-panel-content {
     display: grid;
     gap: 6px;

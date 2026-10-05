@@ -217,7 +217,7 @@ const server = http.createServer((req, res) => {
 // Messages de partie relayés tels quels aux autres joueurs (l'émetteur est ajouté par le serveur)
 const GAME_MESSAGES = new Set([
     'p_state', 'p_fire', 'p_hit', 'kill', 'dbno', 'revive', 'emote',
-    'b_sync', 'world_sync', 'chest_open', 'loot_spawn', 'loot_take', 'admin_drop_weapon'
+    'b_sync', 'world_sync', 'chest_open', 'loot_spawn', 'loot_take', 'admin_drop_weapon', 'admin_power'
 ]);
 
 const ACCOUNT_MESSAGES = new Set([
