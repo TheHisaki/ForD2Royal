@@ -7,7 +7,7 @@
 import { WORLD_SIZE, isWater } from './config.js';
 import { sampleGround, townAt } from './world.js';
 import { rectPointDist } from './utils.js';
-import { RARITIES, AMMO_TYPES, WEAPONS, LOOT_WEAPONS, HEALS, drawWeapon } from './weapons.js';
+import { RARITIES, AMMO_TYPES, WEAPONS, LOOT_WEAPONS, HEALS, THROWABLES, INVENTORY_SLOTS, drawWeapon } from './weapons.js';
 import { iconCanvas } from './icons.js';
 
 // Icônes du butin au sol (même dessin que la hotbar)
@@ -16,7 +16,7 @@ const WEAPON_ICON_SIZE = 64;  // taille à l'écran, en unités monde
 const HEAL_ICON_SIZE = 40;
 
 const TAU = Math.PI * 2;
-const SLOTS = 5;              // case 0 = pioche, cases 1 à 4 = libres
+const SLOTS = INVENTORY_SLOTS;
 const CHEST_R = 24;
 const WALL_T = 16;            // épaisseur des murs (voir makeWalls dans world.js)
 const CHEST_WALL_GAP = 56;    // espace coffre ↔ mur (le joueur, 52 de large, peut passer)
@@ -34,11 +34,12 @@ const RARITY_WEIGHTS = [
     [14, 34, 31, 16, 5]   // 1 : dans un coffre (un peu meilleur)
 ];
 
-const WEAPON_WEIGHTS = { pistol: 26, smg: 22, ar: 24, shotgun: 18, sniper: 10 };
-const HEAL_WEIGHTS = { bandage: 45, medkit: 25, shieldPotion: 30 };
-const HEAL_COUNT = { bandage: 3, medkit: 1, shieldPotion: 1 };
-const AMMO_DROP = { light: 30, medium: 30, heavy: 6, shells: 10 };
-const AMMO_BOX = { light: [18, 13], medium: [22, 15], heavy: [24, 17], shells: [22, 15] };
+const WEAPON_WEIGHTS = { pistol: 22, crossbow: 9, ricochet: 9, smg: 20, ar: 22, shotgun: 14, sniper: 8 };
+const HEAL_WEIGHTS = { bandage: 35, medkit: 18, shieldPotion: 22, healingSpray: 15, stimPatch: 10 };
+const THROWABLE_WEIGHTS = { smoke: 30, explosive: 35, flash: 20, propulsion: 15 };
+const HEAL_COUNT = { bandage: 3, medkit: 1, shieldPotion: 1, healingSpray: 1, stimPatch: 1 };
+const AMMO_DROP = { light: 30, medium: 30, heavy: 6, shells: 10, bolts: 6 };
+const AMMO_BOX = { light: [18, 13], medium: [22, 15], heavy: [24, 17], shells: [22, 15], bolts: [20, 15] };
 
 /* ===================== OUTILS ===================== */
 
@@ -245,6 +246,12 @@ export class Loot {
         return { kind: 'heal', itemId, count: Math.min(stack, HEAL_COUNT[itemId] ?? 1) };
     }
 
+    rollThrowable() {
+        const ids = Object.keys(THROWABLE_WEIGHTS).filter(id => THROWABLES[id]);
+        const itemId = weighted(ids.map(id => [id, THROWABLE_WEIGHTS[id]]));
+        return { kind: 'throwable', itemId, count: 1 };
+    }
+
     rollAmmo() {
         const types = Object.keys(AMMO_TYPES);
         const ammoType = types[Math.floor(Math.random() * types.length)];
@@ -364,7 +371,7 @@ export class Loot {
             const p = this._freeInside(b, m);
             if (!p) continue;
             const r = Math.random();
-            if (r < 0.55) {
+            if (r < 0.48) {
                 // Arme + ses munitions juste à côté
                 const w = this.rollWeapon(0);
                 this._spawn(w, p.x, p.y);
@@ -375,8 +382,10 @@ export class Loot {
                     const ay = Math.min(b.y + b.h - m, Math.max(b.y + m, p.y + Math.sin(a) * 36));
                     this._spawn(ammo, ax, ay);
                 }
-            } else if (r < 0.8) {
+            } else if (r < 0.78) {
                 this._spawn(this.rollHeal(), p.x, p.y);
+            } else if (r < 0.9) {
+                this._spawn(this.rollThrowable(), p.x, p.y);
             } else {
                 this._spawn(this.rollAmmo(), p.x, p.y);
             }
@@ -464,7 +473,7 @@ export class Loot {
     // Objet apparu chez un autre joueur (coffre ouvert, mort, objet jeté...)
     addRemote(d) {
         if (!d || d.id == null || this._byId.has(d.id)) return null;
-        if (!['weapon', 'heal', 'ammo'].includes(d.kind)) return null;
+        if (!['weapon', 'heal', 'throwable', 'ammo'].includes(d.kind)) return null;
         const animate = d.pop === 0;
         return this._spawn(d, d.x, d.y, animate ? d.sx : undefined, animate ? d.sy : undefined, d.id);
     }
@@ -473,7 +482,7 @@ export class Loot {
     takeRemote(id, left) {
         const it = this._byId.get(id);
         if (!it || it.gone) return null;
-        if (left > 0 && it.kind === 'heal') it.count = left;
+        if (left > 0 && (it.kind === 'heal' || it.kind === 'throwable')) it.count = left;
         else if (left > 0 && it.kind === 'ammo') it.amount = left;
         else this._remove(it);
         return it;
@@ -522,7 +531,7 @@ export class Loot {
         }
 
         const weapon = this.rollWeapon(1);
-        const loot = [weapon, this._ammoFor(weapon.weaponId), this.rollHeal()].filter(Boolean);
+        const loot = [weapon, this._ammoFor(weapon.weaponId), Math.random() < 0.35 ? this.rollThrowable() : this.rollHeal()].filter(Boolean);
         const base = f ? Math.atan2(f.y - chest.y, f.x - chest.x) : chest.rot + Math.PI / 2;
         loot.forEach((data, i) => {
             const a = base + (i - (loot.length - 1) / 2) * 0.75;
@@ -672,6 +681,26 @@ export class Loot {
             return true;
         }
 
+        if (item.kind === 'throwable') {
+            const stack = THROWABLES[item.itemId] ? 3 : 1;
+            let slot = -1;
+            for (let i = 1; i < SLOTS; i++) {
+                if (inv[i]?.kind === 'throwable' && inv[i].itemId === item.itemId && inv[i].count < stack) { slot = i; break; }
+                if (slot < 0 && !inv[i]) slot = i;
+            }
+            if (slot >= 0) {
+                if (inv[slot]?.kind === 'throwable' && inv[slot].itemId === item.itemId) inv[slot].count += item.count;
+                else inv[slot] = { kind: 'throwable', itemId: item.itemId, count: Math.min(stack, item.count) };
+                this._remove(item);
+                return true;
+            }
+            const swap = this._swapSlot(f);
+            this._remove(item);
+            this._swapOut(f, swap, item.x, item.y);
+            inv[swap] = { kind: 'throwable', itemId: item.itemId, count: Math.min(stack, item.count) };
+            return true;
+        }
+
         if (item.kind === 'weapon') {
             const data = { kind: 'weapon', weaponId: item.weaponId, rarity: item.rarity, mag: item.mag };
             let slot = -1;
@@ -727,6 +756,8 @@ export class Loot {
             if (!data.weaponId || isPickaxe(data)) return null;
         } else if (data.kind === 'heal') {
             if (!(data.count > 0)) return null;
+        } else if (data.kind === 'throwable') {
+            if (!data.itemId || !(data.count > 0)) return null;
         } else if (data.kind === 'ammo') {
             if (!data.ammoType || !(data.amount > 0)) return null;
         } else {
@@ -779,6 +810,8 @@ export class Loot {
                 return `${ammoName(target.ammoType)} ×${target.amount}`;
             case 'heal':
                 return `${HEALS[target.itemId]?.name || target.itemId} ×${target.count}`;
+            case 'throwable':
+                return `${THROWABLES[target.itemId]?.name || target.itemId} ×${target.count}`;
         }
         return '';
     }
@@ -997,6 +1030,7 @@ export class Loot {
     _itemColor(it) {
         if (it.kind === 'weapon') return RARITIES[it.rarity]?.color || '#b0b0b0';
         if (it.kind === 'ammo') return AMMO_TYPES[it.ammoType]?.color || '#d8c070';
+        if (it.kind === 'throwable') return THROWABLES[it.itemId]?.color || '#fff0a0';
         return HEALS[it.itemId]?.color || (it.itemId === 'shieldPotion' ? '#4aa8ff' : '#6fdc70');
     }
 
@@ -1072,7 +1106,7 @@ export class Loot {
             ctx.stroke();
             ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
             ctx.fillRect(-bw / 2 + 3, -1.5, bw - 6, 3);
-        } else {
+        } else if (it.kind === 'heal') {
             ctx.scale(s, s);
             const icon = iconCanvas('heal', it.itemId, 0, ICON_PX, false);
             if (icon) {
@@ -1094,6 +1128,15 @@ export class Loot {
                 ctx.strokeText(`×${it.count}`, 14, 11);
                 ctx.fillText(`×${it.count}`, 14, 11);
             }
+        } else {
+            ctx.scale(s, s);
+            const icon = iconCanvas('throwable', it.itemId, 0, ICON_PX, false);
+            if (icon) ctx.drawImage(icon, -HEAL_ICON_SIZE / 2, -HEAL_ICON_SIZE / 2, HEAL_ICON_SIZE, HEAL_ICON_SIZE);
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 12px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            if (it.count > 1) ctx.fillText(`×${it.count}`, 14, 11);
         }
         ctx.restore();
     }

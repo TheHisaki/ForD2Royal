@@ -10,11 +10,11 @@
    La case 1 (pioche) ne se déplace pas et ne se jette pas.
    ================================== */
 
-import { WEAPONS, HEALS, RARITIES, AMMO_TYPES, weaponDamage } from './weapons.js';
-import { makeIcon, makeHealIcon } from './icons.js';
+import { WEAPONS, HEALS, THROWABLES, INVENTORY_SLOTS, RARITIES, AMMO_TYPES, weaponDamage } from './weapons.js';
+import { makeIcon, makeHealIcon, makeThrowableIcon } from './icons.js';
 import { hudIconSvg } from './hud-icons.js';
 
-const SLOTS = 5;
+const SLOTS = INVENTORY_SLOTS;
 const DRAG_START = 6;       // pixels avant qu'un clic devienne un glisser
 const AMMO_DROP = 30;       // munitions jetées par clic
 
@@ -384,6 +384,16 @@ export class InventoryUI {
                 count.textContent = `×${s.count}`;
                 b.style.setProperty('--rar', h?.color || '#6fdc70');
                 label = `Case ${i + 1} : ${h?.name || s.itemId} ×${s.count}`;
+            } else if (s?.kind === 'throwable') {
+                const t = THROWABLES[s.itemId];
+                const img = document.createElement('img');
+                img.src = makeThrowableIcon(s.itemId, 96);
+                img.alt = '';
+                img.draggable = false;
+                icon.appendChild(img);
+                count.textContent = `×${s.count}`;
+                b.style.setProperty('--rar', t?.color || '#fff0a0');
+                label = `Case ${i + 1} : ${t?.name || s.itemId} ×${s.count}`;
             }
             b.setAttribute('aria-label', label);
             b.classList.toggle('selected', i === this.sel);
@@ -445,6 +455,13 @@ export class InventoryUI {
             if (h?.heal) rows.push(['Soin', `+${h.heal} PV (max ${h.healCap ?? 100})`, h.heal / 100]);
             if (h?.shield) rows.push(['Bouclier', `+${h.shield} (max ${h.shieldCap ?? 100})`, h.shield / 100]);
             rows.push(['Utilisation', `${fmt(h?.useTime || 0, 1)} s`, 1 - (h?.useTime || 0) / 6]);
+        } else if (s.kind === 'throwable') {
+            const t = THROWABLES[s.itemId];
+            title.textContent = t?.name || s.itemId;
+            color = t?.color || '#fff0a0';
+            sub = `${s.count} charge${s.count > 1 ? 's' : ''}`;
+            rows.push(['Effet', t?.damage ? `${t.damage} dégâts dans ${t.radius} unités` : t?.short || 'Effet spécial', null]);
+            rows.push(['Maintenir', 'Prévisualiser la trajectoire', null]);
         }
 
         head.style.setProperty('--rar', color);

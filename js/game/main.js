@@ -246,7 +246,7 @@ function start() {
     };
     const netItem = (s) => (s ? {
         kind: s.kind, weaponId: s.weaponId || '', itemId: s.itemId || '',
-        rarity: s.rarity || 0, count: s.count || 0, pickaxeSkin: s.pickaxeSkin || ''
+        rarity: s.rarity || 0, count: s.count || 0, mag: s.mag || 0, pickaxeSkin: s.pickaxeSkin || ''
     } : null);
     // Butin créé ici pendant l'image : envoyé en un seul message (voir flushLootSpawns)
     const pendingSpawns = [];
@@ -275,6 +275,21 @@ function start() {
                     x: Math.round(f.x), y: Math.round(f.y)
                 });
             }
+        },
+        onThrow(f, throwable, angle, visual) {
+            if (!visual) {
+                SFX.play('click', { x: f.x, y: f.y, vol: actionVol(f) });
+                if (isMultiplayer && owns(f)) netSend({ type: 'p_throw', s: f.id, i: throwable.id, a: Math.round(angle * 1000) / 1000, x: Math.round(f.x), y: Math.round(f.y) });
+            }
+        },
+        onExplode(x, y, throwable, owner, visual) {
+            if (throwable.id === 'smoke') effects.impact(x, y, 0, 'wall');
+            else effects.impact(x, y, owner?.angle || 0, throwable.id === 'flash' ? 'shield' : 'health');
+            if (!visual) SFX.play('impact', { x, y, kind: throwable.id });
+        },
+        onEffect(target, effect, factor, x, y, visual) {
+            if (visual || !isMultiplayer || owns(target)) return;
+            netSend({ type: 'p_effect', t: target.id, e: effect, v: Math.round(factor * 100) / 100, x: Math.round(x), y: Math.round(y) });
         },
         onImpact(x, y, angle, kind, target) {
             effects.impact(x, y, angle, kind);
@@ -626,7 +641,7 @@ function start() {
     }
 
     function giveHealToFighter(f, itemId, count = 1) {
-        if (!f?.alive || !['bandage', 'medkit', 'shieldPotion'].includes(itemId)) return false;
+        if (!f?.alive || !['bandage', 'medkit', 'shieldPotion', 'healingSpray', 'stimPatch'].includes(itemId)) return false;
         const maxStack = HEALS[itemId]?.stack || 1;
         let left = Math.max(1, Math.min(maxStack, Number(count) | 0));
         for (let i = 1; i < f.inventory.length && left > 0; i++) {
@@ -1175,7 +1190,7 @@ function start() {
 
     function giveAdminHealToTarget() {
         const itemId = adminHealSelect?.value;
-        if (!['bandage', 'medkit', 'shieldPotion'].includes(itemId)) return;
+        if (!['bandage', 'medkit', 'shieldPotion', 'healingSpray', 'stimPatch'].includes(itemId)) return;
         sendAdminAction('give_heal', { itemId, count: 1 });
     }
 
@@ -1361,7 +1376,7 @@ function start() {
 
     // Arme visible dans les mains d'une copie (si l'état n'est pas encore arrivé)
     function showHeld(f, weaponId, rarity) {
-        if (!f.inventory) f.inventory = [null, null, null, null, null];
+        if (!f.inventory) f.inventory = Array(6).fill(null);
         const slot = Number.isInteger(f.slot) ? f.slot : 0;
         const held = f.inventory[slot];
         if (held?.kind === 'weapon' && held.weaponId === weaponId) return;
@@ -1400,7 +1415,7 @@ function start() {
             if (m.ph === 'air') SFX.play('jump', { x: mate.x, y: mate.y });
         }
         if (Array.isArray(m.inv)) {
-            mate.inventory = m.inv.map(s => (s && s.kind ? { ...s, mag: 0 } : null));
+            mate.inventory = m.inv.map(s => (s && s.kind ? { ...s, mag: Number(s.mag) || 0 } : null));
         }
         if (Number.isInteger(m.sl)) mate.slot = m.sl;
         if (Number.isFinite(m.hp)) mate.health = m.hp;
@@ -1414,6 +1429,8 @@ function start() {
             }
         }
         if (Number.isFinite(m.dt)) mate.dbnoTimer = m.dt;
+        if (Number.isFinite(m.fl)) mate.flashTimer = m.fl;
+        if (Number.isFinite(m.st)) mate.stimTimer = m.st;
         // Soin en cours (affichage seulement : total infini, la copie ne se soigne jamais elle-même)
         if (m.use && !mate.usingItem) mate.usingItem = { slot: mate.slot, t: 0, total: Infinity };
         else if (!m.use) mate.usingItem = null;
@@ -1528,6 +1545,27 @@ function start() {
                 if (!mate) mate = makeRemote({ id: msg.id, name: msg.n, slot: msg.ss, team: msg.tm });
                 if (msg.n && mate.name !== msg.n) mate.name = String(msg.n).slice(0, 16);
                 applyRemoteState(mate, msg);
+                break;
+            }
+            case 'p_throw': {
+                const f = fighterById(msg.s || msg.id);
+                if (!f || owns(f) || !f.alive || typeof msg.i !== 'string') break;
+                f.angle = Number.isFinite(msg.a) ? msg.a : f.angle;
+                combat.ghostThrow(f, msg.i, f.angle);
+                break;
+            }
+            case 'p_effect': {
+                const target = fighterById(msg.t);
+                if (!target || !owns(target)) break;
+                const factor = Math.max(0, Math.min(1, Number(msg.v) || 0));
+                if (msg.e === 'flash') target.flashTimer = Math.max(target.flashTimer || 0, 3 * factor);
+                if (msg.e === 'propulsion') {
+                    const dx = target.x - (Number(msg.x) || target.x);
+                    const dy = target.y - (Number(msg.y) || target.y);
+                    const len = Math.hypot(dx, dy) || 1;
+                    target.propelX = (target.propelX || 0) + dx / len * 720 * factor;
+                    target.propelY = (target.propelY || 0) + dy / len * 720 * factor;
+                }
                 break;
             }
             case 'p_fire': {
@@ -1679,13 +1717,19 @@ function start() {
     /* ----- Actions du joueur (tir, soin) ----- */
     function playerActions() {
         const pressed = input.consumePress();
+        const released = input.consumeRelease();
         // Clic droit maintenu : roue d'emotes ; le relâchement joue l'emote visée
         if (updateEmoteInput()) return;
         // Pas de tir tant qu'un panneau est ouvert (carte, paramètres, inventaire) OU si le joueur est K.O.
         if (!player.alive || player.dbno || player.phase !== 'ground' || hud.mapOpen || settingsOpen || inventoryUI.open) return;
         const held = player.inventory[player.slot];
         if (!held) return;
-        if (held.kind === 'heal') {
+        if (held.kind === 'throwable') {
+            // Maintenir : preview continue, relâcher : lancer. Appui très court : lancer immédiat.
+            if (pressed && input.mouse.down) combat.beginThrow(player);
+            if (input.mouse.down && !combat.isThrowing(player)) combat.beginThrow(player);
+            if (released || (pressed && !input.mouse.down)) combat.throwNow(player, player.angle);
+        } else if (held.kind === 'heal') {
             if (pressed) combat.startUse(player);
         } else if ((input.mouse.down || pressed) && !emoteWheelOpen) {
             // "pressed" aussi : un clic très court (relâché avant l'image) doit quand même tirer
@@ -1695,6 +1739,7 @@ function start() {
 
     /* ----- Réanimation de coéquipier ----- */
     const revivePrompt = document.getElementById('revivePrompt');
+    const flashOverlay = document.getElementById('flashOverlay');
     const reviveLabel = document.getElementById('reviveLabel');
     const reviveFill = document.getElementById('reviveFill');
     const interactPrompt = document.getElementById('interactPrompt');
@@ -1841,6 +1886,7 @@ function start() {
 
     /* ----- Petits effets liés aux personnages (atterrissage, pas, soins) ----- */
     function fighterEffects(dt) {
+        if (flashOverlay) flashOverlay.style.opacity = player.flashTimer > 0 ? String(Math.min(0.9, player.flashTimer / 1.5)) : '0';
         for (const f of fighters) {
             if (f.hitFlash > 0) f.hitFlash = Math.max(0, f.hitFlash - dt * 5);
             if (!f.alive) continue;
@@ -2312,6 +2358,7 @@ function start() {
         },
         overlay: (ctx, v) => {
             corruption.drawWorld(ctx, v, time); // au-dessus du sol et des toits, sous le vaisseau et les chutes
+            if (player.throwState && player.phase === 'ground' && player.alive) combat.drawThrowPreview(ctx, player, player.angle);
             drawSkyHaze(ctx, v);          // voile d'altitude : le sol paraît lointain depuis le ciel
             bots.drawAir(ctx, time, v);   // culling fait dans drawFalling (position en perspective)
             if (isMultiplayer) {
@@ -2400,6 +2447,8 @@ function start() {
                 db: !!player.dbno,
                 dt: Math.round((player.dbnoTimer || 0) * 10) / 10,
                 al: player.alive,
+                fl: Math.round((player.flashTimer || 0) * 10) / 10,
+                st: Math.round((player.stimTimer || 0) * 10) / 10,
                 use: !!player.usingItem,
                 rv: reviving ? [reviving.id, Math.round((reviving.reviveProgress || 0) * 100) / 100] : null
             });

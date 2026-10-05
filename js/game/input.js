@@ -94,7 +94,7 @@ export class Input {
             // Pour M on regarde le caractère (en AZERTY la touche M n'a pas le code "KeyM")
             if (e.key.toLowerCase() === 'm') handlers.onMap?.();
             if (e.code === 'Escape') handlers.onEscape?.();
-            const slot = /^Digit([1-5])$/.exec(e.code);
+            const slot = /^Digit([1-6])$/.exec(e.code);
             if (slot) handlers.onSlot?.(Number(slot[1]) - 1);
         });
 

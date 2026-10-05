@@ -1588,6 +1588,22 @@ class RoomManager {
             return;
         }
 
+        if (data.type === 'p_effect') {
+            if (typeof data.e !== 'string' || data.e.length > 20 || !Number.isFinite(Number(data.t)) || !Number.isFinite(Number(data.v))) return;
+            data.t = String(data.t).slice(0, 64);
+            data.v = Math.max(0, Math.min(1, Number(data.v)));
+            data.x = Number.isFinite(Number(data.x)) ? Number(data.x) : 0;
+            data.y = Number.isFinite(Number(data.y)) ? Number(data.y) : 0;
+        }
+
+        if (data.type === 'p_throw') {
+            if (typeof data.i !== 'string' || data.i.length > 32 || !Number.isFinite(Number(data.a)) || !Number.isFinite(Number(data.x)) || !Number.isFinite(Number(data.y))) return;
+            data.a = Math.max(-Math.PI * 2, Math.min(Math.PI * 2, Number(data.a)));
+            data.x = Math.max(-100000, Math.min(100000, Number(data.x)));
+            data.y = Math.max(-100000, Math.min(100000, Number(data.y)));
+            data.s = ws.playerId;
+        }
+
         // Anti-spam des emotes : une toutes les 2,5 s au plus par joueur (le jeu en autorise une / 3 s)
         if (data.type === 'emote') {
             const now = Date.now();

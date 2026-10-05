@@ -4,8 +4,8 @@
    fil des éliminations, dégâts subis et écran de fin.
    ================================== */
 
-import { WEAPONS, HEALS, RARITIES } from './weapons.js';
-import { makeIcon, makeHealIcon } from './icons.js';
+import { WEAPONS, HEALS, THROWABLES, INVENTORY_SLOTS, RARITIES } from './weapons.js';
+import { makeIcon, makeHealIcon, makeThrowableIcon } from './icons.js';
 
 // Corruption (zone qui rétrécit)
 const ZONE_ALERT_TIME = 3200;  // ms d'affichage de l'alerte au centre-haut
@@ -164,7 +164,7 @@ export class CombatHud {
             progress = 1 - p.reloadTimer / (w?.reloadTime || 1);
         } else if (p.alive && p.usingItem) {
             const it = p.inventory[p.usingItem.slot];
-            label = HEALS[it?.itemId]?.name || 'Soin';
+            label = HEALS[it?.itemId]?.name || THROWABLES[it?.itemId]?.name || 'Objet';
             progress = p.usingItem.t / p.usingItem.total;
         }
         this._show(this.el.action, 'action', !!label);
@@ -253,7 +253,7 @@ export class CombatHud {
             let countTxt = '';
             if (s?.kind === 'weapon') {
                 if (w?.type === 'gun') countTxt = String((s.mag || 0) + (p.ammo?.[w.ammo] || 0));
-            } else if (s) {
+            } else if (s?.kind === 'heal' || s?.kind === 'throwable') {
                 countTxt = `×${s.count}`;
             }
             if (countTxt !== se.countTxt) {
@@ -293,6 +293,10 @@ export class CombatHud {
             const h = HEALS[s.itemId];
             name = h?.name || s.itemId;
             color = h?.color || '#6fdc70';
+        } else if (s?.kind === 'throwable') {
+            const t = THROWABLES[s.itemId];
+            name = t?.name || s.itemId;
+            color = t?.color || '#fff0a0';
         }
         const key = `${p.slot}|${name}|${sub}|${color}`; // la couleur change avec la rareté
         if (key === this._equipKey) return;
@@ -342,7 +346,7 @@ export class CombatHud {
                 btn.style.setProperty('--rar', rar.color);
                 btn.setAttribute('aria-label', `Emplacement ${i + 1} : ${w?.name || s.weaponId} (${rar.name})`);
             }
-        } else {
+        } else if (s.kind === 'heal') {
             const h = HEALS[s.itemId];
             const img = document.createElement('img');
             img.src = makeHealIcon(s.itemId, 96);
@@ -351,6 +355,15 @@ export class CombatHud {
             icon.appendChild(img);
             btn.style.setProperty('--rar', h?.color || '#6fdc70');
             btn.setAttribute('aria-label', `Emplacement ${i + 1} : ${h?.name || s.itemId} ×${s.count}`);
+        } else {
+            const t = THROWABLES[s.itemId];
+            const img = document.createElement('img');
+            img.src = makeThrowableIcon(s.itemId, 96);
+            img.alt = '';
+            img.draggable = false;
+            icon.appendChild(img);
+            btn.style.setProperty('--rar', t?.color || '#fff0a0');
+            btn.setAttribute('aria-label', `Emplacement ${i + 1} : ${t?.name || s.itemId} ×${s.count}`);
         }
     }
 

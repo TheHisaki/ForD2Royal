@@ -7,7 +7,7 @@
    Tout est dessiné en code : pas de fichier image, pas de licence.
    ================================== */
 
-import { WEAPONS, HEALS, RARITIES } from './weapons.js';
+import { WEAPONS, HEALS, THROWABLES, RARITIES } from './weapons.js';
 import { shadeHex } from './utils.js';
 import { pickaxeCanvas, pickaxeUrl } from '../pickaxe-art.js';
 
@@ -257,7 +257,28 @@ const WEAPON_ART = {
     }
 };
 
-/* ===================== SOINS ===================== */
+WEAPON_ART.ricochet = {
+    ...WEAPON_ART.pistol,
+    box: [4, -20, 70, 24],
+    draw(ctx, a) {
+        box(ctx, 4, -10, 58, 10, 3, M2);
+        box(ctx, 12, -18, 36, 8, 2, a.color);
+        part(ctx, [28, -10, 44, 10, 34, 20, 22, 8], M1);
+        ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(57, -14); ctx.lineTo(57, 14); ctx.stroke();
+        shine(ctx, 14, -16, 30);
+    }
+};
+WEAPON_ART.crossbow = {
+    box: [-4, -26, 70, 26], tilt: -0.15,
+    draw(ctx, a) {
+        box(ctx, 4, -4, 58, 8, 2, WOOD_D);
+        ctx.strokeStyle = a.color; ctx.lineWidth = 5;
+        ctx.beginPath(); ctx.moveTo(20, -22); ctx.lineTo(20, 22); ctx.moveTo(20, 0); ctx.lineTo(66, 0); ctx.stroke();
+        box(ctx, 26, -3, 38, 6, 1, M2);
+        ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(28, -2); ctx.lineTo(64, -2); ctx.stroke();
+    }
+};
 
 const HEAL_ART = {
     bandage: {
@@ -448,6 +469,23 @@ export function iconCanvas(kind, id, rarity = 0, size = 96, fx = true, skin = nu
 
     let art;
     let arg;
+    if (kind === 'throwable') {
+        const t = THROWABLES[id] || THROWABLES.explosive;
+        ctx.fillStyle = t.color;
+        ctx.beginPath();
+        ctx.arc(size / 2, size / 2, size * 0.31, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#0a1030';
+        ctx.lineWidth = Math.max(3, size * 0.035);
+        ctx.stroke();
+        ctx.fillStyle = '#0a1030';
+        ctx.font = `800 ${Math.round(size * 0.3)}px sans-serif`;
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+        ctx.fillText(t.icon || '!', size / 2, size / 2 + 1);
+        canvasCache.set(key, cv);
+        return cv;
+    }
     if (kind === 'heal') {
         art = HEAL_ART[id] || HEAL_ART.bandage;
         arg = HEALS[id] || HEALS.bandage;
@@ -498,4 +536,10 @@ function iconUrl(kind, id, rarity, size) {
     const url = cv ? cv.toDataURL('image/png') : '';
     urlCache.set(key, url);
     return url;
+}
+
+export function makeThrowableIcon(itemId, size = 96) {
+    const t = THROWABLES[itemId] || THROWABLES.explosive;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 96 96"><circle cx="48" cy="48" r="30" fill="${t.color}" stroke="#0a1030" stroke-width="6"/><text x="48" y="57" text-anchor="middle" font-family="Arial,sans-serif" font-size="30" font-weight="800" fill="#0a1030">${t.icon || '!'}</text></svg>`;
+    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }

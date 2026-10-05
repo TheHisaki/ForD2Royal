@@ -6,7 +6,7 @@
 
 import { B, BIOME_COLORS } from './config.js';
 import { shadeHex, fighterSeed } from './utils.js';
-import { WEAPONS, HEALS, drawWeapon } from './weapons.js';
+import { WEAPONS, HEALS, THROWABLES, drawWeapon } from './weapons.js';
 import { iconCanvas } from './icons.js';
 import { drawBackpack } from './backpack-art.js';
 
@@ -1707,6 +1707,22 @@ function paintFighter(ctx, p, time, fx) {
             hand(gx + L * 0.22, r * 0.3);
             hand(gx + L * 0.62, -r * 0.08);
         }
+    } else if (held?.kind === 'throwable') {
+        const t = THROWABLES[held.itemId];
+        const hx = r * 0.9;
+        ctx.save();
+        ctx.translate(hx, 0);
+        ctx.fillStyle = t?.color || '#fff0a0';
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.arc(0, 0, r * 0.38, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+        ctx.fillStyle = OUTLINE;
+        ctx.font = `800 ${Math.round(r * 0.32)}px sans-serif`;
+        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+        ctx.fillText(t?.icon || '!', 0, 1);
+        ctx.restore();
+        hand(hx - r * 0.25, -r * 0.38);
+        hand(hx - r * 0.25, r * 0.38);
     } else if (w && w.type === 'melee') {
         // Pioche dans la main droite, qui pivote pendant le coup
         const st = Math.max(0, Math.min(1, p.swingT || 0));

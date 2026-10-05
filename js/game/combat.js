@@ -4,13 +4,16 @@
    Fonctionne pour tous les combattants (joueur ET bots).
    ================================== */
 
-import { WEAPONS, HEALS, weaponDamage } from './weapons.js';
+import { WEAPONS, HEALS, THROWABLES, weaponDamage } from './weapons.js';
 
 const MELEE_ARC = (40 * Math.PI) / 180; // la pioche touche à ±40° devant soi
 const SWING_TIME = 0.25;                // durée de l'animation de coup (s)
 const SUB_STEP = 20;                    // les balles avancent par pas de 20 unités max
 const HIT_PAD = 4;                      // marge de collision balle / combattant
 const TRACER = 26;                      // longueur du traceur
+const THROW_SPEED = 430;
+const THROW_GRAVITY = 360;
+const THROW_RANGE = 620;
 
 // Écart d'angle ramené entre -PI et PI
 function angleDiff(a, b) {
@@ -30,6 +33,9 @@ export class Combat {
         this._near = [];
         this._walls = [];   // obstacles proches de la trajectoire (réutilisé)
         this._targets = []; // combattants proches de la trajectoire (réutilisé)
+        this.throwables = [];
+        this._freeThrowables = [];
+        this.smokeZones = [];
         this.teamMode = false; // set by main.js for duo/trio/section
         /*
            Multijoueur : chaque combattant a UN seul « propriétaire » qui décide de
@@ -48,11 +54,154 @@ export class Combat {
         return WEAPONS[it.weaponId] || null;
     }
 
-    // Balle recyclée (ou neuve), toujours avec les mêmes champs
+    _heldThrowable(f) {
+        const it = f.inventory?.[f.slot];
+        if (!it || it.kind !== 'throwable' || !(it.count > 0)) return null;
+        return THROWABLES[it.itemId] || null;
+    }
+
+    beginThrow(f) {
+        const t = this._heldThrowable(f);
+        if (!t || f.throwState?.slot === f.slot) return Boolean(f.throwState);
+        f.throwState = { slot: f.slot, itemId: t.id, t: 0 };
+        f.usingItem = null;
+        return true;
+    }
+
+    isThrowing(f) {
+        return Boolean(f.throwState && f.throwState.slot === f.slot && this._heldThrowable(f));
+    }
+
+    throwNow(f, angle, visual = false) {
+        if (!f?.alive || f.dbno || f.phase !== 'ground') return false;
+        const state = f.throwState;
+        const t = this._heldThrowable(f);
+        if (!t || (state && state.slot !== f.slot)) return false;
+        if (!visual) {
+            const item = f.inventory[f.slot];
+            item.count--;
+            if (item.count <= 0) f.inventory[f.slot] = null;
+        }
+        f.throwState = null;
+        const p = this._freeThrowables.pop() || {};
+        const a = Number.isFinite(angle) ? angle : f.angle;
+        p.x = f.x + Math.cos(a) * (f.r + 8);
+        p.y = f.y + Math.sin(a) * (f.r + 8);
+        p.vx = Math.cos(a) * THROW_SPEED;
+        p.vy = Math.sin(a) * THROW_SPEED;
+        p.age = 0;
+        p.dist = 0;
+        p.range = THROW_RANGE;
+        p.itemId = t.id;
+        p.owner = f;
+        p.visual = visual;
+        p.done = false;
+        this.throwables.push(p);
+        this.events.onThrow?.(f, t, a, visual);
+        return true;
+    }
+
+    ghostThrow(f, itemId, angle) {
+        if (!f) return false;
+        const had = f.inventory?.[f.slot];
+        const old = f.slot;
+        if (!had || had.kind !== 'throwable' || had.itemId !== itemId) {
+            f.inventory = f.inventory || [];
+            f.inventory[old] = { kind: 'throwable', itemId, count: 1 };
+        }
+        return this.throwNow(f, angle, true);
+    }
+
+    throwPreview(f, angle) {
+        const t = this._heldThrowable(f);
+        if (!t || !f?.alive || f.dbno) return null;
+        const a = Number.isFinite(angle) ? angle : f.angle;
+        const points = [];
+        const ox = f.x + Math.cos(a) * (f.r + 8);
+        const oy = f.y + Math.sin(a) * (f.r + 8);
+        for (let i = 0; i <= 14; i++) {
+            const time = i * 0.09;
+            const x = ox + Math.cos(a) * THROW_SPEED * time;
+            const y = oy + Math.sin(a) * THROW_SPEED * time + 0.5 * THROW_GRAVITY * time * time;
+            points.push({ x, y });
+            if (this._hitWall(x, y)) break;
+        }
+        return points;
+    }
+
+    _explode(p) {
+        const t = THROWABLES[p.itemId];
+        if (!t || p.done) return;
+        p.done = true;
+        if (t.id === 'smoke') this.smokeZones.push({ x: p.x, y: p.y, r: t.radius, age: 0, duration: t.duration || 8 });
+        if (!p.visual) {
+            for (const target of this.fighters) {
+                if (!target.alive || target.phase !== 'ground') continue;
+                const d = Math.hypot(target.x - p.x, target.y - p.y);
+                if (d > t.radius) continue;
+                const factor = 1 - d / t.radius;
+                if (t.damage > 0) this.damage(target, Math.max(1, t.damage * factor), p.owner, t.id);
+                if (t.id === 'flash') target.flashTimer = Math.max(target.flashTimer || 0, t.duration * factor);
+                if (t.id === 'propulsion') {
+                    const dx = target.x - p.x;
+                    const dy = target.y - p.y;
+                    const len = Math.hypot(dx, dy) || 1;
+                    target.propelX = (target.propelX || 0) + (dx / len) * t.impulse * factor;
+                    target.propelY = (target.propelY || 0) + (dy / len) * t.impulse * factor;
+                }
+                this.events.onEffect?.(target, t.id, factor, p.x, p.y, p.visual);
+            }
+        }
+        this.events.onExplode?.(p.x, p.y, t, p.owner, p.visual);
+        this._freeThrowables.push(p);
+    }
+
+    _updateThrowables(dt) {
+        for (let i = this.throwables.length - 1; i >= 0; i--) {
+            const p = this.throwables[i];
+            p.age += dt;
+            p.vy += THROW_GRAVITY * dt;
+            const nx = p.x + p.vx * dt;
+            const ny = p.y + p.vy * dt;
+            if (this._hitWall(nx, ny) || p.dist + Math.hypot(nx - p.x, ny - p.y) >= p.range) {
+                p.x = nx; p.y = ny;
+                this._explode(p);
+                this.throwables.splice(i, 1);
+                continue;
+            }
+            p.x = nx; p.y = ny;
+            p.dist += Math.hypot(p.vx * dt, p.vy * dt);
+            const fuse = THROWABLES[p.itemId]?.fuse || 1;
+            if (p.age >= fuse) {
+                this._explode(p);
+                this.throwables.splice(i, 1);
+            }
+        }
+    }
+
+    drawThrowPreview(ctx, f, angle) {
+        const points = this.throwPreview(f, angle);
+        if (!points?.length) return;
+        ctx.save();
+        ctx.setLineDash([8, 8]);
+        ctx.strokeStyle = 'rgba(255, 232, 130, 0.9)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y);
+        for (const p of points) ctx.lineTo(p.x, p.y);
+        ctx.stroke();
+        const end = points[points.length - 1];
+        ctx.setLineDash([]);
+        ctx.fillStyle = 'rgba(255, 224, 61, 0.9)';
+        ctx.beginPath(); ctx.arc(end.x, end.y, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.restore();
+    }
+
+
     _newBullet() {
         return this._free.pop() || {
             x: 0, y: 0, vx: 0, vy: 0, ux: 0, uy: 0, speed: 0,
-            dist: 0, range: 0, damage: 0, owner: null, weaponId: null, visual: false
+            dist: 0, range: 0, damage: 0, owner: null, weaponId: null, visual: false, bounces: 0
         };
     }
 
@@ -99,6 +248,7 @@ export class Combat {
             b.owner = f;
             b.weaponId = w.id;
             b.visual = false;
+            b.bounces = w.bounces || 0;
             // La balle part du centre et va jusqu'au bout du canon en vérifiant
             // les collisions : pas de tir à travers un mur collé, et on touche à bout portant.
             if (this._travel(b, muzzle)) this.bullets.push(b);
@@ -144,6 +294,7 @@ export class Combat {
             b.owner = f;
             b.weaponId = w.id;
             b.visual = true;
+            b.bounces = w.bounces || 0;
             if (this._travel(b, muzzle)) this.bullets.push(b);
             else this._recycle(b);
         }
@@ -191,8 +342,10 @@ export class Combat {
         if (!it || it.kind !== 'heal' || !(it.count > 0)) return false;
         const h = HEALS[it.itemId];
         if (!h) return false;
-        const useful = (h.heal > 0 && f.health < (h.healCap ?? 100)) ||
-                       (h.shield > 0 && f.shield < (h.shieldCap ?? 100));
+        const useful = h.mode === 'stim'
+            ? !(f.stimTimer > 0)
+            : (h.heal > 0 && f.health < (h.healCap ?? 100)) ||
+              (h.shield > 0 && f.shield < (h.shieldCap ?? 100));
         if (!useful) return false;
         f.usingItem = { slot: f.slot, t: 0, total: h.useTime };
         f.reloadTimer = 0;
@@ -228,8 +381,8 @@ export class Combat {
     */
     damage(victim, amount, attacker, weaponId, opts) {
         if (!victim.alive || !(amount > 0)) return;
-        // Teammates can't hurt each other
-        if (attacker && attacker.team && victim.team && attacker.team === victim.team) return;
+        // Les coéquipiers restent protégés, mais une explosion peut blesser son propriétaire.
+        if (attacker && attacker !== victim && attacker.team && victim.team && attacker.team === victim.team) return;
 
         // Combattant géré par une autre machine : on lui signale le coup, il l'appliquera.
         // (corruption et hémorragie : chaque propriétaire les calcule déjà lui-même)
@@ -353,8 +506,13 @@ export class Combat {
     /* ===================== MISE À JOUR ===================== */
 
     update(dt) {
+        for (let i = this.smokeZones.length - 1; i >= 0; i--) {
+            this.smokeZones[i].age += dt;
+            if (this.smokeZones[i].age >= this.smokeZones[i].duration) this.smokeZones.splice(i, 1);
+        }
         for (const f of this.fighters) this._updateFighter(f, dt);
         this._updateBullets(dt);
+        this._updateThrowables(dt);
     }
 
     _updateFighter(f, dt) {
@@ -403,7 +561,7 @@ export class Combat {
             }
         }
 
-        // ----- Soin en cours -----
+        // ----- Soins / stimulation en cours -----
         const u = f.usingItem;
         if (u) {
             const it = f.inventory?.[u.slot];
@@ -412,23 +570,39 @@ export class Combat {
                 f.usingItem = null;
             } else {
                 u.t += dt;
-                if (u.t >= u.total) {
-                    if (h.heal > 0) {
-                        const cap = h.healCap ?? 100;
-                        f.health = Math.max(f.health, Math.min(cap, f.health + h.heal));
+                if (h.mode === 'spray') {
+                    u.tick = (u.tick || 0) + dt;
+                    while (u.tick >= (h.tickInterval || 0.4) && u.t < u.total) {
+                        u.tick -= h.tickInterval || 0.4;
+                        f.health = Math.min(h.healCap ?? 100, f.health + (h.tickHeal || 1));
+                        this.events.onHealed?.(f, { ...h, heal: h.tickHeal || 1, tick: true });
                     }
-                    if (h.shield > 0) {
-                        const cap = h.shieldCap ?? 100;
-                        f.shield = Math.max(f.shield, Math.min(cap, f.shield + h.shield));
+                }
+                if (u.t >= u.total) {
+                    if (h.mode === 'stim') {
+                        f.stimTimer = h.duration || 8;
+                        f.stimSpeedMul = h.speedMultiplier || 1.25;
+                    } else if (h.mode !== 'spray') {
+                        if (h.heal > 0) {
+                            const cap = h.healCap ?? 100;
+                            f.health = Math.max(f.health, Math.min(cap, f.health + h.heal));
+                        }
+                        if (h.shield > 0) {
+                            const cap = h.shieldCap ?? 100;
+                            f.shield = Math.max(f.shield, Math.min(cap, f.shield + h.shield));
+                        }
+                        this.events.onHealed?.(f, h);
                     }
                     it.count--;
                     if (it.count <= 0) f.inventory[u.slot] = null;
                     f.usingItem = null;
-                    this.events.onHealed?.(f, h);
                 }
             }
         }
-        f.speedMul = f.dbno ? 0.35 : (f.usingItem ? 0.5 : 1); // à terre : 0.35, soin : 0.5, normal : 1
+        if (f.stimTimer > 0) f.stimTimer = Math.max(0, f.stimTimer - dt);
+        if (f.flashTimer > 0) f.flashTimer = Math.max(0, f.flashTimer - dt);
+        const stim = f.stimTimer > 0 ? (f.stimSpeedMul || 1.25) : 1;
+        f.speedMul = f.dbno ? 0.35 : (f.usingItem ? 0.5 : stim); // soin lent, stimulant rapide
     }
 
     _updateBullets(dt) {
@@ -487,6 +661,21 @@ export class Combat {
             b.x += ux * s;
             b.y += uy * s;
             if (walls.length && this._wallAt(walls, b.x, b.y)) {
+                if (b.bounces > 0) {
+                    const oldUx = b.ux;
+                    const hitX = this._wallAt(walls, b.x + oldUx * 3, b.y);
+                    const hitY = this._wallAt(walls, b.x, b.y + b.uy * 3);
+                    if (hitX) b.ux = -b.ux;
+                    if (hitY) b.uy = -b.uy;
+                    if (!hitX && !hitY) b.ux = -b.ux;
+                    b.vx = b.ux * b.speed;
+                    b.vy = b.uy * b.speed;
+                    b.bounces--;
+                    b.x -= oldUx * 3;
+                    b.y -= b.uy * 3;
+                    this.events.onImpact?.(b.x, b.y, Math.atan2(b.vy, b.vx), 'ricochet', null);
+                    continue;
+                }
                 this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), 'wall', null);
                 return false;
             }
@@ -529,7 +718,7 @@ export class Combat {
 
     // Traceurs des balles (coordonnées monde)
     draw(ctx) {
-        if (!this.bullets.length) return;
+        if (!this.bullets.length && !this.throwables.length && !this.smokeZones.length) return;
         ctx.save();
         ctx.lineCap = 'round';
         ctx.beginPath();
@@ -546,6 +735,23 @@ export class Combat {
         ctx.strokeStyle = '#fff3a8';
         ctx.lineWidth = 4;
         ctx.stroke();
+        for (const p of this.throwables) {
+            const t = THROWABLES[p.itemId];
+            ctx.fillStyle = t?.color || '#fff0a0';
+            ctx.strokeStyle = '#0a1030';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.stroke();
+        }
+        for (const zone of this.smokeZones) {
+            const fade = Math.max(0, 1 - zone.age / zone.duration);
+            ctx.fillStyle = `rgba(185, 195, 210, ${0.26 * fade})`;
+            ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.r, 0, Math.PI * 2); ctx.fill();
+            ctx.strokeStyle = `rgba(230, 235, 245, ${0.35 * fade})`;
+            ctx.lineWidth = 4; ctx.stroke();
+        }
         ctx.restore();
     }
 }

@@ -775,7 +775,7 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
    #ammoBox est caché et le nom reste seul en bas. */
 #weaponInfo {
     position: absolute;
-    right: calc(var(--gap) + var(--slot) * 5 + 20px + 14px);
+    right: calc(var(--gap) + var(--slot) * 6 + 20px + 14px);
     bottom: var(--gap);
     display: flex;
     flex-direction: column-reverse;
@@ -1897,7 +1897,7 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
 /* Cases */
 #invSlots {
     display: grid;
-    grid-template-columns: repeat(5, 1fr);
+    grid-template-columns: repeat(6, 1fr);
     gap: 6px;
 }
 
@@ -2973,4 +2973,16 @@ html.touch-ui #fullMapClose { width: 48px; height: 48px; top: -8px; right: -8px;
         max-width: calc(100vw - 2 * var(--gap) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
     }
     html.touch-ui #zoneAlert { top: calc(var(--edge-t) + var(--minimap) + 156px); }
+}
+
+
+/* Éblouissement reçu par une grenade flash */
+#flashOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 26;
+    pointer-events: none;
+    background: #fff;
+    opacity: 0;
+    transition: opacity 0.08s linear;
 }

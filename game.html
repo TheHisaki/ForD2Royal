@@ -182,6 +182,8 @@
                     <label for="adminWeaponSelect">Arme</label>
                     <select id="adminWeaponSelect">
                         <option value="pistol">Pistolet</option>
+                        <option value="crossbow">Arbalète</option>
+                        <option value="ricochet">Pistolet ricochet</option>
                         <option value="smg">Mitraillette</option>
                         <option value="ar">Fusil d’assaut</option>
                         <option value="shotgun">Fusil à pompe</option>
@@ -201,6 +203,8 @@
                         <option value="bandage">Bandage</option>
                         <option value="medkit">Trousse de soins</option>
                         <option value="shieldPotion">Potion de bouclier</option>
+                        <option value="healingSpray">Spray de soin</option>
+                        <option value="stimPatch">Patch stimulant</option>
                     </select>
                     <button type="button" id="adminGiveHealBtn">Donner le soin au joueur</button>
                     <button type="button" class="admin-hack-btn is-action" id="adminDropWeaponBtn">Déposer devant moi</button>
@@ -237,11 +241,12 @@
                 <button class="slot" type="button" aria-label="Emplacement 3 : vide" aria-pressed="false"><span class="slot-icon" aria-hidden="true"></span><span class="slot-key">3</span></button>
                 <button class="slot" type="button" aria-label="Emplacement 4 : vide" aria-pressed="false"><span class="slot-icon" aria-hidden="true"></span><span class="slot-key">4</span></button>
                 <button class="slot" type="button" aria-label="Emplacement 5 : vide" aria-pressed="false"><span class="slot-icon" aria-hidden="true"></span><span class="slot-key">5</span></button>
+                <button class="slot" type="button" aria-label="Emplacement 6 : vide" aria-pressed="false"><span class="slot-icon" aria-hidden="true"></span><span class="slot-key">6</span></button>
             </div>
         </div>
 
         <!-- Bas centre : aide -->
-        <div id="hudHelp">ZQSD : bouger · Clic : tirer · Maintenir clic droit : emotes · R : recharger · E : ouvrir / ramasser · 1-5 : armes · Tab : carte · Molette (clic) / I : inventaire · N : son · P : paramètres</div>
+        <div id="hudHelp">ZQSD : bouger · Clic : tirer · Maintenir clic droit : emotes · R : recharger · E : ouvrir / ramasser · 1-6 : armes / objets · Tab : carte · Molette (clic) / I : inventaire · N : son · P : paramètres</div>
 
         <!-- Fil des éliminations -->
         <div id="killFeed" aria-live="polite"></div>
@@ -347,6 +352,7 @@
 
     <!-- Bords rouges quand on prend des dégâts -->
     <div id="damageVignette" aria-hidden="true"></div>
+    <div id="flashOverlay" aria-hidden="true"></div>
 
     <!-- ================= FIN DE PARTIE ================= -->
     <!-- Rempli et animé par js/game/end-screen.js (styles : css/end-screen.css) -->

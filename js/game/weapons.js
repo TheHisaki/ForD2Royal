@@ -19,11 +19,14 @@ export const RARITIES = [
 
 /* ===================== MUNITIONS ===================== */
 
+export const INVENTORY_SLOTS = 6;
+
 export const AMMO_TYPES = {
     light:  { name: 'Munitions légères',  color: '#e8d9a8' },
     medium: { name: 'Munitions moyennes', color: '#7fd3ff' },
     heavy:  { name: 'Munitions lourdes',  color: '#ff8a65' },
-    shells: { name: 'Cartouches',         color: '#ff5470' }
+    shells: { name: 'Cartouches',         color: '#ff5470' },
+    bolts:  { name: 'Carreaux',           color: '#d59cff' }
 };
 
 /* ===================== ARMES ===================== */
@@ -43,6 +46,16 @@ export const WEAPONS = {
         id: 'pistol', name: 'Pistolet', short: 'Pistolet', ammo: 'light',
         damage: 22, fireRate: 5, auto: false, magSize: 12, reloadTime: 1.3,
         bulletSpeed: 1500, range: 900, spread: 0.04, length: 32
+    }),
+    crossbow: gun({
+        id: 'crossbow', name: 'Arbalète', short: 'Arbalète', ammo: 'bolts',
+        damage: 58, fireRate: 1.8, auto: false, magSize: 1, reloadTime: 1.8,
+        bulletSpeed: 2200, range: 1500, spread: 0, length: 58, projectile: 'bolt'
+    }),
+    ricochet: gun({
+        id: 'ricochet', name: 'Pistolet ricochet', short: 'Ricochet', ammo: 'light',
+        damage: 18, fireRate: 3.4, auto: false, magSize: 8, reloadTime: 1.5,
+        bulletSpeed: 1450, range: 1050, spread: 0.025, length: 34, bounces: 2
     }),
     smg: gun({
         id: 'smg', name: 'Mitraillette', short: 'Mitraillette', ammo: 'light',
@@ -67,9 +80,15 @@ export const WEAPONS = {
 };
 
 // Armes qu'on peut trouver au sol (la pioche n'en fait pas partie)
-export const LOOT_WEAPONS = ['pistol', 'smg', 'ar', 'shotgun', 'sniper'];
+export const LOOT_WEAPONS = ['pistol', 'crossbow', 'ricochet', 'smg', 'ar', 'shotgun', 'sniper'];
 
-// Zoom automatique du sniper : les raretés élevées élargissent davantage la vue.
+/* ===================== LANÇABLES ===================== */
+export const THROWABLES = {
+    smoke: { id: 'smoke', name: 'Grenade fumigène', short: 'Fumigène', icon: '💨', color: '#a9b8c8', fuse: 1.2, duration: 8, radius: 150, damage: 0 },
+    explosive: { id: 'explosive', name: 'Grenade explosive', short: 'Explosive', icon: '💣', color: '#ff704d', fuse: 1.4, radius: 150, damage: 72 },
+    flash: { id: 'flash', name: 'Grenade flash', short: 'Flash', icon: '✦', color: '#fff0a0', fuse: 1.1, radius: 190, damage: 0, duration: 3 },
+    propulsion: { id: 'propulsion', name: 'Grenade de propulsion', short: 'Propulsion', icon: '↗', color: '#62d8ff', fuse: 0.8, radius: 120, damage: 0, impulse: 720 }
+};
 // Le légendaire est le plus dézoomé, au plancher technique global.
 export const SNIPER_ZOOM_BY_RARITY = [0.92, 0.84, 0.76, 0.66, 0.55];
 
@@ -92,6 +111,14 @@ export const HEALS = {
     shieldPotion: {
         id: 'shieldPotion', name: 'Potion de bouclier', icon: '🧪',
         heal: 0, shield: 50, shieldCap: 100, useTime: 3, stack: 3, color: '#4aa8ff'
+    },
+    healingSpray: {
+        id: 'healingSpray', name: 'Spray de soin', icon: '🧴',
+        heal: 36, healCap: 100, shield: 0, useTime: 2.4, tickInterval: 0.4, tickHeal: 6, stack: 2, color: '#67e8a0', mode: 'spray'
+    },
+    stimPatch: {
+        id: 'stimPatch', name: 'Patch stimulant', icon: '⚡',
+        heal: 0, shield: 0, useTime: 1.2, stack: 2, color: '#ffbd4a', mode: 'stim', speedMultiplier: 1.35, duration: 8
     }
 };
 

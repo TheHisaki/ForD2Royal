@@ -4,6 +4,7 @@
    ================================== */
 
 import { PLAYER, WORLD_SIZE, isWater } from './config.js';
+import { INVENTORY_SLOTS } from './weapons.js';
 import { sampleGround } from './world.js';
 import { clamp } from './utils.js';
 
@@ -31,10 +32,10 @@ export class Player {
         this.alive = true;
         this.kills = 0;
         this.colors = { skin: '#f2c29b', hair: '#5a3419', outfit: '#ff7a1a', pack: '#3a8dff' };
-        // 5 cases : la 1re est toujours la pioche
-        this.inventory = [{ kind: 'weapon', weaponId: 'pickaxe', rarity: 0, mag: 0 }, null, null, null, null];
+        // 6 cases : la 1re est toujours la pioche, les 5 suivantes sont libres
+        this.inventory = [{ kind: 'weapon', weaponId: 'pickaxe', rarity: 0, mag: 0 }, ...Array(INVENTORY_SLOTS - 1).fill(null)];
         this.slot = 0;
-        this.ammo = { light: 0, medium: 0, heavy: 0, shells: 0 };
+        this.ammo = { light: 0, medium: 0, heavy: 0, shells: 0, bolts: 0 };
         this.fireCooldown = 0;
         this.reloadTimer = 0;
         this.swingT = 0;
@@ -44,7 +45,11 @@ export class Player {
         this.adminInvisible = false;
         this.adminInvincible = false;
         this.adminNoclip = false;
-        this._near = [];
+        this.propelX = 0;
+        this.propelY = 0;
+        this.stimTimer = 0;
+        this.stimSpeedMul = 1;
+        this.flashTimer = 0;
     }
 
     update(dt, input, world, aimX, aimY) {
@@ -62,8 +67,10 @@ export class Player {
         this.vx += (ix * speed - this.vx) * t;
         this.vy += (iy * speed - this.vy) * t;
 
-        this.x += this.vx * dt;
-        this.y += this.vy * dt;
+        this.x += this.vx * dt + (this.propelX || 0) * dt;
+        this.y += this.vy * dt + (this.propelY || 0) * dt;
+        this.propelX *= Math.max(0, 1 - dt * 4);
+        this.propelY *= Math.max(0, 1 - dt * 4);
 
         // 2 passes : suffisant quand on frotte contre plusieurs obstacles
         this.resolveCollisions(world);
