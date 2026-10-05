@@ -28,12 +28,32 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/game.css?v=11">
+    <link rel="stylesheet" href="css/game.css?v=12">
     <link rel="stylesheet" href="css/settings.css?v=6">
     <link rel="stylesheet" href="css/end-screen.css?v=6">
 </head>
 <body>
     <canvas id="gameCanvas" aria-label="Zone de jeu"></canvas>
+
+    <!-- ================= CONTRÔLES TACTILES =================
+         Visibles sur téléphone/tablette : le joystick déplace, la zone droite vise/tire,
+         et les boutons déclenchent les mêmes handlers que le clavier. -->
+    <div id="touchControls" aria-label="Contrôles tactiles">
+        <div id="touchMoveZone" class="touch-zone touch-move-zone" aria-label="Joystick de déplacement">
+            <span class="touch-stick-base" aria-hidden="true"></span>
+            <span class="touch-stick" aria-hidden="true"></span>
+            <span class="touch-zone-label" aria-hidden="true">DÉPLACER</span>
+        </div>
+        <div id="touchAimZone" class="touch-zone touch-aim-zone" aria-label="Zone de visée et de tir"></div>
+        <div class="touch-actions" aria-label="Actions de jeu">
+            <button type="button" class="touch-action touch-action-primary" data-touch-action="jump" aria-label="Sauter" title="Sauter">↑</button>
+            <button type="button" class="touch-action touch-action-primary" data-touch-action="interact" aria-label="Ouvrir ou ramasser" title="Ouvrir / ramasser">E</button>
+            <button type="button" class="touch-action" data-touch-action="reload" aria-label="Recharger" title="Recharger">↻</button>
+            <button type="button" class="touch-action" data-touch-action="inventory" aria-label="Ouvrir l’inventaire" title="Inventaire">▦</button>
+            <button type="button" class="touch-action" data-touch-action="map" aria-label="Ouvrir la carte" title="Carte">⌖</button>
+            <button type="button" class="touch-action" data-touch-action="emote" aria-label="Ouvrir la roue d’emotes" title="Emotes">☺</button>
+        </div>
+    </div>
 
     <!-- ================= HUD ================= -->
     <div id="hud">
@@ -554,6 +574,6 @@
     })();
     </script>
 
-    <script type="module" src="js/game/main.js?v=11"></script>
+    <script type="module" src="js/game/main.js?v=12"></script>
 </body>
 </html>

@@ -8,7 +8,7 @@ import { generateWorld, surfaceAt } from './world.js?v=9';
 import { Player } from './player.js?v=9';
 import { Renderer } from './renderer.js?v=12';
 import { Hud } from './hud.js?v=10';
-import { Input } from './input.js?v=10';
+import { Input } from './input.js?v=11';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT
 } from './drop.js?v=13';
@@ -892,9 +892,8 @@ function start() {
 
     // Inventaire détaillé (clic molette / I) : déplacer, jeter, statistiques
     const inventoryUI = new InventoryUI({ player, loot, onSelect: selectSlot, sfx: SFX });
-    canvas.addEventListener('click', () => {
-        if (!player.dbno) drop.jump(player);
-    });
+    // Le bouton tactile de saut appelle onJump ; on ne transforme pas les taps canvas en sauts
+    // pour éviter les doubles événements souris synthétiques sur mobile.
 
     addEventListener('resize', () => {
         renderer.resize();

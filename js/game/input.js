@@ -59,6 +59,14 @@ export class Input {
             pressDuration: 0,
             rdown: false        // clic droit maintenu (roue d'emotes)
         };
+        this.touch = {
+            moveId: null,
+            aimId: null,
+            actionIds: new Map(),
+            moveX: 0,
+            moveY: 0,
+            active: false
+        };
 
         addEventListener('keydown', (e) => {
             this.keys.add(e.code);
@@ -98,6 +106,13 @@ export class Input {
             this.mouse.rdown = false;
             this.mouse.released = true;
             this.mouse.pressDuration = 0;
+            this.touch.moveId = null;
+            this.touch.aimId = null;
+            this.touch.moveX = 0;
+            this.touch.moveY = 0;
+            this.touch.actionIds.clear();
+            this.touch.active = false;
+            document.querySelector('#touchMoveZone .touch-stick')?.style.setProperty('transform', 'translate(-50%, -50%)');
         });
 
         canvas.addEventListener('mousemove', (e) => {
@@ -155,6 +170,94 @@ export class Input {
         for (const type of ['gesturestart', 'gesturechange', 'gestureend']) {
             addEventListener(type, (e) => e.preventDefault(), { passive: false });
         }
+        this.bindTouchControls(handlers);
+    }
+
+    bindTouchControls(handlers) {
+        const moveZone = document.getElementById('touchMoveZone');
+        const aimZone = document.getElementById('touchAimZone');
+        const actionButtons = document.querySelectorAll('[data-touch-action]');
+        const syncTouchActive = () => {
+            this.touch.active = this.touch.moveId !== null || this.touch.aimId !== null || this.touch.actionIds.size > 0;
+        };
+
+        const resetMove = (event) => {
+            if (this.touch.moveId !== event.pointerId) return;
+            this.touch.moveId = null;
+            this.touch.moveX = 0;
+            this.touch.moveY = 0;
+            moveZone?.classList.remove('is-active');
+            moveZone?.querySelector('.touch-stick')?.style.setProperty('transform', 'translate(-50%, -50%)');
+            syncTouchActive();
+        };
+        const updateMove = (event) => {
+            if (this.touch.moveId !== event.pointerId || !moveZone) return;
+            const rect = moveZone.getBoundingClientRect();
+            const cx = rect.left + rect.width / 2;
+            const cy = rect.top + rect.height / 2;
+            const radius = Math.max(20, Math.min(rect.width, rect.height) * 0.38);
+            let dx = event.clientX - cx;
+            let dy = event.clientY - cy;
+            const distance = Math.hypot(dx, dy);
+            if (distance > radius) { dx = dx / distance * radius; dy = dy / distance * radius; }
+            const dead = radius * 0.12;
+            this.touch.moveX = Math.abs(dx) < dead ? 0 : dx / radius;
+            this.touch.moveY = Math.abs(dy) < dead ? 0 : dy / radius;
+            moveZone.querySelector('.touch-stick')?.style.setProperty('transform', `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`);
+        };
+        moveZone?.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'mouse' || this.touch.moveId !== null) return;
+            event.preventDefault(); this.touch.active = true; this.touch.moveId = event.pointerId;
+            moveZone.setPointerCapture?.(event.pointerId); moveZone.classList.add('is-active'); updateMove(event);
+        }, { passive: false });
+        moveZone?.addEventListener('pointermove', updateMove, { passive: false });
+        ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => moveZone?.addEventListener(type, resetMove));
+
+        aimZone?.addEventListener('pointerdown', (event) => {
+            if (event.pointerType === 'mouse' || this.touch.aimId !== null) return;
+            event.preventDefault(); this.touch.active = true; this.touch.aimId = event.pointerId;
+            aimZone.setPointerCapture?.(event.pointerId); this.mouse.x = event.clientX; this.mouse.y = event.clientY;
+            this.mouse.down = true; this.mouse.pressed = true; this.mouse.released = false; this.mouse.downAt = performance.now();
+        }, { passive: false });
+        aimZone?.addEventListener('pointermove', (event) => {
+            if (this.touch.aimId !== event.pointerId) return;
+            event.preventDefault(); this.mouse.x = event.clientX; this.mouse.y = event.clientY;
+        }, { passive: false });
+        const releaseAim = (event) => {
+            if (this.touch.aimId !== event.pointerId) return;
+            this.touch.aimId = null; this.mouse.down = false; this.mouse.released = true;
+            this.mouse.pressDuration = Math.max(0, performance.now() - this.mouse.downAt);
+            syncTouchActive();
+        };
+        ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => aimZone?.addEventListener(type, releaseAim));
+
+        actionButtons.forEach((button) => {
+            const action = button.dataset.touchAction;
+            const holdKey = button.dataset.touchHold;
+            button.addEventListener('pointerdown', (event) => {
+                if (event.pointerType === 'mouse') return;
+                event.preventDefault(); this.touch.active = true;
+                this.touch.actionIds.set(event.pointerId, { button, holdKey }); button.setPointerCapture?.(event.pointerId);
+                if (holdKey) this.keys.add(holdKey);
+                else if (action === 'jump') handlers.onJump?.();
+                else if (action === 'reload') handlers.onReload?.();
+                else if (action === 'interact') handlers.onInteract?.();
+                else if (action === 'inventory') handlers.onInventory?.();
+                else if (action === 'map') handlers.onMap?.();
+                else if (action === 'emote') this.mouse.rdown = true;
+            }, { passive: false });
+            const releaseAction = (event) => {
+                const current = this.touch.actionIds.get(event.pointerId); if (!current) return;
+                this.touch.actionIds.delete(event.pointerId); if (current.holdKey) this.keys.delete(current.holdKey);
+                if (action === 'emote') this.mouse.rdown = false;
+                syncTouchActive();
+            };
+            ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => button.addEventListener(type, releaseAction));
+        });
+    }
+
+    isTouchActive() {
+        return this.touch.active || this.touch.moveId !== null || this.touch.aimId !== null;
     }
 
     // Renvoie true une seule fois par clic
@@ -173,6 +276,7 @@ export class Input {
 
     // Direction voulue (-1, 0 ou 1 sur chaque axe)
     axis() {
+        if (this.touch.moveId !== null) return { x: this.touch.moveX, y: this.touch.moveY };
         const k = this.keys;
         let x = 0;
         let y = 0;
