@@ -1,0 +1,21 @@
+{
+  "name": "For2D Royal",
+  "short_name": "For2D Royal",
+  "description": "Battle royale 2D jouable au clavier, à la souris ou au doigt.",
+  "lang": "fr",
+  "start_url": "index.html",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "landscape",
+  "background_color": "#0b1d4a",
+  "theme_color": "#0b1d4a",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ]
+}

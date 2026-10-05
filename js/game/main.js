@@ -7,8 +7,8 @@
 import { generateWorld, surfaceAt } from './world.js?v=9';
 import { Player } from './player.js?v=9';
 import { Renderer } from './renderer.js?v=12';
-import { Hud } from './hud.js?v=10';
-import { Input } from './input.js?v=11';
+import { Hud } from './hud.js?v=11';
+import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT
 } from './drop.js?v=13';
@@ -894,6 +894,70 @@ function start() {
     const inventoryUI = new InventoryUI({ player, loot, onSelect: selectSlot, sfx: SFX });
     // Le bouton tactile de saut appelle onJump ; on ne transforme pas les taps canvas en sauts
     // pour éviter les doubles événements souris synthétiques sur mobile.
+
+    /* ----- Commandes tactiles (js/game/input.js, #touchControls dans game.html) -----
+       Au doigt, il n'y a pas de curseur : on place un point visé devant le joueur.
+       Stick de tir tenu = sa direction ; sinon le personnage regarde où il marche. */
+    const TOUCH_AIM_DIST = 260; // distance du point visé (unités du monde)
+    let touchFacing = null;
+    function aimPoint() {
+        if (input.touchMode) {
+            const dir = input.touchAimDir();
+            if (dir) {
+                touchFacing = dir;
+            } else if (input.touch.fireId === null) {
+                // Pas de visée en cours : la marche donne la direction (le tir maintenu la garde)
+                const a = input.axis();
+                const len = Math.hypot(a.x, a.y);
+                if (len > 0.2) touchFacing = { x: a.x / len, y: a.y / len };
+            }
+            if (touchFacing) {
+                const s = renderer.worldToScreen(
+                    player.x + touchFacing.x * TOUCH_AIM_DIST,
+                    player.y + touchFacing.y * TOUCH_AIM_DIST
+                );
+                input.mouse.x = s.x; // le viseur (hitmarker) suit le même point
+                input.mouse.y = s.y;
+            }
+        } else {
+            touchFacing = null; // souris : visée normale au curseur
+        }
+        return renderer.screenToWorld(input.mouse.x, input.mouse.y);
+    }
+
+    // État des boutons tactiles, mis à jour à chaque image (écritures DOM seulement si ça change)
+    const touchControls = document.getElementById('touchControls');
+    const touchActionBtn = document.getElementById('touchAction');
+    const touchState = { off: null, phase: '', mode: '', ready: null };
+    function updateTouchHud() {
+        if (!touchControls || !touchActionBtn) return;
+        const off = !player.alive || endScreen.isOpen || spectator.barVisible;
+        if (off !== touchState.off) {
+            touchState.off = off;
+            touchControls.classList.toggle('is-off', off);
+            if (off) input.resetTouch();
+        }
+        if (player.phase !== touchState.phase) {
+            touchState.phase = player.phase;
+            touchControls.dataset.phase = player.phase; // le CSS cache le tir hors du sol
+        }
+        const mode = player.phase === 'ship' ? 'jump' : 'use';
+        if (mode !== touchState.mode) {
+            touchState.mode = mode;
+            touchActionBtn.dataset.mode = mode;
+            touchActionBtn.setAttribute('aria-label', mode === 'jump'
+                ? 'Sauter du vaisseau'
+                : 'Action : ouvrir, ramasser, maintenir pour réanimer');
+        }
+        // Le bouton s'allume quand il sert : saut possible, coffre / objet / coéquipier à portée
+        const ready = mode === 'jump'
+            ? drop.canJump
+            : Boolean(reviving) || Boolean(interactPrompt && !interactPrompt.hidden);
+        if (ready !== touchState.ready) {
+            touchState.ready = ready;
+            touchActionBtn.classList.toggle('is-ready', ready);
+        }
+    }
 
     addEventListener('resize', () => {
         renderer.resize();
@@ -2382,7 +2446,7 @@ function start() {
         time += dt;
         enforceZoomTarget();
         renderer.updateZoom(dt);
-        const aim = renderer.screenToWorld(input.mouse.x, input.mouse.y);
+        const aim = aimPoint();
         drop.update(dt, player, input, aim.x, aim.y);
 
         // Éjection automatique (forcée) après l'affichage de 0 s, ou si le vaisseau a disparu
@@ -2533,6 +2597,7 @@ function start() {
         hud.update(dt, time);
         inventoryUI.update();
         combatHud.update(dt);
+        updateTouchHud();
     }
 
     // Une erreur dans une image ne doit jamais arrêter le jeu (sinon tout se fige)

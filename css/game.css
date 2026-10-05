@@ -2598,177 +2598,379 @@ body.item-dragging * { cursor: grabbing !important; }
 }
 
 
-/* ================= CONTRÔLES TACTILES ================= */
+/* ================= HUD TACTILE (téléphone / tablette) =================
+   Actif quand <html> a la classe "touch-ui" (js/mobile-screen.js : on joue au doigt).
+   Disposition, pensée pour les pouces :
+   - haut gauche  : retour, plein écran, son, réglages ; dessous bouclier / vie, puis l'escouade ;
+   - haut centre  : nom du lieu, puis les 3 dernières éliminations ;
+   - haut droite  : minimap (la toucher ouvre la carte), joueurs / éliminations, corruption ;
+   - bas gauche   : joystick (il apparaît sous le pouce) ;
+   - bas centre   : objet en main + munitions, hotbar ;
+   - bas droite   : stick TIRER, bouton ACTION à sa gauche, bouton SAC au-dessus.
+   Les encoches et barres système (safe-area) sont respectées sur les 4 bords. */
+
+html.touch-ui {
+    --hud-zoom: 1;                  /* pas d'agrandissement : tout est dimensionné ici */
+    --gap: 10px;
+    --slot: clamp(40px, min(11vh, 11vw), 52px);
+    --minimap: clamp(88px, min(25vh, 28vw), 150px);
+    --stick: clamp(96px, min(30vh, 30vw), 150px);
+    --btn: clamp(46px, min(13vh, 13vw), 64px);
+    --edge-t: calc(var(--gap) + env(safe-area-inset-top, 0px));
+    --edge-r: calc(var(--gap) + env(safe-area-inset-right, 0px));
+    --edge-b: calc(var(--gap) + env(safe-area-inset-bottom, 0px));
+    --edge-l: calc(var(--gap) + env(safe-area-inset-left, 0px));
+    --controls-h: 0px;              /* place réservée sous la hotbar (portrait : les sticks) */
+}
+
+/* ----- Commandes (game.html, #touchControls) ----- */
 #touchControls {
     position: fixed;
     inset: 0;
-    z-index: 8;
+    z-index: 10;                    /* au-dessus des effets d'écran, sous le HUD (placé après) */
     display: none;
     pointer-events: none;
-    touch-action: none;
     user-select: none;
     -webkit-user-select: none;
-}
-
-.touch-zone {
-    position: absolute;
-    touch-action: none;
-}
-
-.touch-move-zone {
-    left: max(18px, env(safe-area-inset-left));
-    bottom: max(22px, env(safe-area-inset-bottom));
-    width: clamp(126px, 26vw, 174px);
-    height: clamp(126px, 26vw, 174px);
-    display: grid;
-    place-items: center;
-    border: 2px solid rgba(214, 246, 255, 0.3);
-    border-radius: 50%;
-    background: radial-gradient(circle, rgba(16, 42, 90, 0.4), rgba(4, 13, 37, 0.2));
-    box-shadow: inset 0 0 24px rgba(79, 216, 255, 0.12), 0 4px 18px rgba(0, 0, 0, 0.22);
-    opacity: 0.86;
-    pointer-events: auto;
-}
-
-.touch-move-zone.is-active {
-    border-color: rgba(79, 216, 255, 0.76);
-    opacity: 1;
-}
-
-.touch-stick-base,
-.touch-stick {
-    position: absolute;
-    left: 50%;
-    top: 50%;
-    display: block;
-    border-radius: 50%;
-    pointer-events: none;
-}
-
-.touch-stick-base {
-    width: 58%;
-    height: 58%;
-    transform: translate(-50%, -50%);
-    border: 2px solid rgba(169, 193, 232, 0.35);
-    background: rgba(8, 20, 56, 0.3);
-}
-
-.touch-stick {
-    width: 34%;
-    height: 34%;
-    transform: translate(-50%, -50%);
-    border: 2px solid rgba(255, 255, 255, 0.8);
-    background: radial-gradient(circle at 35% 30%, #91eaff, #247bc2 72%);
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.45);
-}
-
-.touch-zone-label {
-    position: absolute;
-    bottom: 11%;
-    color: rgba(214, 246, 255, 0.58);
-    font: 800 10px var(--font-body);
-    letter-spacing: 1px;
-    pointer-events: none;
-}
-
-.touch-aim-zone {
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: 58%;
-    pointer-events: auto;
-}
-
-.touch-aim-zone::after {
-    content: 'GLISSER POUR VISER · MAINTENIR POUR TIRER';
-    position: absolute;
-    right: 7%;
-    bottom: 10%;
-    max-width: 180px;
-    color: rgba(255, 255, 255, 0.38);
-    font: 600 10px var(--font-body);
-    letter-spacing: 0.5px;
-    line-height: 1.25;
-    text-align: right;
-    pointer-events: none;
-}
-
-.touch-actions {
-    position: absolute;
-    right: max(18px, env(safe-area-inset-right));
-    bottom: max(22px, env(safe-area-inset-bottom));
-    z-index: 2;
-    display: grid;
-    grid-template-columns: repeat(2, clamp(50px, 11vw, 68px));
-    gap: 8px;
-    pointer-events: none;
-}
-
-.touch-action {
-    width: clamp(50px, 11vw, 68px);
-    height: clamp(50px, 11vw, 68px);
-    display: grid;
-    place-items: center;
-    border: 1px solid rgba(214, 246, 255, 0.42);
-    border-radius: 50%;
-    background: rgba(8, 20, 56, 0.72);
-    color: #fff;
-    font: 800 clamp(19px, 4.4vw, 27px) var(--font-display);
-    text-shadow: 0 2px 3px rgba(0, 0, 0, 0.7);
-    box-shadow: 0 4px 13px rgba(0, 0, 0, 0.36), inset 0 1px rgba(255, 255, 255, 0.13);
-    pointer-events: auto;
-    touch-action: none;
+    -webkit-touch-callout: none;
     -webkit-tap-highlight-color: transparent;
 }
 
-.touch-action:active {
-    transform: scale(0.9);
-    background: rgba(79, 216, 255, 0.72);
+html.touch-ui #touchControls { display: block; }
+html.touch-ui #touchControls.is-off { display: none; } /* mort, résultats, spectateur */
+html.touch-ui #gameCanvas { cursor: default; }
+
+#touchControls svg {
+    display: block;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
 }
 
-.touch-action-primary {
-    border-color: rgba(255, 224, 61, 0.72);
-    background: rgba(116, 78, 9, 0.78);
-    color: #ffe97a;
+#touchControls svg .fill { fill: currentColor; stroke: none; }
+
+.touch-label {
+    font-family: var(--font-display);
+    font-size: 11px;
+    letter-spacing: 1px;
+    line-height: 1;
+    color: rgba(255, 255, 255, 0.95);
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.85);
+    pointer-events: none;
 }
 
-@media (hover: none) and (pointer: coarse) {
-    #touchControls { display: block; }
-
-    #gameCanvas { cursor: default; }
-
-    /* Garder les contrôles accessibles sans masquer les boutons du HUD. */
-    .touch-move-zone {
-        bottom: max(84px, calc(env(safe-area-inset-bottom) + 62px));
-    }
-
-    .touch-actions {
-        bottom: max(84px, calc(env(safe-area-inset-bottom) + 62px));
-    }
-
-    .touch-aim-zone::after { bottom: 22%; }
+/* Joystick : toute la zone de gauche capte le pouce, le joystick vient sous le doigt */
+.touch-move-zone {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 46%;
+    height: 64%;
+    pointer-events: auto;
+    touch-action: none;
 }
 
-@media (orientation: portrait) and (hover: none) and (pointer: coarse) {
-    .touch-move-zone {
-        left: max(12px, env(safe-area-inset-left));
-        bottom: max(78px, calc(env(safe-area-inset-bottom) + 58px));
-        width: clamp(112px, 31vw, 148px);
-        height: clamp(112px, 31vw, 148px);
-    }
+.touch-joystick {
+    position: absolute;
+    left: calc(var(--edge-l) + 8px);    /* position de repos (le JS la déplace sous le doigt) */
+    bottom: calc(var(--edge-b) + 8px);
+    width: var(--stick);
+    height: var(--stick);
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.3);
+    background: radial-gradient(circle, rgba(8, 20, 56, 0.4) 0 54%, rgba(8, 20, 56, 0.2) 55%);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+    opacity: 0.6;
+    transition: opacity 0.15s;
+    pointer-events: none;
+}
 
-    .touch-actions {
-        right: max(12px, env(safe-area-inset-right));
-        bottom: max(78px, calc(env(safe-area-inset-bottom) + 58px));
-        gap: 6px;
-        grid-template-columns: repeat(2, clamp(46px, 14vw, 60px));
-    }
+.touch-move-zone.is-active .touch-joystick {
+    opacity: 1;
+    border-color: rgba(79, 216, 255, 0.8);
+    transition: none;
+}
 
-    .touch-action {
-        width: clamp(46px, 14vw, 60px);
-        height: clamp(46px, 14vw, 60px);
-    }
+.touch-stick {
+    position: absolute;
+    inset: 0;
+    margin: auto;
+    width: 42%;
+    height: 42%;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    background: radial-gradient(circle at 35% 30%, #ffffff, #b9d6ff 45%, #4f8de0 100%);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+}
 
-    .touch-zone-label,
-    .touch-aim-zone::after { display: none; }
+/* Stick de tir : glisser = viser + tirer */
+.touch-fire {
+    position: absolute;
+    right: calc(var(--edge-r) + 8px);
+    bottom: calc(var(--edge-b) + 8px);
+    width: var(--stick);
+    height: var(--stick);
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 120, 140, 0.6);
+    background: radial-gradient(circle, rgba(120, 10, 34, 0.45), rgba(40, 6, 16, 0.3));
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.3);
+    pointer-events: auto;
+    touch-action: none;
+}
+
+.touch-fire.is-active {
+    border-color: #ff5470;
+    background: radial-gradient(circle, rgba(200, 20, 52, 0.5), rgba(60, 8, 20, 0.35));
+}
+
+.touch-fire-knob {
+    width: 50%;
+    height: 50%;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.9);
+    background: radial-gradient(circle at 35% 30%, #ff8a9c, #e0213f 70%);
+    box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45);
+    color: #fff;
+    pointer-events: none;
+}
+
+.touch-fire-knob svg { width: 62%; height: 62%; }
+
+.touch-fire > .touch-label {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 8%;
+    text-align: center;
+}
+
+/* Boutons ronds : ACTION et SAC */
+.touch-btn {
+    position: absolute;
+    width: var(--btn);
+    height: var(--btn);
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    border-radius: 50%;
+    border: 2px solid rgba(255, 255, 255, 0.45);
+    background: rgba(8, 20, 56, 0.75);
+    color: #fff;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    pointer-events: auto;
+    touch-action: none;
+    transition: transform 0.08s, background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+
+.touch-btn svg { width: 44%; height: 44%; }
+.touch-btn:active,
+.touch-btn.is-pressed { transform: scale(0.9); }
+
+.touch-btn-action {
+    right: calc(var(--edge-r) + var(--stick) + 18px);
+    bottom: calc(var(--edge-b) + 8px + var(--stick) * 0.1);
+    width: calc(var(--btn) * 1.12);
+    height: calc(var(--btn) * 1.12);
+}
+
+/* Quelque chose à faire (coffre, objet, coéquipier, saut) : le bouton s'allume */
+.touch-btn-action.is-ready {
+    border-color: var(--accent-yellow);
+    background: rgba(150, 105, 0, 0.85);
+    color: #fff6c2;
+    box-shadow: 0 0 0 3px rgba(255, 224, 61, 0.35), 0 0 18px rgba(255, 224, 61, 0.55);
+    animation: touchReady 1.1s ease-in-out infinite alternate;
+}
+
+@keyframes touchReady {
+    from { box-shadow: 0 0 0 2px rgba(255, 224, 61, 0.3), 0 0 10px rgba(255, 224, 61, 0.4); }
+    to   { box-shadow: 0 0 0 4px rgba(255, 224, 61, 0.45), 0 0 22px rgba(255, 224, 61, 0.7); }
+}
+
+/* Une seule icône / un seul texte selon le mode (préfixe #touchControls : plus fort que "svg { display }") */
+#touchControls .touch-btn-action[data-mode="jump"] .ico-use,
+#touchControls .touch-btn-action[data-mode="jump"] .lbl-use,
+#touchControls .touch-btn-action[data-mode="use"] .ico-jump,
+#touchControls .touch-btn-action[data-mode="use"] .lbl-jump { display: none; }
+
+#touchInventory {
+    right: calc(var(--edge-r) + 8px + (var(--stick) - var(--btn)) / 2);
+    bottom: calc(var(--edge-b) + var(--stick) + 18px);
+}
+
+/* Selon la phase : dans le vaisseau, un seul gros bouton SAUTER à la place du tir ;
+   en l'air, on dirige la chute au joystick (pas de tir) */
+#touchControls:not([data-phase="ground"]) .touch-fire { display: none; }
+#touchControls[data-phase="ship"] .touch-move-zone,
+#touchControls[data-phase="ship"] #touchInventory { display: none; }
+#touchControls[data-phase="ship"] .touch-btn-action {
+    right: calc(var(--edge-r) + 8px + (var(--stick) - var(--btn) * 1.4) / 2);
+    width: calc(var(--btn) * 1.4);
+    height: calc(var(--btn) * 1.4);
+}
+
+/* ----- HUD : ce qui ne sert pas au doigt disparaît ----- */
+html.touch-ui #hudHelp,
+html.touch-ui .materials,
+html.touch-ui #hudCoords,
+html.touch-ui .map-key,
+html.touch-ui .loc-biome,
+html.touch-ui #hudName,
+html.touch-ui .slot-key,
+html.touch-ui .hud-squad-title,
+html.touch-ui #interactPrompt .drop-key,
+html.touch-ui #dropPrompt .drop-key,
+html.touch-ui.no-fullscreen #fullscreenBtn { display: none; }
+
+/* Haut gauche : boutons, puis bouclier / vie, puis l'escouade */
+html.touch-ui .hud-top-left { top: var(--edge-t); left: var(--edge-l); gap: 6px; }
+html.touch-ui .hud-btn { width: 38px; height: 38px; }
+html.touch-ui .hud-btn .hud-ico { width: 20px; height: 20px; }
+
+html.touch-ui .hud-bottom-left {
+    top: calc(var(--edge-t) + 46px);
+    bottom: auto;
+    left: var(--edge-l);
+    width: clamp(120px, 24vw, 200px);
+    gap: 4px;
+}
+
+html.touch-ui .bar { height: 15px; }
+html.touch-ui .bar-text { font-size: 12px; }
+
+html.touch-ui .hud-squad {
+    top: calc(var(--edge-t) + 88px);
+    left: var(--edge-l);
+    width: clamp(120px, 24vw, 170px);
+    gap: 4px;
+}
+
+html.touch-ui .squad-member { padding: 3px 7px; gap: 2px; }
+html.touch-ui .squad-member-name { font-size: 12px; }
+html.touch-ui .squad-member-status { font-size: 9px; }
+html.touch-ui .squad-bar { height: 4px; }
+
+/* Haut droite : minimap (toucher = carte plein écran) */
+html.touch-ui .hud-top-right { top: var(--edge-t); right: var(--edge-r); gap: 5px; }
+html.touch-ui #minimapBtn { border-width: 2px; border-radius: 8px; }
+html.touch-ui .stat { font-size: 15px; padding: 2px 7px; }
+
+/* Haut centre : lieu, puis le fil des éliminations (3 dernières) */
+html.touch-ui #hudLocation { top: var(--edge-t); max-width: 34vw; }
+html.touch-ui .loc-name {
+    max-width: 34vw;
+    overflow: hidden;
+    font-size: clamp(17px, 4.6vh, 28px);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+html.touch-ui #killFeed {
+    top: calc(var(--edge-t) + clamp(26px, 6vh, 38px));
+    bottom: auto;
+    left: 50%;
+    transform: translateX(-50%);
+    align-items: center;
+    gap: 3px;
+    max-width: min(40vw, 300px);
+}
+
+html.touch-ui .kill-entry { max-width: 100%; font-size: 11px; padding: 2px 8px; } /* trop long : « … » */
+html.touch-ui .kill-entry:nth-last-child(n+4) { display: none; }
+html.touch-ui #zoneAlert { top: calc(var(--edge-t) + clamp(26px, 6vh, 38px) + 66px); }
+
+/* Bas centre : hotbar, avec l'objet en main et ses munitions juste au-dessus */
+html.touch-ui .hud-bottom-right {
+    left: 50%;
+    right: auto;
+    bottom: calc(var(--edge-b) + var(--controls-h));
+    transform: translateX(-50%);
+}
+
+html.touch-ui #hotbar { gap: 4px; }
+html.touch-ui .slot-count { font-size: 12px; }
+
+html.touch-ui #weaponInfo {
+    left: 50%;
+    right: auto;
+    bottom: calc(var(--edge-b) + var(--controls-h) + var(--slot) + 10px);
+    transform: translateX(-50%);
+    flex-direction: row;
+    align-items: baseline;
+    gap: 10px;
+}
+
+html.touch-ui #equipName { flex-direction: row; align-items: baseline; gap: 6px; transform-origin: center bottom; }
+html.touch-ui .eq-name { font-size: 17px; padding-bottom: 1px; border-bottom-width: 2px; }
+html.touch-ui .eq-rarity { font-size: 11px; }
+html.touch-ui #ammoMag { font-size: 22px; }
+html.touch-ui #ammoReserve { font-size: 14px; }
+
+/* Messages du centre : au-dessus de la hotbar, sans touche clavier affichée */
+html.touch-ui #interactPrompt,
+html.touch-ui #dropPrompt {
+    top: auto;
+    bottom: calc(var(--edge-b) + var(--controls-h) + var(--slot) + 44px);
+    padding: 5px 12px;
+    font-size: 17px;
+}
+
+html.touch-ui #actionBar {
+    top: auto;
+    bottom: calc(var(--edge-b) + var(--controls-h) + var(--slot) + 82px);
+    width: 160px;
+}
+
+html.touch-ui .action-label { font-size: 15px; }
+
+/* Inventaire : centré au-dessus de la hotbar (le bouton SAC reste accessible pour le fermer) */
+html.touch-ui #invPanel {
+    left: 50%;
+    right: auto;
+    bottom: calc(var(--edge-b) + var(--controls-h) + var(--slot) + 14px);
+    width: min(380px, calc(100vw - 2 * var(--gap) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)));
+    max-height: calc(100vh - var(--edge-t) - var(--edge-b) - var(--controls-h) - var(--slot) - 24px);
+    max-height: calc(100dvh - var(--edge-t) - var(--edge-b) - var(--controls-h) - var(--slot) - 24px);
+    z-index: 16;                    /* au-dessus du fil des éliminations */
+    transform: translateX(-50%);
+    animation: touchInvIn 0.18s ease-out;
+}
+
+/* Inventaire ouvert : le nom de l'objet en main (déjà détaillé dans le panneau) s'efface */
+html.touch-ui #hud:has(#invPanel:not([hidden])) #weaponInfo { visibility: hidden; }
+
+@keyframes touchInvIn {
+    from { opacity: 0; transform: translate(-50%, 10px); }
+    to   { opacity: 1; transform: translateX(-50%); }
+}
+
+html.touch-ui #fullMapClose { width: 48px; height: 48px; top: -8px; right: -8px; }
+
+/* ----- Téléphone tenu en hauteur : la hotbar passe au-dessus des sticks ----- */
+@media (orientation: portrait) {
+    html.touch-ui { --controls-h: calc(var(--stick) + 30px); }
+    html.touch-ui .touch-move-zone { width: 50%; height: 46%; }
+    /* SAC au-dessus d'ACTION (à côté du tir, il toucherait la hotbar) */
+    html.touch-ui #touchInventory {
+        right: calc(var(--edge-r) + var(--stick) + 18px + var(--btn) * 0.06);
+        bottom: calc(var(--edge-b) + 8px + var(--stick) * 0.1 + var(--btn) * 1.12 + 10px);
+    }
+    html.touch-ui .hud-bottom-left { width: 30vw; min-width: 0; }
+    html.touch-ui #hudLocation { top: calc(var(--edge-t) + 46px); max-width: 30vw; }
+    html.touch-ui .loc-name { max-width: 30vw; font-size: 18px; }
+    /* Sous la minimap et le minuteur de corruption, sur toute la largeur */
+    html.touch-ui #killFeed {
+        top: calc(var(--edge-t) + var(--minimap) + 86px);
+        max-width: calc(100vw - 2 * var(--gap) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
+    }
+    html.touch-ui #zoneAlert { top: calc(var(--edge-t) + var(--minimap) + 156px); }
 }

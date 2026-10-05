@@ -429,7 +429,9 @@ export class Hud {
             if (e.key === 'Escape' && this.mapOpen) this.toggleMap(false);
         });
         this.el.fullscreenBtn.addEventListener('click', () => {
-            if (document.fullscreenElement) document.exitFullscreen?.();
+            // js/mobile-screen.js gère aussi Safari (préfixe webkit) et l'orientation paysage
+            if (window.FOR2D_SCREEN) window.FOR2D_SCREEN.toggleFullscreen();
+            else if (document.fullscreenElement) document.exitFullscreen?.();
             else document.documentElement.requestFullscreen?.().catch(() => {});
         });
         this.slots.forEach((btn, i) => btn.addEventListener('click', () => this.selectSlot(i)));
@@ -636,8 +638,10 @@ export class Hud {
         }
         if (!inShip) return;
 
+        // Au doigt : pas de touche ESPACE, on renvoie vers le bouton SAUTER (css : .touch-ui)
+        const touch = document.documentElement.classList.contains('touch-ui');
         const msg = d.dist >= d.enterAt
-            ? `pour sauter|Saut auto dans ${Math.max(0, Math.floor(d.timeLeft))} s`
+            ? `${touch ? 'Touche SAUTER pour sauter' : 'pour sauter'}|Saut auto dans ${Math.max(0, Math.floor(d.timeLeft))} s`
             : `Arrivée au-dessus de l'île...|`;
         if (msg === this._dropMsg) return;
         this._dropMsg = msg;

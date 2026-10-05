@@ -46,6 +46,11 @@ function shouldBlock(e) {
     return true;
 }
 
+// Déplace le bouton central d'un stick tactile (0, 0 = au centre)
+function setKnob(knob, dx, dy) {
+    knob?.style.setProperty('transform', `translate(${dx.toFixed(1)}px, ${dy.toFixed(1)}px)`);
+}
+
 export class Input {
     constructor(canvas, handlers = {}) {
         this.keys = new Set();
@@ -59,14 +64,15 @@ export class Input {
             pressDuration: 0,
             rdown: false        // clic droit maintenu (roue d'emotes)
         };
+        // Commandes tactiles (voir bindTouchControls) : un doigt par commande
         this.touch = {
-            moveId: null,
-            aimId: null,
-            actionIds: new Map(),
-            moveX: 0,
-            moveY: 0,
-            active: false
+            moveId: null, moveX: 0, moveY: 0,         // joystick de déplacement (gauche)
+            originX: 0, originY: 0, moveRadius: 48,
+            fireId: null, fireX: 0, fireY: 0, fireRadius: 48, // stick de tir (droite)
+            aimX: 1, aimY: 0, aiming: false, fired: false, holdTimer: 0,
+            actionId: null                             // bouton Action (maintenu = réanimer)
         };
+        this._touchEls = {};
 
         addEventListener('keydown', (e) => {
             this.keys.add(e.code);
@@ -106,13 +112,7 @@ export class Input {
             this.mouse.rdown = false;
             this.mouse.released = true;
             this.mouse.pressDuration = 0;
-            this.touch.moveId = null;
-            this.touch.aimId = null;
-            this.touch.moveX = 0;
-            this.touch.moveY = 0;
-            this.touch.actionIds.clear();
-            this.touch.active = false;
-            document.querySelector('#touchMoveZone .touch-stick')?.style.setProperty('transform', 'translate(-50%, -50%)');
+            this.resetTouch();
         });
 
         canvas.addEventListener('mousemove', (e) => {
@@ -173,91 +173,192 @@ export class Input {
         this.bindTouchControls(handlers);
     }
 
+    /*
+       Commandes tactiles (game.html, #touchControls) — volontairement réduites à l'essentiel :
+       - joystick GAUCHE flottant : il apparaît sous le doigt, n'importe où dans la zone de gauche ;
+       - stick de TIR à droite : glisser = viser et tirer dans cette direction,
+         maintenir sans glisser = tirer devant soi, simple appui = un tir (ou utiliser un soin) ;
+       - bouton ACTION : sauter du vaisseau, ouvrir / ramasser, maintenu = réanimer ;
+       - bouton SAC : inventaire. La carte s'ouvre en touchant la minimap (hud.js).
+    */
     bindTouchControls(handlers) {
         const moveZone = document.getElementById('touchMoveZone');
-        const aimZone = document.getElementById('touchAimZone');
-        const actionButtons = document.querySelectorAll('[data-touch-action]');
-        const syncTouchActive = () => {
-            this.touch.active = this.touch.moveId !== null || this.touch.aimId !== null || this.touch.actionIds.size > 0;
+        const joystick = moveZone?.querySelector('.touch-joystick');
+        const moveKnob = joystick?.querySelector('.touch-stick');
+        const fire = document.getElementById('touchFire');
+        const fireKnob = fire?.querySelector('.touch-fire-knob');
+        const actionBtn = document.getElementById('touchAction');
+        const invBtn = document.getElementById('touchInventory');
+        this._touchEls = { moveZone, joystick, moveKnob, fire, fireKnob, actionBtn };
+
+        const t = this.touch;
+        const capture = (el, e) => { try { el.setPointerCapture(e.pointerId); } catch { /* déjà relâché */ } };
+        const ends = ['pointerup', 'pointercancel', 'lostpointercapture'];
+        // Décalage du doigt limité au rayon du stick : position du bouton + direction (-1..1)
+        const stick = (dx, dy, radius) => {
+            const dist = Math.hypot(dx, dy);
+            const k = dist > radius ? radius / dist : 1;
+            const cx = dx * k;
+            const cy = dy * k;
+            return { cx, cy, nx: cx / radius, ny: cy / radius, amount: Math.min(1, dist / radius) };
         };
 
-        const resetMove = (event) => {
-            if (this.touch.moveId !== event.pointerId) return;
-            this.touch.moveId = null;
-            this.touch.moveX = 0;
-            this.touch.moveY = 0;
-            moveZone?.classList.remove('is-active');
-            moveZone?.querySelector('.touch-stick')?.style.setProperty('transform', 'translate(-50%, -50%)');
-            syncTouchActive();
+        /* ----- Joystick de déplacement (flottant) ----- */
+        const updateMove = (e) => {
+            if (t.moveId !== e.pointerId) return;
+            e.preventDefault();
+            const v = stick(e.clientX - t.originX, e.clientY - t.originY, t.moveRadius);
+            const moving = v.amount > 0.15; // petite zone morte : le personnage ne glisse pas tout seul
+            t.moveX = moving ? v.nx : 0;
+            t.moveY = moving ? v.ny : 0;
+            setKnob(moveKnob, v.cx, v.cy);
         };
-        const updateMove = (event) => {
-            if (this.touch.moveId !== event.pointerId || !moveZone) return;
-            const rect = moveZone.getBoundingClientRect();
-            const cx = rect.left + rect.width / 2;
-            const cy = rect.top + rect.height / 2;
-            const radius = Math.max(20, Math.min(rect.width, rect.height) * 0.38);
-            let dx = event.clientX - cx;
-            let dy = event.clientY - cy;
-            const distance = Math.hypot(dx, dy);
-            if (distance > radius) { dx = dx / distance * radius; dy = dy / distance * radius; }
-            const dead = radius * 0.12;
-            this.touch.moveX = Math.abs(dx) < dead ? 0 : dx / radius;
-            this.touch.moveY = Math.abs(dy) < dead ? 0 : dy / radius;
-            moveZone.querySelector('.touch-stick')?.style.setProperty('transform', `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px))`);
-        };
-        moveZone?.addEventListener('pointerdown', (event) => {
-            if (event.pointerType === 'mouse' || this.touch.moveId !== null) return;
-            event.preventDefault(); this.touch.active = true; this.touch.moveId = event.pointerId;
-            moveZone.setPointerCapture?.(event.pointerId); moveZone.classList.add('is-active'); updateMove(event);
+        moveZone?.addEventListener('pointerdown', (e) => {
+            if (t.moveId !== null || !joystick) return;
+            e.preventDefault();
+            const zone = moveZone.getBoundingClientRect();
+            const r = (joystick.offsetWidth || 120) / 2;
+            // Le joystick vient sous le doigt, sans dépasser de la zone
+            const x = Math.min(Math.max(e.clientX - zone.left, r), Math.max(r, zone.width - r));
+            const y = Math.min(Math.max(e.clientY - zone.top, r), Math.max(r, zone.height - r));
+            t.moveId = e.pointerId;
+            t.originX = zone.left + x;
+            t.originY = zone.top + y;
+            t.moveRadius = r * 0.78;
+            joystick.style.left = `${x - r}px`;
+            joystick.style.top = `${y - r}px`;
+            joystick.style.bottom = 'auto';
+            moveZone.classList.add('is-active');
+            capture(moveZone, e);
+            updateMove(e);
         }, { passive: false });
         moveZone?.addEventListener('pointermove', updateMove, { passive: false });
-        ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => moveZone?.addEventListener(type, resetMove));
+        ends.forEach(type => moveZone?.addEventListener(type, (e) => {
+            if (t.moveId === e.pointerId) this.resetMove();
+        }));
 
-        aimZone?.addEventListener('pointerdown', (event) => {
-            if (event.pointerType === 'mouse' || this.touch.aimId !== null) return;
-            event.preventDefault(); this.touch.active = true; this.touch.aimId = event.pointerId;
-            aimZone.setPointerCapture?.(event.pointerId); this.mouse.x = event.clientX; this.mouse.y = event.clientY;
-            this.mouse.down = true; this.mouse.pressed = true; this.mouse.released = false; this.mouse.downAt = performance.now();
-        }, { passive: false });
-        aimZone?.addEventListener('pointermove', (event) => {
-            if (this.touch.aimId !== event.pointerId) return;
-            event.preventDefault(); this.mouse.x = event.clientX; this.mouse.y = event.clientY;
-        }, { passive: false });
-        const releaseAim = (event) => {
-            if (this.touch.aimId !== event.pointerId) return;
-            this.touch.aimId = null; this.mouse.down = false; this.mouse.released = true;
-            this.mouse.pressDuration = Math.max(0, performance.now() - this.mouse.downAt);
-            syncTouchActive();
+        /* ----- Stick de tir ----- */
+        const startFiring = () => {
+            if (t.fired) return;
+            t.fired = true;
+            this.mouse.down = true;
+            this.mouse.pressed = true;
+            this.mouse.released = false;
+            this.mouse.downAt = performance.now();
         };
-        ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => aimZone?.addEventListener(type, releaseAim));
+        fire?.addEventListener('pointerdown', (e) => {
+            if (t.fireId !== null) return;
+            e.preventDefault();
+            const rect = fire.getBoundingClientRect();
+            t.fireId = e.pointerId;
+            t.fireX = rect.left + rect.width / 2;
+            t.fireY = rect.top + rect.height / 2;
+            t.fireRadius = rect.width * 0.42;
+            t.fired = false;
+            t.aiming = false;
+            fire.classList.add('is-active');
+            capture(fire, e);
+            // Maintenu sans glisser : tir automatique droit devant
+            clearTimeout(t.holdTimer);
+            const id = e.pointerId;
+            t.holdTimer = setTimeout(() => { if (t.fireId === id) startFiring(); }, 180);
+        }, { passive: false });
+        fire?.addEventListener('pointermove', (e) => {
+            if (t.fireId !== e.pointerId) return;
+            e.preventDefault();
+            const v = stick(e.clientX - t.fireX, e.clientY - t.fireY, t.fireRadius);
+            setKnob(fireKnob, v.cx, v.cy);
+            if (v.amount < 0.25) return; // un appui un peu de travers ne change pas la visée
+            const len = Math.hypot(v.cx, v.cy) || 1;
+            t.aimX = v.cx / len;
+            t.aimY = v.cy / len;
+            t.aiming = true;
+            startFiring();
+        }, { passive: false });
+        ends.forEach(type => fire?.addEventListener(type, (e) => {
+            if (t.fireId !== e.pointerId) return;
+            // Simple appui (relâché avant le tir auto) : un seul tir, ou utiliser le soin en main
+            if (!t.fired && type === 'pointerup') {
+                this.mouse.pressed = true;
+                this.mouse.downAt = performance.now();
+            }
+            this.resetFire();
+        }));
 
-        actionButtons.forEach((button) => {
-            const action = button.dataset.touchAction;
-            const holdKey = button.dataset.touchHold;
-            button.addEventListener('pointerdown', (event) => {
-                if (event.pointerType === 'mouse') return;
-                event.preventDefault(); this.touch.active = true;
-                this.touch.actionIds.set(event.pointerId, { button, holdKey }); button.setPointerCapture?.(event.pointerId);
-                if (holdKey) this.keys.add(holdKey);
-                else if (action === 'jump') handlers.onJump?.();
-                else if (action === 'reload') handlers.onReload?.();
-                else if (action === 'interact') handlers.onInteract?.();
-                else if (action === 'inventory') handlers.onInventory?.();
-                else if (action === 'map') handlers.onMap?.();
-                else if (action === 'emote') this.mouse.rdown = true;
-            }, { passive: false });
-            const releaseAction = (event) => {
-                const current = this.touch.actionIds.get(event.pointerId); if (!current) return;
-                this.touch.actionIds.delete(event.pointerId); if (current.holdKey) this.keys.delete(current.holdKey);
-                if (action === 'emote') this.mouse.rdown = false;
-                syncTouchActive();
-            };
-            ['pointerup', 'pointercancel', 'lostpointercapture'].forEach(type => button.addEventListener(type, releaseAction));
-        });
+        /* ----- Bouton Action (sauter / ouvrir / ramasser ; maintenu = réanimer) ----- */
+        const runAction = () => {
+            handlers.onJump?.();     // ne fait rien hors du vaisseau
+            handlers.onInteract?.(); // ne fait rien hors du sol
+        };
+        actionBtn?.addEventListener('pointerdown', (e) => {
+            if (t.actionId !== null) return;
+            e.preventDefault();
+            t.actionId = e.pointerId;
+            capture(actionBtn, e);
+            actionBtn.classList.add('is-pressed');
+            this.keys.add('KeyE'); // la réanimation se fait tant que E est « enfoncé »
+            runAction();
+        }, { passive: false });
+        ends.forEach(type => actionBtn?.addEventListener(type, (e) => {
+            if (t.actionId === e.pointerId) this.resetAction();
+        }));
+        // Activation au clavier (Entrée / Espace sur le bouton) : même action
+        actionBtn?.addEventListener('click', (e) => { if (e.detail === 0) runAction(); });
+
+        /* ----- Bouton Sac (inventaire) ----- */
+        invBtn?.addEventListener('click', () => handlers.onInventory?.());
     }
 
-    isTouchActive() {
-        return this.touch.active || this.touch.moveId !== null || this.touch.aimId !== null;
+    resetMove() {
+        const { moveZone, joystick, moveKnob } = this._touchEls;
+        this.touch.moveId = null;
+        this.touch.moveX = 0;
+        this.touch.moveY = 0;
+        moveZone?.classList.remove('is-active');
+        joystick?.style.removeProperty('left');
+        joystick?.style.removeProperty('top');
+        joystick?.style.removeProperty('bottom');
+        setKnob(moveKnob, 0, 0);
+    }
+
+    resetFire() {
+        const { fire, fireKnob } = this._touchEls;
+        const t = this.touch;
+        clearTimeout(t.holdTimer);
+        const wasHeld = t.fireId !== null;
+        t.fireId = null;
+        t.aiming = false;
+        t.fired = false;
+        if (wasHeld) {
+            this.mouse.down = false;
+            this.mouse.released = true;
+            this.mouse.pressDuration = Math.max(0, performance.now() - this.mouse.downAt);
+        }
+        fire?.classList.remove('is-active');
+        setKnob(fireKnob, 0, 0);
+    }
+
+    resetAction() {
+        this.touch.actionId = null;
+        this.keys.delete('KeyE');
+        this._touchEls.actionBtn?.classList.remove('is-pressed');
+    }
+
+    resetTouch() {
+        this.resetMove();
+        this.resetFire();
+        this.resetAction();
+    }
+
+    // HUD tactile affiché (dernier moyen utilisé = le doigt, voir js/mobile-screen.js)
+    get touchMode() {
+        return document.documentElement.classList.contains('touch-ui');
+    }
+
+    // Direction visée avec le stick de tir (vecteur unitaire), ou null s'il n'est pas tenu
+    touchAimDir() {
+        const t = this.touch;
+        return t.fireId !== null && t.aiming ? { x: t.aimX, y: t.aimY } : null;
     }
 
     // Renvoie true une seule fois par clic
@@ -274,7 +375,7 @@ export class Input {
         return r;
     }
 
-    // Direction voulue (-1, 0 ou 1 sur chaque axe)
+    // Direction voulue : -1, 0 ou 1 sur chaque axe au clavier, valeurs continues au joystick
     axis() {
         if (this.touch.moveId !== null) return { x: this.touch.moveX, y: this.touch.moveY };
         const k = this.keys;
