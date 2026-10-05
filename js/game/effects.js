@@ -60,6 +60,12 @@ const SHIELD_SPARKS = ['#7cc4ff', '#7cc4ff', '#ffffff'];
 const HEALTH_SPARKS = ['#ffffff', '#ff5470', '#ffffff', '#ff8095'];
 const HEALTH_STARS = ['#ffffff', '#ff8095'];
 const DEATH_STARS = ['#ffffff', '#cfeaff'];
+const RICO_SPARKS = ['#8ff3ff', '#d6fbff', '#ffffff'];
+const FIRE = ['#ffb627', '#ff7a1a', '#ffe03d', '#ff5a2a'];
+const FIRE_SPARKS = ['#ffe03d', '#ffb627', '#ffffff'];
+const SOOT = ['#4a4550', '#5d5862', '#3a3640'];
+const FLASH_STARS = ['#ffffff', '#fff6c8', '#fff0a0'];
+const PROPEL = ['#62d8ff', '#bff0ff', '#ffffff'];
 
 // Réglages du tir par arme :
 // flash = taille du flash, smoke = nb de bouffées, shell = demi-longueur de la douille,
@@ -69,7 +75,11 @@ const MUZZLE = {
     smg:     { flash: 13, smoke: 1, shell: 3.2, back: 22, big: false },
     ar:      { flash: 17, smoke: 2, shell: 3.8, back: 30, big: false },
     shotgun: { flash: 27, smoke: 5, shell: 4.6, back: 26, big: true },
-    sniper:  { flash: 30, smoke: 5, shell: 4.8, back: 38, big: true }
+    sniper:  { flash: 30, smoke: 5, shell: 4.8, back: 38, big: true },
+    // Arbalète : pas de flamme ni de douille, juste la corde qui claque
+    crossbow: { flash: 0, smoke: 0, shell: 0, back: 0, big: false, string: true },
+    // Ricochet : petit flash + étincelles bleutées
+    ricochet: { flash: 13, smoke: 1, shell: 3, back: 12, big: false, sparks: RICO_SPARKS }
 };
 
 /* ===================== FORMES UNITAIRES (précalculées) ===================== */
@@ -708,12 +718,26 @@ export class Effects {
         const ry = dx;
 
         // Flash en étoile, très court
-        const f = this._spawn(FLASH, TOP, x, y, cfg.big ? 0.075 : 0.06);
-        f.ang = angle;
-        f.rot = rand(-0.12, 0.12);
-        f.size = cfg.flash * rand(0.9, 1.1);
-        f.width = sign() * rand(0.8, 1.05);
-        f.reach = f.size * 1.4;
+        if (cfg.flash > 0) {
+            const f = this._spawn(FLASH, TOP, x, y, cfg.big ? 0.075 : 0.06);
+            f.ang = angle;
+            f.rot = rand(-0.12, 0.12);
+            f.size = cfg.flash * rand(0.9, 1.1);
+            f.width = sign() * rand(0.8, 1.05);
+            f.reach = f.size * 1.4;
+        }
+        // Corde d'arbalète : traits de vitesse blancs + petit anneau
+        if (cfg.string) {
+            this._sparks(x, y, angle, 0.18, 4, 300, 520, DEATH_STARS, 0.08, 0.14, 2);
+            const r = this._spawn(RING, TOP, x - dx * 22, y - dy * 22, 0.18);
+            r.size = 4;
+            r.size2 = 18;
+            r.width = 3;
+            r.width2 = 1;
+            r.alpha = 0.7;
+            r.color = '#ffffff';
+        }
+        if (cfg.sparks) this._sparks(x, y, angle, 0.4, 4, 220, 400, cfg.sparks, 0.07, 0.13, 2);
 
         // Petite fumée grise qui se dissipe
         for (let i = 0; i < cfg.smoke; i++) {
@@ -732,6 +756,7 @@ export class Effects {
         // Quelques étincelles vers l'avant pour les grosses armes
         if (cfg.big) this._sparks(x, y, angle, 0.3, 4, 280, 480, FLASH_SPARKS, 0.08, 0.14, 2.2);
 
+        if (!(cfg.shell > 0)) return;
         // Douille éjectée à droite : tourne, rebondit une fois, reste ~1,5 s au sol
         const s = this._spawn(SHELL, GROUND,
             x - dx * cfg.back + rx * 4, y - dy * cfg.back + ry * 4, rand(1.9, 2.1));
@@ -753,10 +778,27 @@ export class Effects {
         s.reach = 12;
     }
 
-    // Impact de balle : kind = 'wall' | 'shield' | 'health'
+    // Impact de balle : kind = 'wall' | 'shield' | 'health' | 'ricochet'
     impact(x, y, angle, kind) {
         if (this._far(x, y)) return;
         const back = angle + Math.PI; // les débris repartent vers le tireur
+
+        // Rebond d'une balle ricochet : gerbe bleutée dans la nouvelle direction + éclat
+        if (kind === 'ricochet') {
+            this._sparks(x, y, angle, 0.7, 7, 200, 420, RICO_SPARKS, 0.12, 0.24, 2.2);
+            const st = this._spawn(STAR, TOP, x, y, 0.16);
+            st.size = 11;
+            st.rot = rand(0, TAU);
+            st.color = '#d6fbff';
+            const r = this._spawn(RING, TOP, x, y, 0.22);
+            r.size = 3;
+            r.size2 = 16;
+            r.width = 3;
+            r.width2 = 1;
+            r.alpha = 0.85;
+            r.color = '#8ff3ff';
+            return;
+        }
 
         if (kind === 'shield' || kind === 'health') {
             const shield = kind === 'shield';
@@ -833,6 +875,215 @@ export class Effects {
         st.size = 7;
         st.rot = rand(0, TAU);
         st.color = '#fff3a8';
+    }
+
+    /* ---------- Grenades ---------- */
+
+    // Grenade qui touche le sol ou un mur : petit nuage + éclats
+    grenadeBounce(x, y) {
+        if (this._far(x, y)) return;
+        for (let i = 0; i < 3; i++) {
+            const p = this._spawn(DOT, GROUND, x + rand(-4, 4), y + rand(-4, 4), rand(0.3, 0.45));
+            p.vx = rand(-40, 40);
+            p.vy = rand(-40, 20);
+            p.drag = 4;
+            p.size = rand(3, 4);
+            p.size2 = rand(8, 11);
+            p.alpha = 0.4;
+            p.color = pick(DUST);
+        }
+    }
+
+    // Explosive : éclair, boule de feu, onde de choc, fumée noire, débris et trace brûlée
+    explosion(x, y, radius = 150) {
+        if (this._far(x, y)) return;
+        const R = radius;
+        // Trace brûlée au sol (reste quelques secondes)
+        const scorch = this._spawn(DOT, GROUND, x, y, 5);
+        scorch.size = R * 0.4;
+        scorch.size2 = R * 0.45;
+        scorch.alpha = 0.3;
+        scorch.color = '#1d1a1f';
+        scorch.reach = R * 0.5;
+        // Éclair blanc
+        const fl = this._spawn(DOT, TOP, x, y, 0.14);
+        fl.size = R * 0.6;
+        fl.size2 = R * 0.25;
+        fl.alpha = 0.95;
+        fl.color = '#fffbe0';
+        fl.reach = R * 0.7;
+        // Boule de feu : bulles orange / jaunes qui gonflent
+        for (let i = 0; i < 16; i++) {
+            const a = rand(0, TAU);
+            const d = rand(0, R * 0.25);
+            const sp = rand(40, 160);
+            const p = this._spawn(DOT, TOP, x + Math.cos(a) * d, y + Math.sin(a) * d, rand(0.32, 0.55), rand(0, 0.05));
+            p.vx = Math.cos(a) * sp;
+            p.vy = Math.sin(a) * sp;
+            p.drag = 4;
+            p.size = rand(R * 0.1, R * 0.17);
+            p.size2 = rand(R * 0.2, R * 0.3);
+            p.alpha = rand(0.8, 0.95);
+            p.color = pick(FIRE);
+            p.color2 = 'rgba(160, 40, 10, 0.6)';
+            p.width = 2;
+            p.reach = R * 0.6;
+        }
+        // Fumée noire qui monte
+        for (let i = 0; i < 12; i++) {
+            const a = rand(0, TAU);
+            const d = rand(R * 0.05, R * 0.35);
+            const p = this._spawn(DOT, TOP, x + Math.cos(a) * d, y + Math.sin(a) * d, rand(1.1, 1.7), rand(0.08, 0.2));
+            p.vx = Math.cos(a) * rand(20, 60);
+            p.vy = Math.sin(a) * rand(20, 60);
+            p.drag = 1.8;
+            p.gy = -45;
+            p.size = rand(R * 0.08, R * 0.13);
+            p.size2 = rand(R * 0.22, R * 0.32);
+            p.alpha = rand(0.45, 0.6);
+            p.color = pick(SOOT);
+            p.reach = R * 0.6;
+        }
+        // Ondes de choc
+        const w = this._spawn(RING, GROUND, x, y, 0.45);
+        w.size = R * 0.2;
+        w.size2 = R * 1.05;
+        w.width = 14;
+        w.width2 = 2;
+        w.alpha = 0.85;
+        w.color = '#fff3c4';
+        w.flags = GLOW;
+        w.reach = R * 1.3;
+        const w2 = this._spawn(RING, TOP, x, y, 0.35, 0.03);
+        w2.size = R * 0.15;
+        w2.size2 = R * 0.8;
+        w2.width = 6;
+        w2.width2 = 1;
+        w2.alpha = 0.8;
+        w2.color = '#ff9d3c';
+        w2.reach = R;
+        // Débris qui sautent et retombent
+        for (let i = 0; i < 14; i++) {
+            const a = rand(0, TAU);
+            const sp = rand(160, 380);
+            const p = this._spawn(CUBE, TOP, x, y, rand(0.6, 0.9));
+            p.vx = Math.cos(a) * sp;
+            p.vy = Math.sin(a) * sp;
+            p.drag = 2.5;
+            p.z = 4;
+            p.vz = rand(120, 260);
+            p.gz = 800;
+            p.bounce = 0.3;
+            p.bounces = 1;
+            p.size = rand(2, 3.6);
+            p.size2 = p.size * 0.7;
+            p.rot = rand(0, TAU);
+            p.vrot = rand(8, 16) * sign();
+            p.color = i % 3 ? pick(CHIPS) : '#3a3640';
+            p.color2 = OUTLINE;
+            p.width = 1;
+        }
+        this._sparks(x, y, 0, Math.PI, 18, 260, 640, FIRE_SPARKS, 0.2, 0.45, 2.6);
+    }
+
+    // Flash : éclair blanc aveuglant, anneaux lumineux et étoiles
+    flashBang(x, y, radius = 190) {
+        if (this._far(x, y)) return;
+        const R = radius;
+        const fl = this._spawn(DOT, TOP, x, y, 0.25);
+        fl.size = R * 0.75;
+        fl.size2 = R * 0.3;
+        fl.alpha = 1;
+        fl.color = '#ffffff';
+        fl.reach = R * 0.8;
+        for (let i = 0; i < 2; i++) {
+            const r = this._spawn(RING, TOP, x, y, 0.5, i * 0.08);
+            r.size = R * 0.1;
+            r.size2 = R * (1.1 - i * 0.3);
+            r.width = 10 - i * 4;
+            r.width2 = 1;
+            r.alpha = 0.9;
+            r.color = i ? '#fff0a0' : '#ffffff';
+            r.flags = GLOW;
+            r.reach = R * 1.3;
+        }
+        for (let i = 0; i < 9; i++) {
+            const a = (i / 9) * TAU + rand(-0.2, 0.2);
+            const sp = rand(120, 260);
+            const p = this._spawn(STAR, TOP, x, y, rand(0.35, 0.55), rand(0, 0.05));
+            p.vx = Math.cos(a) * sp;
+            p.vy = Math.sin(a) * sp;
+            p.drag = 3;
+            p.size = rand(10, 16);
+            p.rot = rand(0, TAU);
+            p.color = pick(FLASH_STARS);
+            p.reach = 24;
+        }
+        this._sparks(x, y, 0, Math.PI, 16, 280, 560, FLASH_STARS, 0.15, 0.3, 2.2);
+    }
+
+    // Fumigène : grosse bouffée qui jaillit (le nuage qui reste est dessiné par Combat)
+    smokeBurst(x, y, radius = 150) {
+        if (this._far(x, y)) return;
+        const R = radius;
+        for (let i = 0; i < 14; i++) {
+            const a = (i / 14) * TAU + rand(-0.2, 0.2);
+            const sp = rand(R * 0.9, R * 1.6);
+            const p = this._spawn(DOT, TOP, x, y, rand(0.7, 1.1), rand(0, 0.08));
+            p.vx = Math.cos(a) * sp;
+            p.vy = Math.sin(a) * sp;
+            p.drag = 3.5;
+            p.size = rand(8, 12);
+            p.size2 = rand(R * 0.22, R * 0.3);
+            p.alpha = rand(0.55, 0.7);
+            p.color = pick(SMOKE);
+            p.reach = R * 0.4;
+        }
+        const r = this._spawn(RING, GROUND, x, y, 0.5);
+        r.size = 10;
+        r.size2 = R * 0.9;
+        r.width = 8;
+        r.width2 = 2;
+        r.alpha = 0.5;
+        r.color = '#dfe2e7';
+        r.reach = R;
+    }
+
+    // Propulsion : onde bleue (3 anneaux), traits de vitesse et poussière soulevée
+    propulsionBlast(x, y, radius = 120) {
+        if (this._far(x, y)) return;
+        const R = radius;
+        const fl = this._spawn(DOT, TOP, x, y, 0.16);
+        fl.size = R * 0.45;
+        fl.size2 = R * 0.15;
+        fl.alpha = 0.9;
+        fl.color = '#e6faff';
+        fl.reach = R * 0.5;
+        for (let i = 0; i < 3; i++) {
+            const r = this._spawn(RING, i ? TOP : GROUND, x, y, 0.45, i * 0.07);
+            r.size = R * 0.15;
+            r.size2 = R * (1.15 - i * 0.2);
+            r.width = 10 - i * 2.5;
+            r.width2 = 1.5;
+            r.alpha = 0.85;
+            r.color = PROPEL[i];
+            r.flags = GLOW;
+            r.reach = R * 1.3;
+        }
+        this._sparks(x, y, 0, Math.PI, 20, 380, 720, PROPEL, 0.14, 0.26, 2.4);
+        for (let i = 0; i < 10; i++) {
+            const a = (i / 10) * TAU + rand(-0.2, 0.2);
+            const d = rand(10, 18);
+            const sp = rand(160, 260);
+            const p = this._spawn(DOT, GROUND, x + Math.cos(a) * d, y + Math.sin(a) * d, rand(0.5, 0.75));
+            p.vx = Math.cos(a) * sp;
+            p.vy = Math.sin(a) * sp;
+            p.drag = 4;
+            p.size = rand(6, 9);
+            p.size2 = rand(12, 17);
+            p.alpha = rand(0.4, 0.55);
+            p.color = pick(DUST);
+        }
     }
 
     // Chiffre de dégâts façon Fortnite

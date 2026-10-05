@@ -12,15 +12,16 @@ import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT
 } from './drop.js?v=13';
-import { Combat } from './combat.js?v=9';
+import { Combat } from './combat.js?v=10';
 import { Loot } from './loot.js?v=9';
 import { BotManager, roofAlphaAt } from './bots.js?v=13';
 import { Corruption } from './corruption.js?v=9';
-import { CombatHud } from './combat-hud.js?v=11';
-import { Effects } from './effects.js?v=13';
-import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=10';
-import { drawPlayer, drawDying } from './draw.js?v=9';
-import { SFX } from '../sfx.js?v=14';
+import { CombatHud } from './combat-hud.js?v=12';
+import { Effects } from './effects.js?v=14';
+import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=11';
+import { drawPlayer, drawDying } from './draw.js?v=10';
+import { iconCanvas } from './icons.js';
+import { SFX } from '../sfx.js?v=15';
 import { Settings } from '../settings.js?v=9';
 import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=9';
 import { itemArt } from '../item-art.js?v=10';
@@ -46,7 +47,19 @@ const CHEST_HUM_RANGE = 360;    // portée cohérente avec le son d'ouverture
 const BOT_VOL = 0.7;            // sons d'action des bots un peu moins forts
 
 // Secousse de caméra quand le joueur tire, selon l'arme
-const FIRE_SHAKE = { pistol: 1.5, smg: 1.2, ar: 2, shotgun: 6, sniper: 8 };
+const FIRE_SHAKE = { pistol: 1.5, smg: 1.2, ar: 2, shotgun: 6, sniper: 8, crossbow: 2.5, ricochet: 1.8 };
+
+// Secousse maximale quand une grenade explose tout près du joueur (diminue avec la distance)
+const BLAST_SHAKE = { explosive: 14, flash: 6, propulsion: 7, smoke: 2 };
+const BLAST_SHAKE_RANGE = 700;
+
+// Effet visuel propre à chaque grenade (voir Effects)
+const BLAST_FX = {
+    explosive: 'explosion',
+    flash: 'flashBang',
+    smoke: 'smokeBurst',
+    propulsion: 'propulsionBlast'
+};
 
 function start() {
     let gameConfig = { mode: 'solo', modeName: 'SOLO', teamSize: 1, bots: true };
@@ -277,15 +290,27 @@ function start() {
             }
         },
         onThrow(f, throwable, angle, visual) {
-            if (!visual) {
-                SFX.play('click', { x: f.x, y: f.y, vol: actionVol(f) });
-                if (isMultiplayer && owns(f)) netSend({ type: 'p_throw', s: f.id, i: throwable.id, a: Math.round(angle * 1000) / 1000, x: Math.round(f.x), y: Math.round(f.y) });
+            // Le son est joué partout (lancer réel ou rejoué pour un autre joueur)
+            SFX.play('throw', { x: f.x, y: f.y, vol: actionVol(f) });
+            if (!visual && isMultiplayer && owns(f)) {
+                netSend({ type: 'p_throw', s: f.id, i: throwable.id, a: Math.round(angle * 1000) / 1000, x: Math.round(f.x), y: Math.round(f.y) });
             }
         },
+        onThrowableBounce(p) {
+            effects.grenadeBounce(p.x, p.y);
+            SFX.play('grenadeBounce', { x: p.x, y: p.y });
+        },
         onExplode(x, y, throwable, owner, visual) {
-            if (throwable.id === 'smoke') effects.impact(x, y, 0, 'wall');
-            else effects.impact(x, y, owner?.angle || 0, throwable.id === 'flash' ? 'shield' : 'health');
-            if (!visual) SFX.play('impact', { x, y, kind: throwable.id });
+            // Visuel et son identiques sur toutes les machines (même pour une grenade rejouée)
+            const fx = BLAST_FX[throwable.id];
+            if (fx) effects[fx](x, y, throwable.radius);
+            else effects.impact(x, y, owner?.angle || 0, 'wall');
+            SFX.play('explosion', { x, y, kind: throwable.id });
+            const shake = BLAST_SHAKE[throwable.id] || 0;
+            if (shake > 0 && player.alive) {
+                const d = Math.hypot(player.x - x, player.y - y);
+                if (d < BLAST_SHAKE_RANGE) renderer?.shake(shake * (1 - d / BLAST_SHAKE_RANGE));
+            }
         },
         onEffect(target, effect, factor, x, y, visual) {
             if (visual || !isMultiplayer || owns(target)) return;
@@ -388,6 +413,11 @@ function start() {
     });
     combat.teamMode = teamMode;
     combat.owns = owns;
+    // Grenades en vol / au sol : même dessin que leur icône (Combat n'importe pas icons.js)
+    combat.drawThrowableArt = (ctx, id, size) => {
+        const ic = iconCanvas('throwable', id, 0, 64, false);
+        if (ic) ctx.drawImage(ic, -size / 2, -size / 2, size, size);
+    };
 
     // Mort d'un combattant (ici ou sur une autre machine) : animation, fil des éliminations, stats
     function showDeath(killer, victim, weaponId) {

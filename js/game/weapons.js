@@ -166,6 +166,60 @@ const PLANS = {
     }
 };
 
+// Armes qui ne tiennent pas dans un simple plan de pièces alignées (vue de dessus)
+const CUSTOM_DRAW = {
+    // Arbalète : crosse en bois, rail, arc perpendiculaire à la couleur de la rareté, carreau
+    crossbow(ctx, band) {
+        part(ctx, 0, 22, 9, WOOD);
+        part(ctx, 18, 34, 7, METAL);
+        ctx.fillStyle = band;
+        ctx.fillRect(9, -3, 4, 6);
+        // Corde
+        ctx.beginPath();
+        ctx.moveTo(41, -18);
+        ctx.lineTo(25, 0);
+        ctx.lineTo(41, 18);
+        ctx.strokeStyle = '#f3ead2';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        // Arc
+        ctx.beginPath();
+        ctx.moveTo(40, -19);
+        ctx.quadraticCurveTo(52, -10, 50, 0);
+        ctx.quadraticCurveTo(52, 10, 40, 19);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 7;
+        ctx.stroke();
+        ctx.strokeStyle = band;
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+        part(ctx, 46, 7, 8, METAL_DARK);
+        // Carreau chargé
+        part(ctx, 24, 32, 3, '#c9a06a');
+        ctx.beginPath();
+        ctx.moveTo(56, -3.5);
+        ctx.lineTo(62, 0);
+        ctx.lineTo(56, 3.5);
+        ctx.closePath();
+        ctx.fillStyle = METAL_LIGHT;
+        ctx.fill();
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+    },
+    // Pistolet ricochet : canon à bagues de rareté + bouclier de bouche bleuté
+    ricochet(ctx, band) {
+        part(ctx, 14, 20, 6, METAL_DARK);
+        for (const x of [18, 24]) part(ctx, x, 3.5, 9, band);
+        part(ctx, 31, 4, 12, '#7fe9ff');
+        part(ctx, 0, 20, 12, METAL_LIGHT);
+        ctx.fillStyle = band;
+        ctx.fillRect(11, -4.5, 4, 9);
+        ctx.fillStyle = 'rgba(255,255,255,0.18)';
+        ctx.fillRect(3, -4, 7, 2.5);
+    }
+};
+
 // Plan générique d'une arme sans plan dédié (créé une fois puis mis en cache)
 const DEFAULT_PLANS = new Map();
 function defaultPlan(weaponId, L) {
@@ -222,6 +276,13 @@ export function drawWeapon(ctx, weaponId, rarity = 0, pickaxeSkin = null) {
 
     if (!w || w.type === 'melee') {
         drawPickaxe(ctx, L, pickaxeSkin);
+        ctx.restore();
+        return;
+    }
+
+    const custom = CUSTOM_DRAW[weaponId];
+    if (custom) {
+        custom(ctx, bandColor);
         ctx.restore();
         return;
     }

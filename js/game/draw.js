@@ -1707,22 +1707,23 @@ function paintFighter(ctx, p, time, fx) {
             hand(gx + L * 0.22, r * 0.3);
             hand(gx + L * 0.62, -r * 0.08);
         }
-    } else if (held?.kind === 'throwable') {
-        const t = THROWABLES[held.itemId];
-        const hx = r * 0.9;
-        ctx.save();
-        ctx.translate(hx, 0);
-        ctx.fillStyle = t?.color || '#fff0a0';
-        ctx.strokeStyle = OUTLINE;
-        ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.arc(0, 0, r * 0.38, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-        ctx.fillStyle = OUTLINE;
-        ctx.font = `800 ${Math.round(r * 0.32)}px sans-serif`;
-        ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
-        ctx.fillText(t?.icon || '!', 0, 1);
-        ctx.restore();
-        hand(hx - r * 0.25, -r * 0.38);
-        hand(hx - r * 0.25, r * 0.38);
+    } else if (held?.kind === 'throwable' && THROWABLES[held.itemId]) {
+        // Grenade dans la main droite ; pendant la visée (maintien), le bras recule pour lancer
+        const aiming = Boolean(p.throwState);
+        const hx = aiming ? r * 0.15 : r * 0.82;
+        const hy = aiming ? r * 0.92 : r * 0.62;
+        hand(r * 0.78 + (aiming ? r * 0.12 : swing), -r * 0.62); // l'autre main vise devant
+        hand(hx, hy);
+        // Grenade bien visible, tenue au bout des doigts (par-dessus la main)
+        const icon = iconCanvas('throwable', held.itemId, 0, 64, false);
+        if (icon) {
+            const sz = r * 1.4;
+            ctx.save();
+            ctx.translate(hx + r * 0.32, hy + (aiming ? r * 0.08 : 0));
+            ctx.rotate(aiming ? -0.6 : 0.2);
+            ctx.drawImage(icon, -sz / 2, -sz / 2, sz, sz);
+            ctx.restore();
+        }
     } else if (w && w.type === 'melee') {
         // Pioche dans la main droite, qui pivote pendant le coup
         const st = Math.max(0, Math.min(1, p.swingT || 0));

@@ -30,7 +30,10 @@ const RANGES = {
     step: 280,
     chest: 360,
     chestHum: 360,
-    healTick: 350
+    healTick: 350,
+    // Une explosion s'entend de loin, un rebond de grenade de près
+    explosion: 1600,
+    grenadeBounce: 420
 };
 
 // Délai minimal (ms) entre deux lectures du même son (anti-spam)
@@ -38,6 +41,7 @@ const MIN_GAP = {
     impact: 25, hitmarker: 35, hurt: 70, step: 40, pickHit: 40,
     healTick: 150, eliminate: 60, click: 30, hover: 40,
     dryFire: 150, reload: 60, pickup: 40, chestHum: 400,
+    explosion: 40, throw: 40, grenadeBounce: 60,
     // Corruption : un seul son même si l'alerte / le tick est signalé deux fois
     zoneWarn: 1500, zoneShrink: 1500, corruptHit: 300,
     // Écran de fin (XP) : le compteur ne peut pas "mitrailler"
@@ -353,6 +357,72 @@ const SHOTS = {
         // Clic de culasse
         metalClick(c, 0.55, 0.14, 1200);
         noise(c, { type: 'bandpass', f0: 2500, q: 1.5, dur: 0.05, vol: 0.14, delay: 0.65 });
+    },
+    crossbow(c) {
+        // Corde qui claque (vibration grave qui s'éteint) + choc du bois + sifflement du carreau
+        tone(c, { type: 'triangle', f0: 210, f1: 120, dur: 0.22, vol: 0.38 });
+        tone(c, { type: 'sine', f0: 95, f1: 55, dur: 0.12, vol: 0.4 });
+        noise(c, { type: 'bandpass', f0: 900, f1: 500, q: 1.4, dur: 0.06, vol: 0.32 });
+        if (c.lite) return;
+        tone(c, { type: 'sawtooth', f0: 420, f1: 260, dur: 0.16, vol: 0.05,
+            filter: { type: 'lowpass', f: 1600 } });
+        noise(c, { type: 'bandpass', f0: 2600, f1: 1200, q: 2, dur: 0.22, vol: 0.12, attack: 0.03, delay: 0.02 });
+        // Cliquet de réarmement
+        metalClick(c, 0.32, 0.1, 1100);
+        metalClick(c, 0.4, 0.08, 1300);
+    },
+    ricochet(c) {
+        // Tir de pistolet un peu plus sec + "ping" métallique qui chante
+        noise(c, { type: 'bandpass', f0: 2900, f1: 900, q: 0.9, dur: 0.1, vol: 0.46 });
+        noise(c, { type: 'lowpass', f0: 1300, dur: 0.07, vol: 0.26 });
+        tone(c, { type: 'triangle', f0: 200, f1: 70, dur: 0.09, vol: 0.4 });
+        if (c.lite) return;
+        tone(c, { type: 'sine', f0: 2400, f1: 1500, dur: 0.18, vol: 0.07, delay: 0.015 });
+        tone(c, { type: 'sine', f0: 3600, f1: 2300, dur: 0.12, vol: 0.035, delay: 0.015 });
+        noise(c, { type: 'highpass', f0: 5000, dur: 0.02, vol: 0.16 });
+    }
+};
+
+// Grenades : une signature par type (explosion, flash, fumée, propulsion)
+const EXPLOSIONS = {
+    explosive(c) {
+        // Claquement initial
+        noise(c, { type: 'highpass', f0: 1800, dur: 0.06, vol: 0.4 });
+        // Boum : bruit grave qui se referme + sinus très grave
+        noise(c, { type: 'lowpass', f0: 3000, f1: 180, dur: 0.9, vol: 0.85 });
+        tone(c, { type: 'sine', f0: 75, f1: 28, dur: 0.9, vol: 0.9 });
+        tone(c, { type: 'square', f0: 120, f1: 40, dur: 0.25, vol: 0.14,
+            filter: { type: 'lowpass', f: 700 } });
+        if (c.lite) return;
+        // Grondement qui traîne
+        noise(c, { type: 'lowpass', f0: 500, f1: 120, dur: 1.4, vol: 0.4, attack: 0.05, delay: 0.1 });
+        // Débris qui retombent
+        grains(c, 10, 1500, 4200, 0.7, 0.07, 2);
+    },
+    flash(c) {
+        // Bang sec et aigu + sifflement d'oreilles
+        noise(c, { type: 'highpass', f0: 2500, dur: 0.08, vol: 0.55 });
+        noise(c, { type: 'bandpass', f0: 3000, f1: 900, q: 0.7, dur: 0.35, vol: 0.5 });
+        tone(c, { type: 'sine', f0: 140, f1: 50, dur: 0.3, vol: 0.5 });
+        if (c.lite) return;
+        tone(c, { type: 'sine', f0: 3800, dur: 1.4, vol: 0.05, attack: 0.08, delay: 0.05 });
+        tone(c, { type: 'sine', f0: 5200, dur: 1.0, vol: 0.025, attack: 0.1, delay: 0.08 });
+    },
+    smoke(c) {
+        // Petit "pop" puis longue fuite de gaz
+        tone(c, { type: 'sine', f0: 320, f1: 110, dur: 0.1, vol: 0.4 });
+        noise(c, { type: 'lowpass', f0: 1200, dur: 0.08, vol: 0.3 });
+        noise(c, { type: 'bandpass', f0: 2200, f1: 1400, q: 0.6, dur: 1.6, vol: 0.26, attack: 0.08, delay: 0.04 });
+        if (c.lite) return;
+        noise(c, { type: 'highpass', f0: 5000, dur: 1.2, vol: 0.06, attack: 0.2, delay: 0.1 });
+    },
+    propulsion(c) {
+        // Souffle grave + whoosh qui monte (on décolle)
+        tone(c, { type: 'sine', f0: 110, f1: 45, dur: 0.35, vol: 0.7 });
+        noise(c, { type: 'lowpass', f0: 1800, f1: 250, dur: 0.4, vol: 0.55 });
+        noise(c, { type: 'bandpass', f0: 500, f1: 2600, q: 1.2, dur: 0.45, vol: 0.3, attack: 0.05, delay: 0.04 });
+        if (c.lite) return;
+        tone(c, { type: 'triangle', f0: 260, f1: 720, dur: 0.3, vol: 0.08, attack: 0.03, delay: 0.05 });
     }
 };
 
@@ -487,6 +557,12 @@ const IMPACTS = {
         tone(c, { type: 'sine', f0: 2850, dur: 0.18, vol: 0.06 });
         noise(c, { type: 'highpass', f0: 4000, dur: 0.04, vol: 0.07 });
     },
+    ricochet(c) {
+        // Balle qui rebondit sur le mur : petit choc + "piiiou" métallique
+        noise(c, { type: 'bandpass', f0: 2600, f1: 1200, q: 1.4, dur: 0.04, vol: 0.2 });
+        tone(c, { type: 'sine', f0: 3200, f1: 1700, dur: 0.16, vol: 0.09 });
+        if (!c.lite) tone(c, { type: 'triangle', f0: 1800, f1: 1100, dur: 0.12, vol: 0.04, delay: 0.01 });
+    },
     health(c) {
         noise(c, { type: 'lowpass', f0: 700, dur: 0.07, vol: 0.35 });
         tone(c, { type: 'sine', f0: 150, f1: 80, dur: 0.08, vol: 0.3 });
@@ -560,6 +636,18 @@ const HEAL_STARTS = {
         tone(c, { type: 'sine', f0: 700, f1: 250, dur: 0.06, vol: 0.28 });
         noise(c, { type: 'bandpass', f0: 1500, q: 1, dur: 0.03, vol: 0.14 });
         noise(c, { type: 'highpass', f0: 5000, dur: 0.3, vol: 0.03, attack: 0.05, delay: 0.05 });
+    },
+    healingSpray(c) {
+        // Clic de la gâchette + jet pressurisé
+        metalClick(c, 0, 0.12, 1600);
+        noise(c, { type: 'highpass', f0: 4200, dur: 0.45, vol: 0.09, attack: 0.03, delay: 0.03 });
+        noise(c, { type: 'bandpass', f0: 3000, q: 0.6, dur: 0.4, vol: 0.05, attack: 0.04, delay: 0.04 });
+    },
+    stimPatch(c) {
+        // Film qu'on arrache + patch posé
+        noise(c, { type: 'bandpass', f0: 2000, f1: 5200, q: 1, dur: 0.14, vol: 0.12, attack: 0.01 });
+        noise(c, { type: 'lowpass', f0: 800, dur: 0.04, vol: 0.12, delay: 0.2 });
+        tone(c, { type: 'sine', f0: 900, f1: 1300, dur: 0.06, vol: 0.06, delay: 0.22 });
     }
 };
 
@@ -615,6 +703,23 @@ const SOUNDS = {
     impact(c, o) {
         const k = hasOwn(IMPACTS, o.kind) ? o.kind : 'wall';
         IMPACTS[k](c);
+    },
+
+    // Grenade lancée : goupille + objet qui fend l'air
+    throw(c) {
+        metalClick(c, 0, 0.12, 1700);
+        noise(c, { type: 'bandpass', f0: 600, f1: 1900, q: 1.3, dur: 0.22, vol: 0.18, attack: 0.05, delay: 0.04 });
+    },
+
+    // Grenade qui rebondit au sol / sur un mur
+    grenadeBounce(c) {
+        tone(c, { type: 'triangle', f0: 520, f1: 300, dur: 0.05, vol: 0.14 });
+        noise(c, { type: 'bandpass', f0: 1800, q: 1.4, dur: 0.03, vol: 0.12 });
+    },
+
+    explosion(c, o) {
+        const k = hasOwn(EXPLOSIONS, o.kind) ? o.kind : 'explosive';
+        EXPLOSIONS[k](c);
     },
 
     hitmarker(c, o) {

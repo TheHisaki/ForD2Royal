@@ -412,7 +412,7 @@ export class CombatHud {
             el.append(name(killer), killer === this.player ? ' as éliminé ' : ' a éliminé ', name(victim));
             const wp = document.createElement('span');
             wp.className = 'k-weapon';
-            wp.textContent = ` (${WEAPONS[weaponId]?.name || '?'})`;
+            wp.textContent = ` (${WEAPONS[weaponId]?.name || THROWABLES[weaponId]?.name || '?'})`;
             el.append(wp);
         } else {
             el.append(victim === this.player ? 'Tu es éliminé' : `${victim.name} est éliminé`);

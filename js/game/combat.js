@@ -11,9 +11,14 @@ const SWING_TIME = 0.25;                // durée de l'animation de coup (s)
 const SUB_STEP = 20;                    // les balles avancent par pas de 20 unités max
 const HIT_PAD = 4;                      // marge de collision balle / combattant
 const TRACER = 26;                      // longueur du traceur
-const THROW_SPEED = 430;
-const THROW_GRAVITY = 360;
-const THROW_RANGE = 620;
+// Grenades (vue de dessus) : vol en arc (hauteur visuelle z), puis roulent jusqu'à la mèche
+const THROW_SPEED = 520;      // vitesse au sol pendant le vol (unités / s)
+const THROW_AIR = 0.62;       // durée du vol avant de toucher le sol (s)
+const THROW_HEIGHT = 70;      // hauteur max de l'arc (dessin)
+const THROW_LAND_KEEP = 0.35; // part de la vitesse gardée à l'atterrissage
+const THROW_FRICTION = 5;     // freinage au sol (par s)
+const THROW_WALL_KEEP = 0.45; // rebond sur un mur
+const PREVIEW_STEP = 1 / 60;  // pas de calcul de la trajectoire prévisualisée (= une image à 60 i/s)
 
 // Écart d'angle ramené entre -PI et PI
 function angleDiff(a, b) {
@@ -83,22 +88,62 @@ export class Combat {
             if (item.count <= 0) f.inventory[f.slot] = null;
         }
         f.throwState = null;
-        const p = this._freeThrowables.pop() || {};
         const a = Number.isFinite(angle) ? angle : f.angle;
-        p.x = f.x + Math.cos(a) * (f.r + 8);
-        p.y = f.y + Math.sin(a) * (f.r + 8);
-        p.vx = Math.cos(a) * THROW_SPEED;
-        p.vy = Math.sin(a) * THROW_SPEED;
-        p.age = 0;
-        p.dist = 0;
-        p.range = THROW_RANGE;
+        const p = this._launch(this._freeThrowables.pop() || {}, f, a);
         p.itemId = t.id;
         p.owner = f;
         p.visual = visual;
         p.done = false;
+        p.spin = (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 4);
+        p.rot = Math.random() * Math.PI * 2;
         this.throwables.push(p);
         this.events.onThrow?.(f, t, a, visual);
         return true;
+    }
+
+    // Position et vitesse de départ d'une grenade lancée par f dans la direction a
+    _launch(p, f, a) {
+        p.x = f.x + Math.cos(a) * (f.r + 8);
+        p.y = f.y + Math.sin(a) * (f.r + 8);
+        p.vx = Math.cos(a) * THROW_SPEED;
+        p.vy = Math.sin(a) * THROW_SPEED;
+        p.z = 0;
+        p.age = 0;
+        p.landed = false;
+        p.bounced = 0;
+        return p;
+    }
+
+    // Un pas de vol : arc en l'air, freinage au sol, rebond sur les murs.
+    // Utilisé par la vraie grenade ET par la prévisualisation (même trajectoire).
+    _stepThrowable(p, dt) {
+        p.age += dt;
+        if (p.age < THROW_AIR) {
+            const u = p.age / THROW_AIR;
+            p.z = 4 * THROW_HEIGHT * u * (1 - u);
+        } else {
+            if (!p.landed) {
+                p.landed = true;
+                p.z = 0;
+                p.vx *= THROW_LAND_KEEP;
+                p.vy *= THROW_LAND_KEEP;
+            }
+            const k = Math.exp(-THROW_FRICTION * dt); // même freinage quelle que soit la fluidité
+            p.vx *= k;
+            p.vy *= k;
+        }
+        const nx = p.x + p.vx * dt;
+        const ny = p.y + p.vy * dt;
+        if (this._hitWall(nx, ny)) {
+            const hitX = this._hitWall(nx, p.y);
+            const hitY = this._hitWall(p.x, ny);
+            if (hitX || !hitY) p.vx = -p.vx * THROW_WALL_KEEP;
+            if (hitY || !hitX) p.vy = -p.vy * THROW_WALL_KEEP;
+            p.bounced++;
+        } else {
+            p.x = nx;
+            p.y = ny;
+        }
     }
 
     ghostThrow(f, itemId, angle) {
@@ -112,28 +157,28 @@ export class Combat {
         return this.throwNow(f, angle, true);
     }
 
+    // Trajectoire prévue jusqu'à l'explosion : points à l'écran (x, y - hauteur) + point d'arrivée
     throwPreview(f, angle) {
         const t = this._heldThrowable(f);
         if (!t || !f?.alive || f.dbno) return null;
         const a = Number.isFinite(angle) ? angle : f.angle;
-        const points = [];
-        const ox = f.x + Math.cos(a) * (f.r + 8);
-        const oy = f.y + Math.sin(a) * (f.r + 8);
-        for (let i = 0; i <= 14; i++) {
-            const time = i * 0.09;
-            const x = ox + Math.cos(a) * THROW_SPEED * time;
-            const y = oy + Math.sin(a) * THROW_SPEED * time + 0.5 * THROW_GRAVITY * time * time;
-            points.push({ x, y });
-            if (this._hitWall(x, y)) break;
+        const p = this._launch(this._previewP || (this._previewP = {}), f, a);
+        const points = [{ x: p.x, y: p.y }];
+        const fuse = t.fuse || 1;
+        while (p.age < fuse) {
+            this._stepThrowable(p, PREVIEW_STEP);
+            points.push({ x: p.x, y: p.y - p.z });
         }
-        return points;
+        return { points, end: { x: p.x, y: p.y }, radius: t.radius || 120, color: t.color };
     }
 
     _explode(p) {
         const t = THROWABLES[p.itemId];
         if (!t || p.done) return;
         p.done = true;
-        if (t.id === 'smoke') this.smokeZones.push({ x: p.x, y: p.y, r: t.radius, age: 0, duration: t.duration || 8 });
+        if (t.id === 'smoke') {
+            this.smokeZones.push({ x: p.x, y: p.y, r: t.radius, age: 0, duration: t.duration || 8, seed: Math.random() * 10 });
+        }
         if (!p.visual) {
             for (const target of this.fighters) {
                 if (!target.alive || target.phase !== 'ground') continue;
@@ -159,41 +204,70 @@ export class Combat {
     _updateThrowables(dt) {
         for (let i = this.throwables.length - 1; i >= 0; i--) {
             const p = this.throwables[i];
-            p.age += dt;
-            p.vy += THROW_GRAVITY * dt;
-            const nx = p.x + p.vx * dt;
-            const ny = p.y + p.vy * dt;
-            if (this._hitWall(nx, ny) || p.dist + Math.hypot(nx - p.x, ny - p.y) >= p.range) {
-                p.x = nx; p.y = ny;
-                this._explode(p);
-                this.throwables.splice(i, 1);
-                continue;
-            }
-            p.x = nx; p.y = ny;
-            p.dist += Math.hypot(p.vx * dt, p.vy * dt);
-            const fuse = THROWABLES[p.itemId]?.fuse || 1;
-            if (p.age >= fuse) {
+            const wasLanded = p.landed;
+            const bounced = p.bounced;
+            this._stepThrowable(p, dt);
+            const speed = Math.hypot(p.vx, p.vy);
+            // Rebond (sol ou mur) : seulement s'il est franc, pas quand la grenade frotte contre un mur
+            if ((p.landed && !wasLanded) || (p.bounced > bounced && speed > 40)) this.events.onThrowableBounce?.(p);
+            // La grenade tourne sur elle-même (plus lentement une fois au sol)
+            p.rot += p.spin * dt * (p.landed ? Math.min(1, speed / 200) : 1);
+            if (p.age >= (THROWABLES[p.itemId]?.fuse || 1)) {
                 this._explode(p);
                 this.throwables.splice(i, 1);
             }
         }
     }
 
+    // Prévisualisation (maintien) : arc pointillé + zone d'effet là où la grenade va exploser
     drawThrowPreview(ctx, f, angle) {
-        const points = this.throwPreview(f, angle);
-        if (!points?.length) return;
+        const pv = this.throwPreview(f, angle);
+        if (!pv) return;
+        const { points, end, radius, color } = pv;
         ctx.save();
-        ctx.setLineDash([8, 8]);
-        ctx.strokeStyle = 'rgba(255, 232, 130, 0.9)';
-        ctx.lineWidth = 3;
+        ctx.lineCap = 'round';
+        // Zone d'effet au sol
+        ctx.globalAlpha = 0.16;
+        ctx.fillStyle = color || '#ffe03d';
         ctx.beginPath();
-        ctx.moveTo(f.x, f.y);
-        for (const p of points) ctx.lineTo(p.x, p.y);
+        ctx.arc(end.x, end.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 0.85;
+        ctx.setLineDash([10, 8]);
+        ctx.strokeStyle = color || '#ffe03d';
+        ctx.lineWidth = 3;
         ctx.stroke();
-        const end = points[points.length - 1];
+        // Arc de vol : pointillés blancs avec contour sombre
+        ctx.setLineDash([2, 12]);
+        ctx.beginPath();
+        ctx.moveTo(points[0].x, points[0].y);
+        for (let i = 1; i < points.length; i++) ctx.lineTo(points[i].x, points[i].y);
+        ctx.globalAlpha = 0.55;
+        ctx.strokeStyle = '#0a1030';
+        ctx.lineWidth = 8;
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 4.5;
+        ctx.stroke();
+        // Point d'arrivée : cible
         ctx.setLineDash([]);
-        ctx.fillStyle = 'rgba(255, 224, 61, 0.9)';
-        ctx.beginPath(); ctx.arc(end.x, end.y, 9, 0, Math.PI * 2); ctx.fill();
+        ctx.beginPath();
+        ctx.arc(end.x, end.y, 11, 0, Math.PI * 2);
+        ctx.moveTo(end.x - 17, end.y);
+        ctx.lineTo(end.x - 6, end.y);
+        ctx.moveTo(end.x + 6, end.y);
+        ctx.lineTo(end.x + 17, end.y);
+        ctx.moveTo(end.x, end.y - 17);
+        ctx.lineTo(end.x, end.y - 6);
+        ctx.moveTo(end.x, end.y + 6);
+        ctx.lineTo(end.x, end.y + 17);
+        ctx.strokeStyle = '#0a1030';
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        ctx.strokeStyle = '#ffe03d';
+        ctx.lineWidth = 3;
+        ctx.stroke();
         ctx.restore();
     }
 
@@ -722,37 +796,152 @@ export class Combat {
         if (!this.bullets.length && !this.throwables.length && !this.smokeZones.length) return;
         ctx.save();
         ctx.lineCap = 'round';
-        ctx.beginPath();
+        ctx.lineJoin = 'round';
         const list = this.bullets;
-        for (let i = 0; i < list.length; i++) {
-            const b = list[i];
-            const len = Math.min(TRACER, b.dist + 6);
-            ctx.moveTo(b.x - b.ux * len, b.y - b.uy * len);
-            ctx.lineTo(b.x, b.y);
+        // Traceurs : jaunes (armes classiques), bleutés (ricochet) ; les carreaux sont dessinés à part
+        for (const [kind, color] of [['normal', '#fff3a8'], ['ricochet', '#8ff3ff']]) {
+            ctx.beginPath();
+            let any = false;
+            for (let i = 0; i < list.length; i++) {
+                const b = list[i];
+                if (b.weaponId === 'crossbow') continue;
+                if ((b.weaponId === 'ricochet') !== (kind === 'ricochet')) continue;
+                const len = Math.min(TRACER, b.dist + 6);
+                ctx.moveTo(b.x - b.ux * len, b.y - b.uy * len);
+                ctx.lineTo(b.x, b.y);
+                any = true;
+            }
+            if (!any) continue;
+            ctx.strokeStyle = 'rgba(10,16,48,0.55)';
+            ctx.lineWidth = 6.5;
+            ctx.stroke();
+            ctx.strokeStyle = color;
+            ctx.lineWidth = 4;
+            ctx.stroke();
         }
-        ctx.strokeStyle = 'rgba(10,16,48,0.55)';
-        ctx.lineWidth = 6.5;
+        for (let i = 0; i < list.length; i++) {
+            if (list[i].weaponId === 'crossbow') this._drawBolt(ctx, list[i]);
+        }
+        for (const p of this.throwables) this._drawGrenade(ctx, p);
+        for (const zone of this.smokeZones) this._drawSmoke(ctx, zone);
+        ctx.restore();
+    }
+
+    // Carreau d'arbalète : tige en bois, pointe en acier, empennage violet
+    _drawBolt(ctx, b) {
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(Math.atan2(b.uy, b.ux));
+        ctx.beginPath();
+        ctx.moveTo(-28, 0);
+        ctx.lineTo(0, 0);
+        ctx.strokeStyle = '#0a1030';
+        ctx.lineWidth = 5.5;
         ctx.stroke();
-        ctx.strokeStyle = '#fff3a8';
-        ctx.lineWidth = 4;
+        ctx.strokeStyle = '#c9a06a';
+        ctx.lineWidth = 2.6;
         ctx.stroke();
-        for (const p of this.throwables) {
-            const t = THROWABLES[p.itemId];
+        ctx.beginPath();
+        ctx.moveTo(0, -4.5);
+        ctx.lineTo(9, 0);
+        ctx.lineTo(0, 4.5);
+        ctx.closePath();
+        ctx.fillStyle = '#d4dde8';
+        ctx.fill();
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-28, 0);
+        ctx.lineTo(-21, -6);
+        ctx.lineTo(-17, 0);
+        ctx.lineTo(-21, 6);
+        ctx.closePath();
+        ctx.fillStyle = '#d59cff';
+        ctx.fill();
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    // Grenade en vol : ombre au sol + dessin (icône) qui tourne, en hauteur
+    _drawGrenade(ctx, p) {
+        const t = THROWABLES[p.itemId];
+        const z = p.z || 0;
+        const s = 1 + z / 160;
+        ctx.globalAlpha = 0.28 * (1 - z / (THROW_HEIGHT * 1.6));
+        ctx.fillStyle = '#0a1030';
+        ctx.beginPath();
+        ctx.ellipse(p.x, p.y + 4, 13, 7, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.globalAlpha = 1;
+        // Mèche bientôt finie : la grenade clignote
+        const left = (t?.fuse || 1) - p.age;
+        const blink = left < 0.45 && Math.floor(left * 14) % 2 === 0;
+        ctx.save();
+        ctx.translate(p.x, p.y - z);
+        ctx.rotate(p.rot || 0);
+        ctx.scale(s, s);
+        if (this.drawThrowableArt) {
+            this.drawThrowableArt(ctx, p.itemId, 38);
+        } else {
             ctx.fillStyle = t?.color || '#fff0a0';
             ctx.strokeStyle = '#0a1030';
             ctx.lineWidth = 3;
             ctx.beginPath();
-            ctx.arc(p.x, p.y, 10, 0, Math.PI * 2);
+            ctx.arc(0, 0, 10, 0, Math.PI * 2);
             ctx.fill();
             ctx.stroke();
         }
-        for (const zone of this.smokeZones) {
-            const fade = Math.max(0, 1 - zone.age / zone.duration);
-            ctx.fillStyle = `rgba(185, 195, 210, ${0.26 * fade})`;
-            ctx.beginPath(); ctx.arc(zone.x, zone.y, zone.r, 0, Math.PI * 2); ctx.fill();
-            ctx.strokeStyle = `rgba(230, 235, 245, ${0.35 * fade})`;
-            ctx.lineWidth = 4; ctx.stroke();
+        if (blink) {
+            ctx.globalAlpha = 0.55;
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.arc(0, 0, 15, 0, Math.PI * 2);
+            ctx.fill();
         }
         ctx.restore();
+    }
+
+    // Nuage de fumigène : bouffées qui ondulent, assez opaques pour cacher les joueurs
+    _drawSmoke(ctx, zone) {
+        const grow = Math.min(1, zone.age / 0.6);
+        const fade = Math.max(0, Math.min(1, (zone.duration - zone.age) / 1.5));
+        if (fade <= 0) return;
+        const R = zone.r * (0.55 + 0.45 * grow);
+        const puffs = 9;
+        const path = () => {
+            ctx.beginPath();
+            ctx.moveTo(zone.x + R * 0.62, zone.y);
+            ctx.arc(zone.x, zone.y, R * 0.62, 0, Math.PI * 2);
+            for (let k = 0; k < puffs; k++) {
+                const a = zone.seed + k * (Math.PI * 2 / puffs) + Math.sin(zone.age * 0.6 + k) * 0.15;
+                const d = R * (0.42 + 0.12 * Math.sin(zone.seed * 3 + k * 1.7));
+                const pr = R * (0.32 + 0.05 * Math.sin(zone.age * 1.3 + k * 2.1));
+                const px = zone.x + Math.cos(a) * d;
+                const py = zone.y + Math.sin(a) * d;
+                ctx.moveTo(px + pr, py);
+                ctx.arc(px, py, pr, 0, Math.PI * 2);
+            }
+        };
+        ctx.globalAlpha = 0.8 * fade;
+        path();
+        ctx.strokeStyle = '#8f99a8';
+        ctx.lineWidth = 8;
+        ctx.stroke();
+        ctx.fillStyle = '#cfd6df';
+        ctx.fill();
+        // Reflets clairs (haut-gauche des bouffées)
+        ctx.globalAlpha = 0.45 * fade;
+        ctx.fillStyle = '#f1f4f8';
+        ctx.beginPath();
+        for (let k = 0; k < puffs; k += 2) {
+            const a = zone.seed + k * (Math.PI * 2 / puffs);
+            const d = R * 0.4;
+            const px = zone.x + Math.cos(a) * d - R * 0.08;
+            const py = zone.y + Math.sin(a) * d - R * 0.1;
+            ctx.moveTo(px + R * 0.15, py);
+            ctx.arc(px, py, R * 0.15, 0, Math.PI * 2);
+        }
+        ctx.fill();
+        ctx.globalAlpha = 1;
     }
 }

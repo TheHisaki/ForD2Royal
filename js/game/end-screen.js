@@ -8,8 +8,8 @@
    pour pouvoir être testées sans navigateur.
    ================================== */
 
-import { WEAPONS, RARITIES } from './weapons.js';
-import { makeIcon } from './icons.js';
+import { WEAPONS, RARITIES, THROWABLES } from './weapons.js';
+import { makeIcon, makeThrowableIcon } from './icons.js';
 import { Progress, xpForLevel, applyXp } from '../progress.js';
 
 /* ===================== BARÈME D'XP ===================== */
@@ -292,6 +292,16 @@ export class EndScreen {
         }
         e.weaponCorrupt.hidden = true;
         const w = WEAPONS[r.weaponId];
+        // Éliminé par une grenade : son icône et son nom
+        const g = !w && THROWABLES[r.weaponId];
+        if (g) {
+            const url = makeThrowableIcon(r.weaponId, 96);
+            e.weaponIcon.hidden = !url;
+            if (url) e.weaponIcon.src = url;
+            e.weaponName.textContent = g.name;
+            e.weaponName.style.setProperty('--rarity', g.color || '#ffe03d');
+            return;
+        }
         if (!w) {
             e.weaponIcon.hidden = true;
             e.weaponName.textContent = '';

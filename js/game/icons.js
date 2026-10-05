@@ -257,26 +257,248 @@ const WEAPON_ART = {
     }
 };
 
+// Pistolet ricochet : même base que le pistolet, canon à bagues + bouclier de bouche bleuté
 WEAPON_ART.ricochet = {
-    ...WEAPON_ART.pistol,
-    box: [4, -20, 70, 24],
+    box: [6, -21, 80, 25],
+    tilt: -0.25,
     draw(ctx, a) {
-        box(ctx, 4, -10, 58, 10, 3, M2);
-        box(ctx, 12, -18, 36, 8, 2, a.color);
-        part(ctx, [28, -10, 44, 10, 34, 20, 22, 8], M1);
-        ctx.strokeStyle = OUTLINE; ctx.lineWidth = 3;
-        ctx.beginPath(); ctx.moveTo(57, -14); ctx.lineTo(57, 14); ctx.stroke();
-        shine(ctx, 14, -16, 30);
+        // Crosse avec plaquettes à la couleur de la rareté
+        part(ctx, [14, -2, 31, -2, 27, 24, 9, 24], M1);
+        part(ctx, [16.5, 3, 28, 3, 25, 20, 13, 20], a.color, 2);
+        ridges(ctx, 16, 25, 3, 6, 18, 'rgba(10, 16, 48, 0.35)', 1.2);
+        triggerGuard(ctx, 29, 40, 2);
+        box(ctx, 8, -5, 44, 8, 2, M2);
+        // Canon à ressort : tube + 3 bagues de rareté
+        box(ctx, 48, -12, 26, 7, 2, M1, 2.5);
+        for (const x of [52, 59, 66]) box(ctx, x, -14.5, 4, 12, 1.5, a.color, 2);
+        // Bouclier de bouche (c'est lui qui « lance » le rebond)
+        ctx.beginPath();
+        ctx.ellipse(76, -8.5, 3.5, 8, 0, 0, TAU);
+        paint(ctx, '#7fe9ff', 2.5);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.7)';
+        ctx.fillRect(75.2, -13.5, 1.3, 4);
+        // Culasse arrondie, aérations, petite fenêtre d'énergie
+        box(ctx, 6, -16, 46, 12, 5, M3);
+        shine(ctx, 10, -14.5, 38);
+        ctx.fillStyle = 'rgba(10, 16, 48, 0.55)';
+        for (const x of [12, 18, 24]) ctx.fillRect(x, -11, 3.5, 3);
+        box(ctx, 33, -13, 13, 6, 2, '#7fe9ff', 2);
+        shine(ctx, 35, -12, 9, 1.5, 0.6);
+        // Organes de visée
+        box(ctx, 8, -20, 4, 4, 1, M0, 2);
+        box(ctx, 45, -20, 3, 4, 1, M0, 2);
     }
 };
+
+// Arbalète : crosse en bois, rail métal, branches de l'arc à la couleur de la rareté, carreau chargé
 WEAPON_ART.crossbow = {
-    box: [-4, -26, 70, 26], tilt: -0.15,
+    box: [-3, -31, 98, 31],
+    tilt: -0.18,
     draw(ctx, a) {
-        box(ctx, 4, -4, 58, 8, 2, WOOD_D);
-        ctx.strokeStyle = a.color; ctx.lineWidth = 5;
-        ctx.beginPath(); ctx.moveTo(20, -22); ctx.lineTo(20, 22); ctx.moveTo(20, 0); ctx.lineTo(66, 0); ctx.stroke();
-        box(ctx, 26, -3, 38, 6, 1, M2);
-        ctx.strokeStyle = OUTLINE; ctx.lineWidth = 2; ctx.beginPath(); ctx.moveTo(28, -2); ctx.lineTo(64, -2); ctx.stroke();
+        const limb = shadeHex(a.color, -0.15);
+        // Corde (derrière tout le reste)
+        ctx.beginPath();
+        ctx.moveTo(63, -28);
+        ctx.lineTo(38, 0);
+        ctx.lineTo(63, 28);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+        ctx.strokeStyle = '#f3ead2';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        // Crosse en bois veiné + plaque de couche
+        part(ctx, [0, -5, 34, -7, 34, 6, 10, 10, 0, 10], WOOD);
+        ctx.beginPath();
+        ctx.moveTo(4, 2);
+        ctx.quadraticCurveTo(14, -1, 30, -2);
+        ctx.moveTo(6, 6);
+        ctx.quadraticCurveTo(16, 4, 28, 3);
+        ctx.strokeStyle = WOOD_D;
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        box(ctx, -3, -6, 5, 17, 2, M0, 2);
+        // Poignée + détente
+        part(ctx, [26, 3, 35, 3, 32, 20, 23, 20], M1);
+        triggerGuard(ctx, 33, 42, 4);
+        // Rail + bande de rareté
+        box(ctx, 30, -6, 50, 11, 3, M2);
+        shine(ctx, 33, -4.5, 44);
+        box(ctx, 46, -6, 6, 11, 0, a.color, 2);
+        // Branches de l'arc
+        ctx.beginPath();
+        ctx.moveTo(63, -29);
+        ctx.quadraticCurveTo(80, -16, 78, 0);
+        ctx.quadraticCurveTo(80, 16, 63, 29);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 9;
+        ctx.stroke();
+        ctx.strokeStyle = limb;
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(66, -25);
+        ctx.quadraticCurveTo(77, -15, 76, -4);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        // Embouts des branches + fixation de l'arc
+        box(ctx, 59, -31, 7, 5, 2, M0, 2);
+        box(ctx, 59, 26, 7, 5, 2, M0, 2);
+        box(ctx, 72, -8, 10, 16, 3, M1);
+        // Carreau : tige, pointe en acier, empennage de rareté
+        box(ctx, 40, -2.2, 48, 4.4, 2, '#c9a06a', 2);
+        part(ctx, [88, -5, 98, 0, 88, 5], M3, 2);
+        part(ctx, [40, -2, 48, -2, 44, -7, 38, -7], a.color, 1.8);
+        part(ctx, [40, 2, 48, 2, 44, 7, 38, 7], a.color, 1.8);
+    }
+};
+
+/* ===================== GRENADES (profil) ===================== */
+
+const THROWABLE_ART = {
+    // Explosive : grenade « ananas » kaki, bande rouge, cuillère et goupille
+    explosive: {
+        box: [-18, -30, 20, 25],
+        tilt: 0.12,
+        draw(ctx, t) {
+            // Cuillère (levier) le long du flanc
+            ctx.beginPath();
+            ctx.moveTo(4, -20);
+            ctx.quadraticCurveTo(19, -18, 15, 10);
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = 6;
+            ctx.stroke();
+            ctx.strokeStyle = M3;
+            ctx.lineWidth = 3;
+            ctx.stroke();
+            // Corps quadrillé
+            ctx.beginPath();
+            ctx.ellipse(0, 4, 16, 20, 0, 0, TAU);
+            paint(ctx, '#5f7a3a');
+            ctx.save();
+            ctx.beginPath();
+            ctx.ellipse(0, 4, 14.5, 18.5, 0, 0, TAU);
+            ctx.clip();
+            ctx.fillStyle = t.color;
+            ctx.fillRect(-18, 1, 36, 6);
+            ctx.beginPath();
+            for (const y of [-8, 1, 7, 15]) { ctx.moveTo(-18, y); ctx.lineTo(18, y); }
+            for (const x of [-8, 0, 8]) { ctx.moveTo(x, -18); ctx.lineTo(x, 26); }
+            ctx.strokeStyle = 'rgba(10, 16, 48, 0.4)';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            ctx.restore();
+            ctx.beginPath();
+            ctx.ellipse(-7, -3, 3, 7, 0.3, 0, TAU);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.fill();
+            // Tête + goupille
+            box(ctx, -7, -22, 14, 8, 2, M2);
+            box(ctx, -4, -27, 8, 6, 1.5, M3, 2);
+            ctx.beginPath();
+            ctx.arc(-11, -24, 5, 0, TAU);
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = 4.5;
+            ctx.stroke();
+            ctx.strokeStyle = '#ffd24a';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+        }
+    },
+
+    // Fumigène : bidon gris, bande foncée, trous d'évacuation, bouffées de fumée
+    smoke: {
+        box: [-13, -35, 16, 22],
+        tilt: 0.1,
+        draw(ctx, t) {
+            for (const [x, y, r] of [[-5, -28, 6], [4, -31, 5], [10, -25, 4]]) {
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, TAU);
+                paint(ctx, '#e8edf3', 2);
+            }
+            box(ctx, -11, -17, 22, 38, 4, '#7c8797');
+            box(ctx, -11, -4, 22, 9, 0, '#4b5566', 2);
+            ctx.fillStyle = t.color;
+            ctx.fillRect(-9.5, -1, 19, 3);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.fillRect(-8, -14, 3.5, 32);
+            box(ctx, -12, -21, 24, 6, 2, M2);
+            ctx.fillStyle = OUTLINE;
+            for (const x of [-6, 0, 6]) ctx.fillRect(x - 1.2, -19.5, 2.4, 2.4);
+            part(ctx, [11, -19, 15, -17, 15, 8, 11, 6], M3, 2);
+        }
+    },
+
+    // Flash : cylindre métal clair percé de trous, bande jaune, éclat lumineux
+    flash: {
+        box: [-12, -30, 20, 22],
+        tilt: 0.1,
+        draw(ctx, t) {
+            box(ctx, -10, -17, 20, 38, 4, '#d2d8e0');
+            ctx.fillStyle = 'rgba(10, 16, 48, 0.55)';
+            for (const y of [-10, -3, 11]) {
+                for (const x of [-5, 0, 5]) {
+                    ctx.beginPath();
+                    ctx.arc(x, y, 1.8, 0, TAU);
+                    ctx.fill();
+                }
+            }
+            box(ctx, -10, 2, 20, 6, 0, t.color, 2);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.fillRect(-7.5, -14, 3, 32);
+            box(ctx, -11, -21, 22, 6, 2, M2);
+            part(ctx, [10, -19, 14, -17, 14, 8, 10, 6], M3, 2);
+            // Éclat
+            ctx.save();
+            ctx.translate(13, -24);
+            ctx.beginPath();
+            ctx.moveTo(0, -7);
+            ctx.quadraticCurveTo(0, 0, 7, 0);
+            ctx.quadraticCurveTo(0, 0, 0, 7);
+            ctx.quadraticCurveTo(0, 0, -7, 0);
+            ctx.quadraticCurveTo(0, 0, 0, -7);
+            ctx.fillStyle = '#fff6c8';
+            ctx.fill();
+            ctx.restore();
+        }
+    },
+
+    // Propulsion : boule bleue à ailerons, chevrons blancs, petite tuyère
+    propulsion: {
+        box: [-21, -26, 21, 26],
+        tilt: 0,
+        draw(ctx, t) {
+            part(ctx, [-12, 4, -21, 16, -10, 14], M1, 2.5);
+            part(ctx, [12, 4, 21, 16, 10, 14], M1, 2.5);
+            box(ctx, -6, 16, 12, 9, 2, M2);
+            ctx.beginPath();
+            ctx.arc(0, 2, 16, 0, TAU);
+            paint(ctx, shadeHex(t.color, -0.25));
+            ctx.beginPath();
+            ctx.arc(0, 2, 11, 0, TAU);
+            ctx.fillStyle = t.color;
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(-6, 3);
+            ctx.lineTo(0, -3);
+            ctx.lineTo(6, 3);
+            ctx.moveTo(-6, 9);
+            ctx.lineTo(0, 3);
+            ctx.lineTo(6, 9);
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2.5;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.ellipse(-7, -5, 3, 5, 0.5, 0, TAU);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.45)';
+            ctx.fill();
+            box(ctx, -5, -18, 10, 6, 2, M3, 2);
+            box(ctx, -2, -24, 4, 7, 1.5, M0, 2);
+        }
     }
 };
 
@@ -396,6 +618,58 @@ const HEAL_ART = {
             ctx.fillStyle = 'rgba(255, 255, 255, 0.55)';
             ctx.fill();
         }
+    },
+
+    // Spray de soin : bombe verte, étiquette blanche à croix, buse et brume
+    healingSpray: {
+        box: [-12, -34, 24, 23],
+        tilt: 0.15,
+        draw(ctx, h) {
+            for (const [x, y, r] of [[15, -28, 4], [20, -24, 3], [19, -32, 2.5]]) {
+                ctx.beginPath();
+                ctx.arc(x, y, r, 0, TAU);
+                paint(ctx, 'rgba(210, 255, 228, 0.9)', 1.5);
+            }
+            box(ctx, -11, -16, 22, 38, 6, h.color);
+            ctx.fillStyle = shadeHex(h.color, -0.25);
+            ctx.fillRect(-9.5, 12, 19, 8);
+            box(ctx, -8, -7, 16, 15, 2, '#ffffff', 2);
+            part(ctx, [-2, -4, 2, -4, 2, -2, 5, -2, 5, 2, 2, 2, 2, 5, -2, 5, -2, 2, -5, 2, -5, -2, -2, -2],
+                shadeHex(h.color, -0.3), 1.5);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+            ctx.fillRect(-8.5, -13, 3.5, 24);
+            box(ctx, -8, -22, 16, 7, 3, M2);
+            box(ctx, -4, -29, 8, 8, 2, M3, 2);
+            box(ctx, 3, -28, 8, 4, 1.5, M0, 2);
+        }
+    },
+
+    // Patch stimulant : stylo injecteur orange, fenêtre de liquide jaune, aiguille
+    stimPatch: {
+        box: [-30, -9, 32, 9],
+        tilt: -0.55,
+        glow: true,
+        draw(ctx, h) {
+            ctx.beginPath();
+            ctx.moveTo(22, 0);
+            ctx.lineTo(32, 0);
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = 3.5;
+            ctx.stroke();
+            ctx.strokeStyle = '#d4dde8';
+            ctx.lineWidth = 1.5;
+            ctx.stroke();
+            box(ctx, 16, -5, 7, 10, 2, M2, 2);
+            box(ctx, -20, -8, 38, 16, 6, h.color);
+            ctx.fillStyle = shadeHex(h.color, -0.25);
+            ctx.fillRect(-18, 3, 34, 4);
+            box(ctx, -6, -4.5, 16, 9, 3, '#fff4c2', 2);
+            ctx.fillStyle = '#ffe03d';
+            ctx.fillRect(-4.5, -2.5, 10, 5);
+            part(ctx, [-13, -6, -16, 1, -13, 1, -15, 6, -10, -1, -13, -1], '#fff6c8', 1.5);
+            shine(ctx, -16, -6, 30, 2.2, 0.4);
+            box(ctx, -30, -6, 11, 12, 3, M1);
+        }
     }
 };
 
@@ -470,23 +744,10 @@ export function iconCanvas(kind, id, rarity = 0, size = 96, fx = true, skin = nu
     let art;
     let arg;
     if (kind === 'throwable') {
-        const t = THROWABLES[id] || THROWABLES.explosive;
-        ctx.fillStyle = t.color;
-        ctx.beginPath();
-        ctx.arc(size / 2, size / 2, size * 0.31, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.strokeStyle = '#0a1030';
-        ctx.lineWidth = Math.max(3, size * 0.035);
-        ctx.stroke();
-        ctx.fillStyle = '#0a1030';
-        ctx.font = `800 ${Math.round(size * 0.3)}px sans-serif`;
-        ctx.textAlign = 'center';
-        ctx.textBaseline = 'middle';
-        ctx.fillText(t.icon || '!', size / 2, size / 2 + 1);
-        canvasCache.set(key, cv);
-        return cv;
-    }
-    if (kind === 'heal') {
+        art = THROWABLE_ART[id] || THROWABLE_ART.explosive;
+        arg = THROWABLES[id] || THROWABLES.explosive;
+        if (fx) glow(ctx, size, arg.color, 0.3);
+    } else if (kind === 'heal') {
         art = HEAL_ART[id] || HEAL_ART.bandage;
         arg = HEALS[id] || HEALS.bandage;
         if (fx && art.glow) glow(ctx, size, arg.color, 0.45);
@@ -539,7 +800,5 @@ function iconUrl(kind, id, rarity, size) {
 }
 
 export function makeThrowableIcon(itemId, size = 96) {
-    const t = THROWABLES[itemId] || THROWABLES.explosive;
-    const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}" viewBox="0 0 96 96"><circle cx="48" cy="48" r="30" fill="${t.color}" stroke="#0a1030" stroke-width="6"/><text x="48" y="57" text-anchor="middle" font-family="Arial,sans-serif" font-size="30" font-weight="800" fill="#0a1030">${t.icon || '!'}</text></svg>`;
-    return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    return iconUrl('throwable', itemId, 0, size);
 }
