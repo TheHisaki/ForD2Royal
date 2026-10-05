@@ -1,0 +1,5 @@
+{
+  "summary": "Mise à jour du document récapitulatif des corrections multijoueur :\n- Ajout de la synchronisation des armes visibles en main (joueurs distants et bots)\n- Ajout de la transmission autoritaire des dégâts (p_damage) subis par les coéquipiers/invités\n- Résolution des animations de tir fantômes sans arme et de l'invulnérabilité face aux bots",
+  "updatedAt": "2026-10-01T21:22:21.242322300Z",
+  "userFacing": true
+}

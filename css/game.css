@@ -1,0 +1,2428 @@
+/* ==================================
+   STYLES DU JEU (HUD) - FOR2D ROYAL
+   ================================== */
+
+*,
+*::before,
+*::after {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+:root {
+    --sky-top: #0b1d4a;
+    --panel: rgba(8, 20, 56, 0.72);
+    --panel-border: rgba(120, 180, 255, 0.25);
+    --accent-yellow: #ffe03d;
+    --accent-yellow-dark: #f5b800;
+    --accent-cyan: #4fd8ff;
+    --shield: #3aa0ff;
+    --health: #4cdc5a;
+    --text-primary: #ffffff;
+    --text-secondary: #a9c1e8;
+    --font-display: 'Bebas Neue', 'Impact', 'Arial Narrow Bold', 'Arial Black', sans-serif;
+    --font-body: 'Rubik', 'Segoe UI', Arial, sans-serif;
+    --radius: 6px;
+    --gap: clamp(8px, 1.4vw, 18px);
+    --minimap: clamp(120px, 16vw, 210px);
+    --slot: clamp(46px, 4.6vw, 62px);
+}
+
+html,
+body {
+    width: 100%;
+    height: 100%;
+    overscroll-behavior: none;
+    touch-action: none;
+    -webkit-text-size-adjust: 100%;
+}
+
+body {
+    overflow: hidden;
+    background: var(--sky-top);
+    color: var(--text-primary);
+    font-family: var(--font-body);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+}
+
+#gameCanvas {
+    position: fixed;
+    touch-action: none;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    height: 100dvh;
+    display: block;
+    cursor: crosshair;
+}
+
+button {
+    font-family: var(--font-display);
+    border: none;
+    background: none;
+    color: inherit;
+    cursor: pointer;
+    letter-spacing: 1px;
+}
+
+:focus-visible {
+    outline: 3px solid var(--accent-yellow);
+    outline-offset: 2px;
+}
+
+/* ================= HUD ================= */
+
+#hud {
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    padding: var(--gap);
+    padding-top: max(var(--gap), env(safe-area-inset-top));
+    padding-bottom: max(var(--gap), env(safe-area-inset-bottom));
+    z-index: 10;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+}
+
+#hud a,
+#hud button {
+    pointer-events: auto;
+}
+
+/* ----- Haut gauche ----- */
+.hud-top-left {
+    position: absolute;
+    top: var(--gap);
+    left: var(--gap);
+    display: flex;
+    gap: 8px;
+}
+
+.hud-btn {
+    display: grid;
+    place-items: center;
+    width: 42px;
+    height: 42px;
+    border-radius: var(--radius);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    color: var(--text-primary);
+    font-family: var(--font-display);
+    font-size: 22px;
+    text-decoration: none;
+    transition: background 0.2s, transform 0.15s;
+}
+
+.hud-btn:hover {
+    background: rgba(30, 60, 140, 0.85);
+}
+
+.hud-btn:active {
+    transform: scale(0.95);
+}
+
+/* Bouton son coupé : plus discret */
+.hud-btn.is-muted {
+    opacity: 0.6;
+}
+
+/* ----- Icônes SVG du HUD (js/game/hud-icons.js) -----
+   Emplacement carré de 1em par défaut (suit la taille du texte), relief par une ombre statique */
+.hud-ico {
+    display: inline-grid;
+    place-items: center;
+    flex: none;
+    width: 1em;
+    height: 1em;
+    line-height: 0;
+    vertical-align: -0.15em;
+    pointer-events: none; /* le clic va toujours au bouton parent */
+}
+
+.hud-ico > svg {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+    filter: drop-shadow(0 1.5px 0 rgba(0, 0, 0, 0.35));
+}
+
+.hud-btn .hud-ico {
+    width: 24px;
+    height: 24px;
+    transition: transform 0.15s ease;
+}
+
+.hud-btn:hover .hud-ico { transform: scale(1.1); }
+.hud-btn:active .hud-ico { transform: scale(0.92); }
+a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
+#settingsBtn:hover .hud-ico { transform: rotate(45deg) scale(1.08); }
+
+/* ----- Haut centre : lieu ----- */
+#hudLocation {
+    position: absolute;
+    top: var(--gap);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    pointer-events: none;
+}
+
+.loc-name {
+    font-family: var(--font-display);
+    font-size: clamp(26px, 3.2vw, 44px);
+    letter-spacing: 2px;
+    line-height: 1;
+    color: var(--text-primary);
+    -webkit-text-stroke: 1px rgba(11, 29, 74, 0.6);
+}
+
+.loc-biome {
+    margin-top: 2px;
+    font-size: clamp(11px, 1vw, 14px);
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 2px;
+    color: var(--accent-yellow);
+}
+
+/* 2 classes aux animations identiques : hud.js les alterne pour relancer l'animation
+   sans forcer de recalcul de mise en page (pas de lecture de offsetWidth) */
+#hudLocation.pop {
+    animation: locPop 0.55s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+#hudLocation.pop-b {
+    animation: locPopB 0.55s cubic-bezier(0.2, 1.4, 0.4, 1);
+}
+
+@keyframes locPop {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(0.85); }
+    100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+@keyframes locPopB {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(-12px) scale(0.85); }
+    100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+/* ----- Haut droite : minimap ----- */
+.hud-top-right {
+    position: absolute;
+    top: var(--gap);
+    right: var(--gap);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+#minimapBtn {
+    position: relative;
+    display: block;
+    width: var(--minimap);
+    height: var(--minimap);
+    border: 3px solid #fff;
+    border-radius: 10px;
+    overflow: hidden;
+    background: rgb(40, 116, 204);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    transition: transform 0.15s;
+}
+
+#minimapBtn:hover {
+    transform: scale(1.02);
+}
+
+#minimap {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+.map-key {
+    position: absolute;
+    left: 6px;
+    bottom: 6px;
+    min-width: 22px;
+    height: 22px;
+    padding: 0 5px 0 4px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    border-radius: 4px;
+    background: rgba(8, 20, 56, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+    font-family: var(--font-display);
+    font-size: 15px;
+    line-height: 1;
+    color: #fff;
+}
+
+.map-key .hud-ico {
+    width: 15px;
+    height: 15px;
+}
+
+.hud-stats {
+    display: flex;
+    gap: 6px;
+}
+
+.stat {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 10px;
+    border-radius: var(--radius);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 1px;
+}
+
+#hudCoords {
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    letter-spacing: 1px;
+    font-variant-numeric: tabular-nums; /* largeur stable quand les chiffres changent */
+}
+
+/* ----- Bas gauche : vie / bouclier ----- */
+.hud-bottom-left {
+    position: absolute;
+    left: var(--gap);
+    bottom: var(--gap);
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    width: clamp(180px, 22vw, 300px);
+}
+
+#hudName {
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 1px;
+    margin-left: 6px;
+}
+
+.bar {
+    position: relative;
+    height: 22px;
+    border-radius: 3px;
+    background: rgba(0, 0, 0, 0.55);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    overflow: hidden;
+    transform: skewX(-14deg);
+}
+
+/* Remplissage piloté par transform: scaleX (hud.js) : animé par le GPU, sans recalcul de mise en page */
+.bar-fill {
+    position: absolute;
+    inset: 0;
+    transform: scaleX(0);
+    transform-origin: left center;
+    transition: transform 0.25s ease;
+}
+
+.shield-bar .bar-fill {
+    background: linear-gradient(180deg, #7cc4ff, var(--shield));
+}
+
+.health-bar .bar-fill {
+    transform: scaleX(1);
+    background: linear-gradient(180deg, #8ff08f, var(--health));
+}
+
+.bar-text {
+    position: absolute;
+    inset: 0;
+    display: grid;
+    place-items: center;
+    transform: skewX(14deg);
+    font-family: var(--font-display);
+    font-size: 17px;
+    letter-spacing: 1px;
+}
+
+/* ----- Bas droite : matériaux + hotbar ----- */
+.hud-bottom-right {
+    position: absolute;
+    right: var(--gap);
+    bottom: var(--gap);
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    gap: 6px;
+}
+
+.materials {
+    display: flex;
+    gap: 6px;
+}
+
+.mat {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 3px 9px;
+    border-radius: var(--radius);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    font-family: var(--font-display);
+    font-size: 18px;
+}
+
+/* Icônes des matériaux et des stats, un peu plus grandes que le texte */
+.mat .hud-ico,
+.stat .hud-ico {
+    width: 1.2em;
+    height: 1.2em;
+}
+
+#hotbar {
+    display: flex;
+    gap: 5px;
+    transition: opacity 0.25s ease, filter 0.25s ease;
+}
+
+#hotbar.is-disabled,
+#weaponInfo.is-disabled {
+    opacity: 0.3;
+    filter: grayscale(0.9);
+    pointer-events: none;
+}
+
+/* Case de la hotbar. Vide : panneau sombre. Avec un objet (.has-item) : dégradé plein
+   de la couleur --rar (rareté, soin, ou neutre pour la pioche) posé par combat-hud.js.
+   Le fond part du bord extérieur (background-origin/clip: border-box) : pas de tuile
+   répétée ni de panneau gris visible sous la bordure, qui est opaque et de la même teinte. */
+.slot {
+    --rar: #6f7f9e;
+    position: relative;
+    display: grid;
+    place-items: center;
+    width: var(--slot);
+    height: var(--slot);
+    padding: 0;
+    overflow: hidden;
+    border-radius: var(--radius);
+    border: 2px solid rgba(255, 255, 255, 0.25);
+    background: var(--panel);
+    background-origin: border-box;
+    background-clip: border-box;
+    transition: border-color 0.15s, transform 0.15s, box-shadow 0.15s;
+}
+
+.slot:hover {
+    border-color: rgba(255, 255, 255, 0.6);
+}
+
+/* Case remplie : couleur pleine en haut, plus sombre en bas (style Fortnite) */
+.slot.has-item {
+    border-color: color-mix(in srgb, var(--rar) 62%, #ffffff);
+    background-image:
+        radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 70%),
+        linear-gradient(180deg, var(--rar) 0%, color-mix(in srgb, var(--rar) 78%, #0a1030) 55%, color-mix(in srgb, var(--rar) 42%, #0a1030) 100%);
+    background-color: color-mix(in srgb, var(--rar) 42%, #0a1030);
+    background-repeat: no-repeat;
+}
+
+.slot.has-item:hover {
+    border-color: color-mix(in srgb, var(--rar) 35%, #ffffff);
+}
+
+/* Pioche : couleur neutre (ardoise bleutée, dans le ton du HUD) */
+.slot.is-melee { --rar: #6f7f9e; }
+
+/* Case en main : contour + halo jaunes (la couleur de l'objet reste visible) */
+.slot.active,
+.slot.active:hover {
+    border-color: var(--accent-yellow);
+    box-shadow: 0 0 0 2px rgba(255, 224, 61, 0.45), 0 0 12px rgba(255, 224, 61, 0.35), 0 4px 12px rgba(0, 0, 0, 0.4);
+    transform: translateY(-4px);
+}
+
+/* Case en main vide : léger voile jaune par-dessus le panneau */
+.slot.active:not(.has-item) {
+    background: linear-gradient(rgba(255, 224, 61, 0.18), rgba(255, 224, 61, 0.18)), var(--panel);
+    background-origin: border-box;
+}
+
+.slot-icon {
+    font-size: calc(var(--slot) * 0.5);
+    line-height: 1;
+}
+
+.slot-icon img {
+    display: block;
+    width: calc(var(--slot) * 0.85);
+    height: calc(var(--slot) * 0.85);
+    pointer-events: none;
+}
+
+.slot-key {
+    position: absolute;
+    top: 2px;
+    right: 5px;
+    font-family: var(--font-display);
+    font-size: 13px;
+    line-height: 1;
+    color: var(--text-secondary);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7);
+}
+
+.slot.has-item .slot-key { color: #ffffff; }
+
+.slot.active .slot-key {
+    color: var(--accent-yellow);
+}
+
+.slot-count {
+    position: absolute;
+    left: 4px;
+    bottom: 1px;
+    font-family: var(--font-display);
+    font-size: 15px;
+    line-height: 1.1;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.7), 0 0 3px rgba(0, 0, 0, 0.6);
+}
+
+.slot-count.empty { color: #ff5470; }
+
+/* ----- Bas centre : aide ----- */
+#hudHelp {
+    position: absolute;
+    left: 50%;
+    bottom: var(--gap);
+    transform: translateX(-50%);
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    background: var(--panel);
+    border: 1px solid var(--panel-border);
+    font-size: 13px;
+    color: var(--text-secondary);
+    white-space: nowrap;
+    transition: opacity 0.8s ease;
+}
+
+#hudHelp.hidden {
+    opacity: 0;
+}
+
+/* ================= CARTE PLEIN ÉCRAN ================= */
+
+#fullMap {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: grid;
+    place-items: center;
+    /* Fond plus opaque à la place d'un backdrop-filter: blur, très coûteux au-dessus
+       d'un canvas plein écran redessiné à chaque image */
+    background: rgba(5, 12, 35, 0.88);
+}
+
+#fullMap[hidden] {
+    display: none;
+}
+
+.full-map-inner {
+    position: relative;
+}
+
+#fullMapCanvas {
+    display: block;
+    border: 4px solid #fff;
+    border-radius: 10px;
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6);
+}
+
+#fullMapClose {
+    position: absolute;
+    top: -14px;
+    right: -14px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: grid;
+    place-items: center;
+    background: var(--accent-yellow);
+    color: #0b1d4a;
+    font-size: 22px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+    transition: transform 0.15s;
+}
+
+#fullMapClose:hover {
+    transform: scale(1.08);
+}
+
+#fullMapClose:active { transform: scale(0.95); }
+#fullMapClose .hud-ico { width: 20px; height: 20px; }
+#fullMapClose:hover .hud-ico { --ico-close: #ff5470; }
+
+/* Croix du panneau d'inventaire (celle des paramètres : css/settings.css) : rouge au survol */
+#invClose .hud-ico { width: 16px; height: 16px; }
+#invClose:hover .hud-ico { --ico-close: #ff5470; }
+
+/* ================= CHARGEMENT ================= */
+
+#loading {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: radial-gradient(circle at 50% 40%, #1f4fb8, #0b1d4a 70%);
+    transition: opacity 0.5s ease, visibility 0.5s;
+}
+
+#loading.done {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+}
+
+/* Écran de chargement caché : on arrête l'animation infinie du spinner */
+#loading.done .loading-spinner {
+    animation: none;
+}
+
+.loading-logo {
+    font-family: var(--font-display);
+    font-size: clamp(48px, 9vw, 110px);
+    letter-spacing: 4px;
+    font-weight: 400;
+    text-shadow: 0 6px 0 rgba(0, 0, 0, 0.35);
+}
+
+.loading-logo span {
+    color: var(--accent-yellow);
+}
+
+.loading-text {
+    font-size: 16px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-top-color: var(--accent-yellow);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+}
+
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* ================= RESPONSIVE ================= */
+
+@media (max-width: 760px), (max-height: 520px) {
+    :root {
+        --minimap: 110px;
+        --slot: 40px;
+    }
+
+    #hudHelp {
+        display: none;
+    }
+
+    .hud-bottom-left {
+        width: 160px;
+    }
+
+    #hudName {
+        font-size: 18px;
+    }
+
+    .bar {
+        height: 18px;
+    }
+
+    .bar-text {
+        font-size: 14px;
+    }
+
+    .mat,
+    .stat {
+        font-size: 15px;
+        padding: 2px 7px;
+    }
+
+    .hud-btn {
+        width: 36px;
+        height: 36px;
+        font-size: 18px;
+    }
+
+    .hud-btn .hud-ico {
+        width: 20px;
+        height: 20px;
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ----- Message du vaisseau ----- */
+#dropPrompt {
+    position: absolute;
+    left: 50%;
+    bottom: 22%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 18px;
+    white-space: nowrap;
+    font-family: var(--font-display, 'Bebas Neue', Impact, sans-serif);
+    font-size: 26px;
+    letter-spacing: 1px;
+    color: #fff;
+    text-shadow: 0 2px 4px rgba(0, 0, 0, 0.6);
+    background: rgba(11, 29, 74, 0.7);
+    border-radius: 6px;
+}
+
+#dropPrompt[hidden] { display: none; }
+
+#dropPrompt .drop-key {
+    padding: 2px 10px;
+    color: #0b1d4a;
+    text-shadow: none;
+    background: #ffe03d;
+    border-radius: 4px;
+    box-shadow: 0 3px 0 #b07a00;
+}
+
+#dropPrompt.waiting .drop-key { background: rgba(255, 255, 255, 0.35); box-shadow: none; }
+
+#dropPrompt .drop-timer {
+    font-family: var(--font-body, 'Rubik', sans-serif);
+    font-size: 15px;
+    font-weight: 600;
+    color: #a9c1e8;
+    text-shadow: none;
+}
+
+@media (max-width: 760px) {
+    #dropPrompt { font-size: 20px; bottom: 30%; }
+}
+
+/* ================= COMBAT ================= */
+
+/* Fil des éliminations (en bas à gauche, au-dessus de la barre de vie) */
+#killFeed {
+    position: absolute;
+    bottom: calc(var(--gap) + 82px);
+    left: var(--gap);
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    max-width: min(380px, 42vw);
+    pointer-events: none;
+    z-index: 15;
+}
+
+.kill-entry {
+    padding: 4px 10px;
+    border-radius: 4px;
+    background: rgba(8, 20, 56, 0.72);
+    font-size: 13px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    animation: feedIn 0.25s ease-out;
+    transition: opacity 0.5s;
+}
+
+.kill-entry.me { background: rgba(176, 122, 0, 0.8); }
+.kill-entry .k-name { color: var(--accent-yellow); }
+.kill-entry.me .k-name { color: #fff; }
+.kill-entry .k-weapon { color: var(--text-secondary); font-weight: 400; }
+.kill-entry.fade { opacity: 0; }
+
+@keyframes feedIn {
+    from { opacity: 0; transform: translateX(-10px); }
+    to   { opacity: 1; transform: none; }
+}
+
+/* À gauche de l'inventaire : munitions AU-DESSUS, nom de l'objet en main EN BAS
+   (aligné avec le bas de la hotbar). Dans game.html le nom est avant les munitions :
+   column-reverse inverse l'ordre sans toucher au HTML. Sans arme à feu (pioche, soin),
+   #ammoBox est caché et le nom reste seul en bas. */
+#weaponInfo {
+    position: absolute;
+    right: calc(var(--gap) + var(--slot) * 5 + 20px + 14px);
+    bottom: var(--gap);
+    display: flex;
+    flex-direction: column-reverse;
+    align-items: flex-end;
+    gap: 2px;
+    pointer-events: none;
+}
+
+/* Nom de l'objet en main (aligné à droite, contre l'inventaire) */
+#equipName {
+    --equip-color: #ffffff;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+    line-height: 1;
+    font-family: var(--font-display);
+    letter-spacing: 1px;
+    text-align: right;
+    white-space: nowrap;
+    transform-origin: right bottom;
+}
+
+#equipName.is-empty { display: none; }
+
+.eq-rarity {
+    font-size: 13px;
+    color: var(--equip-color);
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+}
+
+.eq-rarity:empty { display: none; }
+
+.eq-name {
+    font-size: 24px;
+    color: #ffffff;
+    /* Contour foncé + trait de la couleur de rareté sous le nom */
+    text-shadow:
+        -1px -1px 0 #0a1030, 1px -1px 0 #0a1030, -1px 1px 0 #0a1030, 1px 1px 0 #0a1030,
+        0 2px 6px rgba(0, 0, 0, 0.5);
+    padding-bottom: 3px;
+    border-bottom: 3px solid var(--equip-color);
+}
+
+#equipName.pop { animation: equipPop 0.35s cubic-bezier(0.2, 1.4, 0.4, 1); }
+#equipName.pop-b { animation: equipPopB 0.35s cubic-bezier(0.2, 1.4, 0.4, 1); }
+
+@keyframes equipPop {
+    from { opacity: 0; transform: translateY(6px) scale(0.9); }
+    to   { opacity: 1; transform: none; }
+}
+
+@keyframes equipPopB {
+    from { opacity: 0; transform: translateY(6px) scale(0.9); }
+    to   { opacity: 1; transform: none; }
+}
+
+@media (max-width: 760px) {
+    .eq-name { font-size: 18px; }
+    .eq-rarity { font-size: 11px; }
+}
+
+/* Munitions */
+#ammoBox {
+    /* Dans #weaponInfo, au-dessus du nom de l'arme (column-reverse) */
+    display: flex;
+    align-items: baseline;
+    gap: 6px;
+    font-family: var(--font-display);
+    letter-spacing: 1px;
+}
+
+#ammoBox[hidden] { display: none; }
+#ammoMag { font-size: 38px; line-height: 1; }
+#ammoMag.empty { color: #ff5470; }
+#ammoReserve { font-size: 20px; color: var(--text-secondary); }
+
+/* Barre d'action (rechargement / soin) */
+#actionBar {
+    position: absolute;
+    left: 50%;
+    top: 62%;
+    transform: translateX(-50%);
+    width: 200px;
+    text-align: center;
+}
+
+#actionBar[hidden] { display: none; }
+
+.action-label {
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 1px;
+    margin-bottom: 4px;
+}
+
+.action-track {
+    height: 8px;
+    border-radius: 4px;
+    background: rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+}
+
+/* Piloté par transform: scaleX (combat-hud.js) */
+.action-fill {
+    height: 100%;
+    width: 100%;
+    transform: scaleX(0);
+    transform-origin: left center;
+    background: var(--accent-yellow);
+}
+
+/* Message "E : ouvrir le coffre" */
+#interactPrompt {
+    position: absolute;
+    left: 50%;
+    top: 68%;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    background: rgba(11, 29, 74, 0.75);
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+}
+
+#interactPrompt[hidden] { display: none; }
+
+#interactPrompt .drop-key {
+    padding: 0 8px;
+    border-radius: 4px;
+    color: #0b1d4a;
+    text-shadow: none;
+    background: var(--accent-yellow);
+    box-shadow: 0 3px 0 #b07a00;
+}
+
+/* Bords rouges quand on est touché */
+#damageVignette {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    pointer-events: none;
+    opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 55%, rgba(255, 30, 60, 0.55) 100%);
+    will-change: opacity; /* opacité changée presque à chaque image quand on est touché */
+}
+
+/* Écran de fin */
+#endScreen {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    display: grid;
+    place-items: center;
+    /* Fond plus opaque au lieu d'un backdrop-filter: blur (le jeu continue d'être dessiné derrière) */
+    background: rgba(5, 12, 35, 0.8);
+    animation: feedIn 0.4s ease-out;
+}
+
+#endScreen[hidden] { display: none; }
+
+.end-card {
+    min-width: min(420px, 90vw);
+    padding: 28px 32px;
+    text-align: center;
+    border-radius: 10px;
+    background: rgba(8, 20, 56, 0.92);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 16px 50px rgba(0, 0, 0, 0.6);
+}
+
+.end-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(40px, 7vw, 72px);
+    letter-spacing: 3px;
+    line-height: 1;
+    color: var(--accent-yellow);
+}
+
+.end-title.lost { color: #ff5470; }
+
+.end-place {
+    margin-top: 8px;
+    font-family: var(--font-display);
+    font-size: 30px;
+    letter-spacing: 1px;
+}
+
+.end-kills {
+    margin-top: 2px;
+    color: var(--text-secondary);
+    font-weight: 600;
+}
+
+.end-actions {
+    display: flex;
+    justify-content: center;
+    gap: 10px;
+    margin-top: 20px;
+}
+
+.end-btn {
+    padding: 10px 26px;
+    border-radius: var(--radius);
+    font-family: var(--font-display);
+    font-size: 22px;
+    letter-spacing: 1px;
+    color: #fff;
+    text-decoration: none;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.25);
+}
+
+.end-btn.primary {
+    color: #0b1d4a;
+    background: var(--accent-yellow);
+    border-color: var(--accent-yellow);
+}
+
+@media (max-width: 760px), (max-height: 520px) {
+    #killFeed { bottom: calc(var(--gap) + 70px); top: auto; max-width: 60vw; }
+    .kill-entry { font-size: 11px; }
+    #ammoMag { font-size: 28px; }
+    #interactPrompt { font-size: 18px; }
+}
+
+/* ================= ANIMATIONS DE COMBAT ================= */
+
+/* Confirmation d'élimination façon Fortnite */
+#killBanner {
+    position: absolute;
+    left: 50%;
+    top: 24%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    pointer-events: none;
+    font-family: var(--font-display);
+    letter-spacing: 2px;
+    white-space: nowrap;
+}
+
+#killBanner[hidden] { display: none; }
+
+#killBanner.show { animation: killPop 1.8s ease-out forwards; }
+
+.kb-title {
+    padding: 2px 18px;
+    font-size: clamp(30px, 4vw, 48px);
+    line-height: 1.05;
+    color: #0b1d4a;
+    text-shadow: none;
+    background: var(--accent-yellow);
+    transform: skewX(-10deg);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.kb-name {
+    margin-top: 4px;
+    font-size: clamp(20px, 2.4vw, 28px);
+    color: #fff;
+}
+
+@keyframes killPop {
+    0%   { opacity: 0; transform: translateX(-50%) scale(2.2); }
+    12%  { opacity: 1; transform: translateX(-50%) scale(0.92); }
+    20%  { transform: translateX(-50%) scale(1.04); }
+    28%  { transform: translateX(-50%) scale(1); }
+    80%  { opacity: 1; transform: translateX(-50%) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-16px) scale(0.96); }
+}
+
+/* ----- Altimètre (pendant la chute) -----
+   Centré horizontalement, juste SOUS le personnage (toujours au centre de l'écran).
+   --alt-offset : distance entre le centre de l'écran et le haut du bloc. Elle suit la
+   taille de l'écran comme le zoom du jeu (≈ racine de largeur × hauteur) pour rester
+   sous le planeur ouvert (≈ 4,5 × rayon d'envergure, agrandi ×1,4) même aile vers le bas.
+   --alt-max-top : le bloc ne descend jamais sur le bas de l'écran (barres, inventaire). */
+#altMeter {
+    --alt-offset: clamp(70px, 6vh + 4.5vw, 210px);
+    --alt-max-top: calc(100% - 150px);
+    --alt-color: #ffffff;
+    --alt-bar: linear-gradient(90deg, #3a8dff, #7cc4ff);
+    --alt-ink: #0b1d4a;
+    position: absolute;
+    left: 50%;
+    top: min(calc(50% + var(--alt-offset)), var(--alt-max-top));
+    transform: translateX(-50%);
+    width: clamp(160px, 15vw, 230px);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 5px;
+    font-family: var(--font-display);
+    letter-spacing: 1px;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+    contain: layout style; /* les changements de texte ne relancent pas la mise en page du HUD */
+    text-shadow: none;
+}
+
+#altMeter[hidden] { display: none; }
+
+/* Apparition légère au saut */
+#altMeter:not([hidden]) {
+    animation: altIn 0.35s cubic-bezier(0.2, 1.3, 0.4, 1);
+}
+
+@keyframes altIn {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px) scale(0.9); }
+    to   { opacity: 1; transform: translateX(-50%); }
+}
+
+/* Grand chiffre, contour foncé : lisible sur l'eau comme sur l'herbe ou le sable */
+.alt-readout {
+    display: flex;
+    align-items: baseline;
+    justify-content: center;
+    gap: 4px;
+    line-height: 0.9;
+    color: var(--alt-color);
+    text-shadow:
+        2px 0 0 var(--alt-ink), -2px 0 0 var(--alt-ink),
+        0 2px 0 var(--alt-ink), 0 -2px 0 var(--alt-ink),
+        1.5px 1.5px 0 var(--alt-ink), -1.5px 1.5px 0 var(--alt-ink),
+        1.5px -1.5px 0 var(--alt-ink), -1.5px -1.5px 0 var(--alt-ink),
+        0 4px 10px rgba(0, 0, 0, 0.55);
+    transition: color 0.25s;
+}
+
+.alt-value {
+    font-size: clamp(38px, 3.4vw, 48px);
+    font-variant-numeric: tabular-nums;
+    letter-spacing: 2px;
+}
+
+.alt-unit {
+    font-size: clamp(20px, 1.8vw, 26px);
+}
+
+/* Barre horizontale qui se vide vers la gauche */
+.alt-gauge {
+    position: relative;
+    width: 100%;
+    padding: 4px 0;
+}
+
+.alt-track {
+    height: 8px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: rgba(8, 20, 56, 0.72);
+    box-shadow: 0 0 0 1.5px rgba(11, 29, 74, 0.9), 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
+.alt-fill {
+    height: 100%;
+    width: 100%;
+    background: var(--alt-bar);
+    transform-origin: left center;
+    transform: scaleX(1);
+}
+
+/* Repère d'ouverture du planeur (2/3 de l'altitude, depuis la gauche) */
+.alt-open {
+    position: absolute;
+    left: 66.6667%;
+    top: 0;
+    bottom: 0;
+    width: 4px;
+    margin-left: -2px;
+    border-radius: 2px;
+    background: var(--accent-yellow);
+    box-shadow: 0 0 0 1.5px var(--alt-ink);
+}
+
+/* Sous-texte d'état */
+.alt-hint {
+    padding: 2px 10px;
+    border-radius: 3px;
+    font-size: clamp(14px, 1.2vw, 17px);
+    letter-spacing: 1.5px;
+    line-height: 1.2;
+    color: #ffffff;
+    background: rgba(11, 29, 74, 0.78);
+}
+
+/* Planeur ouvert : tout passe au jaune */
+#altMeter.glide {
+    --alt-color: var(--accent-yellow);
+    --alt-bar: linear-gradient(90deg, var(--accent-yellow-dark), var(--accent-yellow));
+}
+
+#altMeter.glide .alt-hint {
+    color: var(--alt-ink);
+    background: var(--accent-yellow);
+}
+
+/* Petit rebond du chiffre quand le planeur s'ouvre */
+#altMeter.glide .alt-readout {
+    animation: altPulse 0.4s ease-out;
+}
+
+@keyframes altPulse {
+    0%   { transform: scale(1); }
+    40%  { transform: scale(1.15); }
+    100% { transform: scale(1); }
+}
+
+/* Près du sol : orange */
+#altMeter.land {
+    --alt-color: #ffae3d;
+    --alt-bar: linear-gradient(90deg, #ff7a1a, #ffae3d);
+}
+
+#altMeter.land .alt-hint {
+    color: var(--alt-ink);
+    background: #ffae3d;
+}
+
+/* Petits écrans / faible hauteur : plus compact et un peu plus haut */
+@media (max-width: 760px), (max-height: 520px) {
+    #altMeter {
+        --alt-max-top: calc(100% - 110px);
+        width: 140px;
+        gap: 3px;
+    }
+
+    .alt-value { font-size: 30px; }
+    .alt-unit { font-size: 17px; }
+    .alt-track { height: 6px; }
+    .alt-hint { font-size: 12px; padding: 1px 8px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #altMeter:not([hidden]),
+    #altMeter.glide .alt-readout {
+        animation: none;
+    }
+
+    .alt-readout { transition: none; }
+}
+
+/* Bords rouges qui pulsent quand la vie est basse.
+   On anime l'opacité d'un calque (composité par le GPU) au lieu d'un filter: brightness
+   sur un élément plein écran, qui obligeait à le repeindre à chaque image. */
+#damageVignette::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    background: radial-gradient(ellipse at center, transparent 50%, rgba(255, 60, 80, 0.7) 100%);
+}
+
+#damageVignette.low::after {
+    animation: lowHp 1.1s ease-in-out infinite;
+    will-change: opacity;
+}
+
+@keyframes lowHp {
+    0%, 100% { opacity: 0; }
+    50%      { opacity: 0.7; }
+}
+
+.end-killer {
+    margin-top: 4px;
+    font-weight: 600;
+    color: #ff8095;
+}
+
+.end-killer:empty { display: none; }
+
+/* ================= CORRUPTION (zone qui rétrécit) ================= */
+
+:root {
+    --corrupt: #b04cff;
+    --corrupt-light: #e3b8ff;
+    --corrupt-panel: rgba(52, 10, 88, 0.82);
+}
+
+/* ----- Minuteur, sous la minimap et les stats ----- */
+#zoneTimer {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 4px 10px 4px 8px;
+    border-radius: var(--radius);
+    background: var(--panel);
+    border: 1px solid rgba(176, 76, 255, 0.45);
+    font-family: var(--font-display);
+    letter-spacing: 1px;
+    line-height: 1.05;
+    white-space: nowrap;
+    contain: layout style; /* le texte qui change chaque seconde ne relance pas la mise en page du HUD */
+}
+
+#zoneTimer[hidden] { display: none; }
+
+/* Halo peint une fois : seule son opacité est animée (pulsation pendant l'avancée) */
+#zoneTimer::before {
+    content: '';
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    box-shadow: 0 0 14px 2px rgba(176, 76, 255, 0.75);
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Pastille violette */
+.zt-icon {
+    position: relative;
+    flex: none;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: radial-gradient(circle at 35% 35%, var(--corrupt-light), var(--corrupt) 45%, #3b0a66 100%);
+    box-shadow: 0 0 0 2px rgba(11, 29, 74, 0.85), 0 0 8px rgba(176, 76, 255, 0.8);
+}
+
+/* Version SVG (goutte à l'œil) : remplace la pastille, garde l'anneau qui pulse */
+.zt-icon.hud-ico {
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: none;
+    box-shadow: none;
+}
+
+.zt-icon.hud-ico > svg {
+    filter: drop-shadow(0 1px 0 rgba(0, 0, 0, 0.4)) drop-shadow(0 0 4px rgba(176, 76, 255, 0.75));
+}
+
+.zt-icon::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 50%;
+    border: 2px solid var(--corrupt);
+    opacity: 0;
+}
+
+.zt-body {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+}
+
+.zt-main { font-size: 19px; }
+.zt-label { color: var(--corrupt-light); }
+.zt-time { color: #fff; font-variant-numeric: tabular-nums; }
+.zt-time:empty { display: none; }
+
+.zt-sub {
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    color: var(--text-secondary);
+}
+
+.zt-sub:empty { display: none; }
+
+/* La corruption avance : plus visible, pulsation légère */
+#zoneTimer.is-shrink {
+    background: var(--corrupt-panel);
+    border-color: var(--corrupt);
+}
+
+#zoneTimer.is-shrink .zt-label { color: #fff; }
+#zoneTimer.is-shrink .zt-time { color: var(--corrupt-light); }
+#zoneTimer.is-shrink::before { animation: ztGlow 1.2s ease-in-out infinite; }
+#zoneTimer.is-shrink .zt-icon::after { animation: ztPing 1.2s ease-out infinite; }
+
+#zoneTimer.is-done .zt-label { color: #fff; }
+
+/* Joueur hors zone : le sous-titre passe en violet clair */
+#zoneTimer.outside { border-color: var(--corrupt); }
+#zoneTimer.outside .zt-sub { color: var(--corrupt-light); }
+
+@keyframes ztGlow {
+    0%, 100% { opacity: 0; }
+    50%      { opacity: 0.9; }
+}
+
+@keyframes ztPing {
+    0%   { opacity: 0.9; transform: scale(0.6); }
+    100% { opacity: 0; transform: scale(1.5); }
+}
+
+/* ----- Alerte au centre-haut (sous le nom du lieu) ----- */
+#zoneAlert {
+    position: absolute;
+    left: 50%;
+    top: calc(var(--gap) + clamp(56px, 5vw + 22px, 80px));
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 6px 18px 7px;
+    border-radius: var(--radius);
+    background: linear-gradient(180deg, rgba(52, 10, 88, 0.88), rgba(20, 4, 40, 0.88));
+    border: 1px solid rgba(176, 76, 255, 0.65);
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35), 0 0 16px rgba(176, 76, 255, 0.35);
+    font-family: var(--font-display);
+    letter-spacing: 2px;
+    text-align: center;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+#zoneAlert[hidden] { display: none; }
+
+.za-title {
+    font-size: clamp(22px, 2.4vw, 32px);
+    line-height: 1;
+    color: #fff;
+}
+
+.za-sub {
+    margin-top: 3px;
+    font-family: var(--font-body);
+    font-size: clamp(10px, 1vw, 13px);
+    font-weight: 600;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--corrupt-light);
+}
+
+.za-sub:empty { display: none; }
+
+#zoneAlert.is-shrink .za-title { color: var(--corrupt-light); }
+
+/* 2 classes aux animations identiques : combat-hud.js les alterne pour relancer l'animation */
+#zoneAlert.show-a { animation: zaShowA 3.2s ease-out forwards; }
+#zoneAlert.show-b { animation: zaShowB 3.2s ease-out forwards; }
+
+@keyframes zaShowA {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(0.92); }
+    8%   { opacity: 1; transform: translateX(-50%) scale(1.04); }
+    14%  { transform: translateX(-50%) scale(1); }
+    85%  { opacity: 1; transform: translateX(-50%) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(1); }
+}
+
+@keyframes zaShowB {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(0.92); }
+    8%   { opacity: 1; transform: translateX(-50%) scale(1.04); }
+    14%  { transform: translateX(-50%) scale(1); }
+    85%  { opacity: 1; transform: translateX(-50%) scale(1); }
+    100% { opacity: 0; transform: translateX(-50%) translateY(-6px) scale(1); }
+}
+
+/* ----- Barres : vie violette tant qu'on se corrompt, bouclier ignoré (atténué) ----- */
+.health-bar.corrupt {
+    border-color: rgba(176, 76, 255, 0.85);
+    box-shadow: 0 0 10px rgba(176, 76, 255, 0.55);
+}
+
+.health-bar.corrupt .bar-fill {
+    background: linear-gradient(180deg, #d9a2ff, #9b3cf0 60%, #6a1bb3);
+}
+
+/* Reflet qui balaie la barre (transform seulement) */
+.health-bar.corrupt::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(235, 200, 255, 0.3), transparent);
+    transform: translateX(-100%);
+    animation: barCorrupt 1.4s linear infinite;
+    pointer-events: none;
+}
+
+@keyframes barCorrupt {
+    to { transform: translateX(100%); }
+}
+
+.shield-bar { transition: opacity 0.3s; }
+.shield-bar.bypassed { opacity: 0.55; }
+
+/* ----- Fil des éliminations : mort dans la corruption ----- */
+.kill-entry.corrupt { background: rgba(70, 16, 120, 0.85); }
+.kill-entry.corrupt.me { background: rgba(120, 34, 190, 0.9); }
+.kill-entry.corrupt .k-name { color: var(--corrupt-light); }
+
+/* ----- Calque "joueur corrompu" (sous le HUD, au-dessus du canvas) -----
+   Performance : pas de backdrop-filter, filter ni mix-blend-mode. Uniquement des calques
+   semi-transparents peints une fois ; on n'anime que opacity et transform, et seulement
+   quand le calque est actif (classe .active posée par combat-hud.js). L'opacité globale
+   (intensité 0.6 → 1 selon la profondeur) est écrite par pas de 0.05 et fondue en CSS. */
+#corruptionFx {
+    position: fixed;
+    inset: 0;
+    z-index: 9;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.4s linear;
+    contain: strict;
+}
+
+#corruptionFx.active { visibility: visible; }
+
+#corruptionFx > div {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+/* Vignette violet / noir épaisse + légère teinte violette globale.
+   Débord de 6 % : la pulsation (scale) ne découvre jamais les bords. */
+#corruptionFx .cfx-tint {
+    inset: -6%;
+    background:
+        radial-gradient(ellipse at center, rgba(40, 0, 70, 0) 30%, rgba(62, 0, 112, 0.45) 60%, rgba(18, 0, 34, 0.88) 86%, rgba(6, 0, 12, 0.96) 100%),
+        rgba(110, 30, 170, 0.16);
+}
+
+/* Couche plus sombre : opacité pilotée par les dégâts / la profondeur */
+#corruptionFx .cfx-deep {
+    inset: -6%;
+    opacity: 0;
+    background:
+        radial-gradient(ellipse at center, rgba(30, 0, 60, 0) 18%, rgba(50, 0, 90, 0.5) 50%, rgba(8, 0, 16, 0.95) 82%),
+        rgba(20, 0, 35, 0.18);
+    transition: opacity 0.4s linear;
+}
+
+/* Grain : tuile de bruit SVG (rasterisée une fois), déplacée par à-coups */
+#corruptionFx .cfx-grain {
+    inset: -120px;
+    opacity: 0.16;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.8 0 0 0 0 0.5 0 0 0 0 1 1.4 0 0 0 -0.55'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    background-size: 180px 180px;
+}
+
+/* Lignes de balayage qui défilent */
+#corruptionFx .cfx-scan {
+    inset: -6px 0;
+    background: repeating-linear-gradient(180deg,
+        rgba(0, 0, 0, 0.28) 0 1px,
+        transparent 1px 3px,
+        rgba(200, 120, 255, 0.07) 3px 4px,
+        transparent 4px 6px);
+}
+
+/* Bande claire qui descend lentement (effet d'écran qui "roule") */
+#corruptionFx .cfx-roll {
+    inset: 0 0 auto 0;
+    height: 22vh;
+    background: linear-gradient(180deg, transparent, rgba(200, 130, 255, 0.1) 44%, rgba(255, 255, 255, 0.06) 50%, rgba(200, 130, 255, 0.1) 56%, transparent);
+    transform: translateY(-25vh);
+}
+
+/* Glitchs : bandes horizontales décalées, position / épaisseur tirées par combat-hud.js */
+#corruptionFx .cfx-glitch {
+    --gy: 40vh;
+    --gs: 1;
+    inset: 0 -6% auto -6%;
+    height: 7vh;
+    opacity: 0;
+    transform-origin: center top;
+    transform: translate3d(0, var(--gy), 0) scaleY(var(--gs));
+    border-top: 1px solid rgba(230, 200, 255, 0.5);
+    border-bottom: 1px solid rgba(79, 216, 255, 0.35);
+    background:
+        linear-gradient(90deg, transparent 0, rgba(79, 216, 255, 0.28) 8%, transparent 14%, transparent 70%, rgba(255, 60, 200, 0.25) 78%, transparent 90%),
+        repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.12) 0 1px, transparent 1px 3px),
+        linear-gradient(90deg, rgba(176, 76, 255, 0.35), rgba(30, 0, 60, 0.55) 40%, rgba(176, 76, 255, 0.3) 65%, rgba(20, 0, 40, 0.5));
+}
+
+/* Flash violet à chaque tick de dégâts */
+#corruptionFx .cfx-flash {
+    opacity: 0;
+    background: radial-gradient(ellipse at center, rgba(176, 76, 255, 0.08) 20%, rgba(176, 76, 255, 0.5) 72%, rgba(120, 20, 200, 0.75) 100%);
+}
+
+/* Animations : uniquement calque actif */
+#corruptionFx.active .cfx-grain { animation: cfxGrain 0.6s steps(1, end) infinite; }
+#corruptionFx.active .cfx-scan { animation: cfxScan 0.5s linear infinite; }
+#corruptionFx.active .cfx-roll { animation: cfxRoll 3.6s linear infinite; }
+#corruptionFx.active .cfx-glitch.ga { animation: cfxGlitchA 0.24s steps(1, end) forwards; }
+#corruptionFx.active .cfx-glitch.gb { animation: cfxGlitchB 0.24s steps(1, end) forwards; }
+#corruptionFx.active.hit-a .cfx-flash { animation: cfxFlashA 0.45s ease-out; }
+#corruptionFx.active.hit-b .cfx-flash { animation: cfxFlashB 0.45s ease-out; }
+#corruptionFx.active.hit-a .cfx-tint { animation: cfxPulseA 0.5s ease-out; }
+#corruptionFx.active.hit-b .cfx-tint { animation: cfxPulseB 0.5s ease-out; }
+
+@keyframes cfxGrain {
+    0%   { transform: translate(0, 0); }
+    20%  { transform: translate(-47px, 31px); }
+    40%  { transform: translate(38px, -52px); }
+    60%  { transform: translate(-71px, -18px); }
+    80%  { transform: translate(59px, 64px); }
+}
+
+@keyframes cfxScan {
+    from { transform: translateY(0); }
+    to   { transform: translateY(6px); }
+}
+
+@keyframes cfxRoll {
+    from { transform: translateY(-25vh); }
+    to   { transform: translateY(105vh); }
+}
+
+@keyframes cfxGlitchA {
+    0%   { opacity: 1; transform: translate3d(-3%, var(--gy), 0) scaleY(var(--gs)); }
+    30%  { opacity: 0.85; transform: translate3d(4%, var(--gy), 0) scaleY(calc(var(--gs) * 0.6)); }
+    60%  { opacity: 1; transform: translate3d(-1.5%, var(--gy), 0) scaleY(calc(var(--gs) * 1.3)); }
+    100% { opacity: 0; transform: translate3d(0, var(--gy), 0) scaleY(var(--gs)); }
+}
+
+@keyframes cfxGlitchB {
+    0%   { opacity: 1; transform: translate3d(-3%, var(--gy), 0) scaleY(var(--gs)); }
+    30%  { opacity: 0.85; transform: translate3d(4%, var(--gy), 0) scaleY(calc(var(--gs) * 0.6)); }
+    60%  { opacity: 1; transform: translate3d(-1.5%, var(--gy), 0) scaleY(calc(var(--gs) * 1.3)); }
+    100% { opacity: 0; transform: translate3d(0, var(--gy), 0) scaleY(var(--gs)); }
+}
+
+@keyframes cfxFlashA {
+    0%   { opacity: 0.9; }
+    100% { opacity: 0; }
+}
+
+@keyframes cfxFlashB {
+    0%   { opacity: 0.9; }
+    100% { opacity: 0; }
+}
+
+/* Pulsation : la vignette se resserre puis se relâche */
+@keyframes cfxPulseA {
+    0%   { transform: scale(0.93); }
+    100% { transform: scale(1); }
+}
+
+@keyframes cfxPulseB {
+    0%   { transform: scale(0.93); }
+    100% { transform: scale(1); }
+}
+
+/* ----- Petits écrans ----- */
+@media (max-width: 760px), (max-height: 520px) {
+    #zoneTimer { gap: 6px; padding: 3px 8px 3px 6px; }
+    .zt-main { font-size: 15px; }
+    .zt-sub { font-size: 10px; }
+    .zt-icon { width: 11px; height: 11px; }
+    .zt-icon.hud-ico { width: 16px; height: 16px; }
+    #zoneAlert { top: calc(var(--gap) + 48px); padding: 4px 12px 5px; }
+    .za-title { font-size: 20px; }
+}
+
+/* ----- Mouvements réduits : pas de défilement, de glitch ni de pulsation (teinte gardée) ----- */
+@media (prefers-reduced-motion: reduce) {
+    #corruptionFx.active .cfx-grain,
+    #corruptionFx.active .cfx-scan,
+    #corruptionFx.active .cfx-tint,
+    #zoneTimer.is-shrink::before,
+    #zoneTimer.is-shrink .zt-icon::after,
+    .health-bar.corrupt::after {
+        animation: none;
+    }
+
+    #corruptionFx .cfx-roll,
+    #corruptionFx .cfx-glitch,
+    .health-bar.corrupt::after {
+        display: none;
+    }
+
+    /* Halo fixe à la place de la pulsation */
+    #zoneTimer.is-shrink::before { opacity: 0.6; }
+}
+
+/* ================= INVENTAIRE DÉTAILLÉ (clic molette / I) =================
+   Juste au-dessus de la hotbar, aligné à droite comme elle */
+#invPanel {
+    position: absolute;
+    right: var(--gap);
+    bottom: calc(var(--gap) + var(--slot) + 44px);
+    z-index: 12;
+    /* Divisé par le zoom du HUD : le panneau agrandi ne sort jamais de l'écran */
+    width: min(420px, calc((100vw - 2 * var(--gap)) / var(--hud-zoom, 1)));
+    max-height: calc((100vh - 180px) / var(--hud-zoom, 1));
+    overflow-y: auto;
+    padding: 12px 14px 14px;
+    border-radius: 10px;
+    background: rgba(8, 20, 56, 0.94);
+    border: 1px solid var(--panel-border);
+    box-shadow: 0 12px 34px rgba(0, 0, 0, 0.55);
+    pointer-events: auto;
+    animation: invIn 0.18s ease-out;
+}
+
+#invPanel[hidden] { display: none; }
+
+@keyframes invIn {
+    from { opacity: 0; transform: translateY(10px); }
+    to   { opacity: 1; transform: none; }
+}
+
+.inv-top {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.inv-top h2 {
+    margin: 0;
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 26px;
+    letter-spacing: 1.5px;
+    line-height: 1;
+    color: var(--accent-yellow);
+}
+
+.inv-hint {
+    flex: 1;
+    font-size: 11px;
+    color: var(--text-secondary);
+    line-height: 1.2;
+}
+
+#invClose {
+    width: 30px;
+    height: 30px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 6px;
+    background: rgba(255, 255, 255, 0.08);
+    color: #fff;
+    cursor: pointer;
+    display: grid;
+    place-items: center;
+}
+
+#invClose:hover { background: rgba(255, 255, 255, 0.18); }
+
+/* Cases */
+#invSlots {
+    display: grid;
+    grid-template-columns: repeat(5, 1fr);
+    gap: 6px;
+}
+
+/* Même rendu que les cases de la hotbar : dégradé plein de --rar (posé par
+   inventory-ui.js ; sans --rar, ex. pioche = neutre) qui part du bord extérieur,
+   bordure opaque de la même teinte, rien qui dépasse. */
+.inv-slot {
+    --rar: #6f7f9e;
+    position: relative;
+    aspect-ratio: 1;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    /* pas d'overflow: hidden ici : le badge "EN MAIN" (::after) dépasse volontairement en haut */
+    border-radius: 8px;
+    border: 2px solid color-mix(in srgb, var(--rar) 62%, #ffffff);
+    background-color: color-mix(in srgb, var(--rar) 42%, #0a1030);
+    background-image:
+        radial-gradient(120% 70% at 50% 0%, rgba(255, 255, 255, 0.28), rgba(255, 255, 255, 0) 70%),
+        linear-gradient(180deg, var(--rar) 0%, color-mix(in srgb, var(--rar) 78%, #0a1030) 55%, color-mix(in srgb, var(--rar) 42%, #0a1030) 100%);
+    background-repeat: no-repeat;
+    background-origin: border-box;
+    background-clip: border-box;
+    color: #fff;
+    cursor: grab;
+    touch-action: none;
+    transition: transform 0.12s, border-color 0.12s, box-shadow 0.12s;
+}
+
+
+.inv-slot.empty {
+    border-style: dashed;
+    border-color: rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.04);
+    cursor: default;
+}
+
+.inv-slot:not(.empty) .inv-key { color: #ffffff; }
+
+.inv-slot:hover { transform: translateY(-2px); }
+.inv-slot:not(.empty):hover { border-color: color-mix(in srgb, var(--rar) 35%, #ffffff); }
+.inv-slot.selected { box-shadow: 0 0 0 3px var(--accent-yellow); }
+.inv-slot.equipped::after {
+    content: 'EN MAIN';
+    position: absolute;
+    top: -8px;
+    left: 50%;
+    transform: translateX(-50%);
+    padding: 1px 5px;
+    border-radius: 4px;
+    background: var(--accent-yellow);
+    color: #0a1030;
+    font-family: var(--font-display);
+    font-size: 10px;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+}
+
+.inv-slot.drag-from { opacity: 0.35; }
+.inv-slot.drag-over,
+.inv-slot.drag-over:hover { border-color: #fff; box-shadow: 0 0 0 3px #3fbf4a; }
+.inv-slot:focus-visible { outline: 3px solid var(--accent-yellow); outline-offset: 2px; }
+
+.inv-icon { font-size: 26px; line-height: 1; pointer-events: none; }
+.inv-icon img { display: block; width: 90%; height: 90%; margin: auto; pointer-events: none; }
+
+.inv-count,
+.inv-key {
+    position: absolute;
+    font-family: var(--font-display);
+    line-height: 1;
+    pointer-events: none;
+    text-shadow: 0 1px 0 rgba(0, 0, 0, 0.8);
+}
+
+.inv-count { left: 5px; bottom: 4px; font-size: 14px; }
+.inv-key { right: 5px; top: 4px; font-size: 11px; color: var(--text-secondary); }
+
+/* Fantôme pendant le glisser */
+.inv-ghost {
+    position: fixed;
+    left: 0;
+    top: 0;
+    z-index: 50;
+    width: 64px;
+    height: 64px;
+    margin: 0;
+    overflow: visible;
+    pointer-events: none;
+    opacity: 0.92;
+    cursor: grabbing;
+    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.5);
+    /* Suit la souris sans retard : pas d'animation héritée de .slot / .inv-slot */
+    transition: none !important;
+    animation: none !important;
+    will-change: transform;
+    contain: layout paint;
+}
+
+.inv-ghost .slot-icon img { width: 54px; height: 54px; }
+
+.inv-ghost.will-drop { border-color: #ff5470; box-shadow: 0 0 0 3px #ff5470; opacity: 0.8; }
+
+/* Étiquette "JETER" sous le fantôme quand on le lâcherait loin de la hotbar */
+.inv-ghost.will-drop::before {
+    content: 'Jeter';
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 6px);
+    transform: translateX(-50%);
+    padding: 1px 8px;
+    border-radius: 4px;
+    background: #ff5470;
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 15px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    white-space: nowrap;
+    box-shadow: 0 2px 0 rgba(0, 0, 0, 0.4);
+}
+
+/* Glisser depuis la hotbar */
+#hotbar .slot.has-item:not(.is-melee) { cursor: grab; touch-action: none; }
+#hotbar .slot.drag-from { opacity: 0.35; }
+#hotbar .slot.drag-over { border-color: #fff; box-shadow: 0 0 0 3px #3fbf4a; }
+body.item-dragging,
+body.item-dragging * { cursor: grabbing !important; }
+#hotbar,
+#hotbar img,
+.inv-slot img { user-select: none; -webkit-user-select: none; -webkit-user-drag: none; }
+/* Pendant le glisser, les autres cases ne s'animent pas au survol */
+#hotbar.dragging .slot,
+#invPanel.dragging .inv-slot { transition: none; }
+
+#invPanel.dragging { outline: 2px dashed rgba(255, 255, 255, 0.25); outline-offset: 4px; }
+
+/* Détails / statistiques */
+#invDetails {
+    margin-top: 12px;
+    padding: 10px 12px;
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.inv-empty { margin: 0; font-size: 13px; color: var(--text-secondary); }
+
+.inv-head { --rar: #fff; margin-bottom: 8px; border-left: 4px solid var(--rar); padding-left: 8px; }
+.inv-title { font-family: var(--font-display); font-size: 24px; letter-spacing: 1px; line-height: 1; }
+.inv-sub { font-size: 12px; color: var(--rar); margin-top: 2px; }
+
+.inv-stats { margin: 0; display: grid; gap: 5px; }
+
+.inv-stat {
+    display: grid;
+    grid-template-columns: 96px 1fr;
+    grid-template-areas: 'name value' 'bar bar';
+    column-gap: 8px;
+    font-size: 13px;
+}
+
+.inv-stat dt { grid-area: name; color: var(--text-secondary); }
+.inv-stat dd { grid-area: value; margin: 0; text-align: right; font-weight: 600; }
+
+.inv-bar {
+    grid-area: bar;
+    height: 5px;
+    margin-top: 2px;
+    border-radius: 3px;
+    background: rgba(255, 255, 255, 0.1);
+    overflow: hidden;
+}
+
+.inv-bar > span {
+    display: block;
+    height: 100%;
+    background: linear-gradient(90deg, #3a8dff, #7cc4ff);
+    transform-origin: left;
+}
+
+.inv-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+
+.inv-actions button {
+    min-width: 38px;
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 6px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 16px;
+    letter-spacing: 0.5px;
+    cursor: pointer;
+}
+
+.inv-actions button:hover:not(:disabled) { background: rgba(255, 255, 255, 0.2); }
+.inv-actions button:disabled { opacity: 0.35; cursor: default; }
+.inv-actions [data-act='drop'] { background: rgba(255, 84, 112, 0.25); border-color: #ff5470; margin-left: auto; }
+.inv-actions [data-act='equip'] { background: rgba(255, 224, 61, 0.2); border-color: var(--accent-yellow); }
+.inv-actions button:focus-visible { outline: 3px solid var(--accent-yellow); outline-offset: 2px; }
+
+/* Munitions */
+.inv-ammo-row { display: flex; align-items: center; gap: 8px; margin-top: 10px; }
+.inv-ammo-title { font-family: var(--font-display); font-size: 15px; letter-spacing: 1px; color: var(--text-secondary); }
+#invAmmo { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.inv-ammo {
+    --ammo: #fff;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    height: 28px;
+    padding: 0 9px;
+    border-radius: 14px;
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    background: rgba(255, 255, 255, 0.07);
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 15px;
+    cursor: pointer;
+}
+
+.inv-ammo:hover:not(:disabled) { border-color: #ff5470; background: rgba(255, 84, 112, 0.2); }
+.inv-ammo:disabled { opacity: 0.4; cursor: default; }
+.inv-ammo:focus-visible { outline: 3px solid var(--accent-yellow); outline-offset: 2px; }
+.inv-ammo-dot { width: 10px; height: 10px; border-radius: 50%; background: var(--ammo); box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.4); }
+/* Version SVG : balle / cartouche à la couleur du type (js/game/hud-icons.js) */
+.inv-ammo-dot.hud-ico { width: 18px; height: 18px; border-radius: 0; background: none; box-shadow: none; }
+
+@media (max-width: 760px), (max-height: 560px) {
+    #invPanel { bottom: calc(var(--gap) + var(--slot) + 34px); padding: 10px; }
+    .inv-hint { display: none; }
+    .inv-stat { font-size: 12px; grid-template-columns: 84px 1fr; }
+}
+
+/* ================= TAILLE DU HUD EN PARTIE =================
+   Tout le HUD (coins, hotbar, inventaire, messages du centre) est agrandi d'un coup
+   avec "zoom" : les positions, tailles et textes grandissent ensemble.
+   Plus petit sur les petits écrans pour ne pas manger le jeu. */
+:root { --hud-zoom: 1.25; }
+
+@media (max-height: 820px), (max-width: 1280px) {
+    :root { --hud-zoom: 1.15; }
+}
+
+@media (max-width: 760px), (max-height: 560px) {
+    :root { --hud-zoom: 1; }
+}
+
+#hud > * { zoom: var(--hud-zoom); }
+
+/* La ligne d'aide n'est pas agrandie (elle passerait sous les barres et la hotbar) :
+   elle passe en haut, sous le nom du lieu (elle disparaît après 10 s),
+   et revient à la ligne si l'écran est étroit */
+#hud > #hudHelp {
+    zoom: 1;
+    top: calc(var(--gap) + 78px * var(--hud-zoom));
+    bottom: auto;
+    max-width: min(760px, 56vw);
+    white-space: normal;
+    text-align: center;
+}
+
+/* ================= ESCOUADE / COÉQUIPIERS ================= */
+.hud-squad {
+    position: absolute;
+    left: var(--gap);
+    top: calc(var(--gap) + 48px);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 220px;
+    pointer-events: none;
+    z-index: 10;
+}
+
+.hud-squad[hidden] { display: none; }
+
+.hud-squad-title {
+    font-family: var(--font-display);
+    font-size: 15px;
+    letter-spacing: 2px;
+    color: var(--accent-cyan);
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.7);
+    margin-bottom: 2px;
+}
+
+.squad-member {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    padding: 6px 10px;
+    background: rgba(10, 20, 50, 0.75);
+    border: 1px solid rgba(120, 180, 255, 0.2);
+    border-radius: 6px;
+    backdrop-filter: blur(4px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4);
+    transition: border-color 0.2s, background 0.2s;
+}
+
+.squad-member.is-dbno {
+    border-color: #ff334b;
+    background: rgba(45, 10, 22, 0.92);
+    box-shadow: 0 0 14px rgba(255, 51, 75, 0.45);
+    animation: squadDbnoPulse 1.2s ease-in-out infinite alternate;
+}
+
+.squad-member.is-dead {
+    opacity: 0.4;
+    border-color: rgba(255, 255, 255, 0.1);
+    filter: grayscale(0.8);
+}
+
+.squad-member-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+}
+
+.squad-member-name {
+    font-family: var(--font-display);
+    font-size: 14px;
+    letter-spacing: 0.5px;
+    color: #fff;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.squad-member-status {
+    font-size: 11px;
+    font-weight: 700;
+    padding: 1px 6px;
+    border-radius: 4px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.squad-status-ok { color: #3dd66b; background: rgba(61, 214, 107, 0.15); }
+.squad-status-dbno { color: #ffcc00; background: rgba(255, 204, 0, 0.25); }
+.squad-status-dead { color: #ff5470; background: rgba(255, 84, 112, 0.2); }
+
+.squad-bars {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.squad-bar {
+    height: 5px;
+    background: rgba(0, 0, 0, 0.5);
+    border-radius: 3px;
+    overflow: hidden;
+}
+
+.squad-bar-fill {
+    height: 100%;
+    transition: width 0.15s ease-out;
+}
+
+.squad-bar-fill.shield { background: #3a8dff; }
+.squad-bar-fill.health { background: #3dd66b; }
+.squad-member.is-dbno .squad-bar-fill.health { background: #ff334b; }
+
+/* ================= BANNIÈRE K.O. / DBNO ================= */
+.dbno-banner {
+    position: absolute;
+    left: 50%;
+    top: 32%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    pointer-events: none;
+    text-align: center;
+    z-index: 25;
+    animation: dbnoPulse 1.4s ease-in-out infinite alternate;
+}
+
+.dbno-banner[hidden] { display: none; }
+
+.dbno-title {
+    font-family: var(--font-display);
+    font-size: clamp(32px, 4.5vw, 56px);
+    letter-spacing: 3px;
+    color: #fff;
+    padding: 4px 24px;
+    background: linear-gradient(90deg, #ff2d55, #ff5470);
+    transform: skewX(-8deg);
+    box-shadow: 0 0 30px rgba(255, 45, 85, 0.6);
+    border-radius: 4px;
+}
+
+.dbno-sub {
+    font-family: var(--font-body);
+    font-size: clamp(14px, 1.8vw, 18px);
+    font-weight: 600;
+    color: #ffdb4d;
+    text-shadow: 0 2px 8px rgba(0, 0, 0, 0.9);
+}
+
+@keyframes dbnoPulse {
+    0%   { filter: drop-shadow(0 0 10px rgba(255, 45, 85, 0.4)); transform: translateX(-50%) scale(0.98); }
+    100% { filter: drop-shadow(0 0 25px rgba(255, 45, 85, 0.8)); transform: translateX(-50%) scale(1.02); }
+}
+
+@keyframes squadDbnoPulse {
+    0%   { border-color: rgba(255, 51, 75, 0.6); box-shadow: 0 0 6px rgba(255, 51, 75, 0.3); }
+    100% { border-color: rgba(255, 51, 75, 1); box-shadow: 0 0 18px rgba(255, 51, 75, 0.7); }
+}
+
+/* ================= RÉANIMATION ================= */
+#hud:has(#revivePrompt:not([hidden])) #interactPrompt {
+    display: none !important;
+}
+
+.revive-prompt {
+    position: absolute;
+    left: 50%;
+    bottom: 27%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    background: rgba(8, 16, 40, 0.94);
+    border: 2px solid var(--accent-cyan);
+    box-shadow: 0 0 30px rgba(79, 216, 255, 0.5);
+    border-radius: 8px;
+    padding: 12px 28px;
+    pointer-events: none;
+    z-index: 35;
+}
+
+.revive-prompt[hidden] { display: none; }
+
+.revive-label {
+    font-family: var(--font-display);
+    font-size: 20px;
+    letter-spacing: 2px;
+    color: #fff;
+}
+
+.revive-bar {
+    width: 200px;
+    height: 10px;
+    background: rgba(255, 255, 255, 0.15);
+    border-radius: 5px;
+    overflow: hidden;
+}
+
+.revive-bar-fill {
+    width: 0%;
+    height: 100%;
+    background: linear-gradient(90deg, #2d7bff, var(--accent-cyan));
+    transition: width 0.05s linear;
+}
+
+/* ================= ROUE D'EMOTES ================= */
+
+#emoteWheel {
+    position: fixed;
+    left: 0;
+    top: 0;
+    width: 1px;
+    height: 1px;
+    z-index: 40;
+    pointer-events: none;
+    opacity: 0;
+    transform: scale(0.82);
+    transition: opacity 0.12s ease-out, transform 0.16s cubic-bezier(0.2, 1.35, 0.4, 1);
+}
+
+#emoteWheel:not([hidden]) {
+    opacity: 1;
+    transform: scale(1);
+}
+
+#emoteWheel[hidden] { display: block; visibility: hidden; }
+
+.emote-wheel-ring,
+.emote-wheel-center {
+    position: absolute;
+    left: 0;
+    top: 0;
+    transform: translate(-50%, -50%);
+    border-radius: 50%;
+}
+
+.emote-wheel-ring {
+    width: 246px;
+    height: 246px;
+    background:
+        radial-gradient(circle at center, rgba(255, 255, 255, 0.08) 0 30%, transparent 30.5%),
+        conic-gradient(from -45deg, rgba(79, 216, 255, 0.18) 0 24%, rgba(8, 20, 56, 0.88) 24.5% 25%, rgba(79, 216, 255, 0.18) 25.5% 49%, rgba(8, 20, 56, 0.88) 49.5% 50%, rgba(79, 216, 255, 0.18) 50.5% 74%, rgba(8, 20, 56, 0.88) 74.5% 75%, rgba(79, 216, 255, 0.18) 75.5% 99.5%, rgba(8, 20, 56, 0.88) 99.5% 100%);
+    border: 2px solid rgba(174, 226, 255, 0.82);
+    box-shadow: 0 0 0 5px rgba(8, 20, 56, 0.34), 0 0 28px rgba(79, 216, 255, 0.42), inset 0 0 28px rgba(0, 0, 0, 0.38);
+}
+
+.emote-wheel-center {
+    width: 78px;
+    height: 78px;
+    display: grid;
+    place-items: center;
+    background: radial-gradient(circle at 35% 28%, #667ba8, #1c2c59 62%, #091536);
+    border: 3px solid #d6f6ff;
+    box-shadow: 0 0 0 4px rgba(8, 20, 56, 0.74), 0 0 18px rgba(79, 216, 255, 0.65);
+}
+
+.emote-wheel-hint {
+    width: 52px;
+    text-align: center;
+    color: #fff;
+    font-family: var(--font-display);
+    font-size: 14px;
+    line-height: 0.95;
+    letter-spacing: 1px;
+    text-shadow: 0 2px 3px #081333;
+}
+
+.emote-option {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 112px;
+    min-height: 90px;
+    padding: 8px 5px 6px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    color: #fff;
+    border: 1px solid rgba(214, 246, 255, 0.32);
+    border-radius: 10px;
+    background: linear-gradient(180deg, rgba(30, 57, 111, 0.94), rgba(7, 18, 53, 0.94));
+    box-shadow: 0 5px 15px rgba(0, 0, 0, 0.45), inset 0 1px rgba(255, 255, 255, 0.12);
+    transform: translate(-50%, -50%);
+    transition: background 0.1s, border-color 0.1s, box-shadow 0.1s, transform 0.1s;
+}
+
+.emote-option[data-emote-slot='0'] { left: 0; top: -112px; }
+.emote-option[data-emote-slot='1'] { left: 112px; top: 0; }
+.emote-option[data-emote-slot='2'] { left: 0; top: 112px; }
+.emote-option[data-emote-slot='3'] { left: -112px; top: 0; }
+
+.emote-option.is-selected {
+    color: #071739;
+    border-color: #ffe03d;
+    background: linear-gradient(180deg, #ffe97a, #ffb800);
+    box-shadow: 0 0 0 3px rgba(255, 224, 61, 0.42), 0 0 24px rgba(255, 224, 61, 0.82);
+    transform: translate(-50%, -50%) scale(1.12);
+}
+
+.emote-option-art {
+    width: 52px;
+    height: 52px;
+    display: grid;
+    place-items: center;
+}
+
+.emote-option-art svg {
+    width: 52px;
+    height: 52px;
+    display: block;
+    filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.5));
+}
+
+.emote-option-name {
+    max-width: 108px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--font-body);
+    font-size: 11px;
+    font-weight: 800;
+    letter-spacing: 0.2px;
+    text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+}
+
+.emote-option.is-empty { opacity: 0.27; filter: grayscale(1); }
+
+/* La roue suit seulement la direction de la souris : ses cases ne captent pas le curseur
+   (#hud button les rendrait cliquables et bloquerait le suivi de la souris) */
+#emoteWheel .emote-option { pointer-events: none; }
+
+/* Anti-spam : pendant l'attente, emotes grisées et compte à rebours au centre */
+#emoteWheel.is-cooldown .emote-option { opacity: 0.45; filter: grayscale(0.85); }
+#emoteWheel.is-cooldown .emote-option.is-selected { transform: translate(-50%, -50%) scale(1.04); }
+#emoteWheel.is-cooldown .emote-wheel-hint {
+    width: auto;
+    font-size: 22px;
+    color: #ffb3b3;
+}
+.emote-option.is-selected .emote-option-name { text-shadow: none; }
+
+@media (max-width: 760px), (max-height: 560px) {
+    .emote-wheel-ring { width: 210px; height: 210px; }
+    .emote-option { width: 94px; min-height: 78px; }
+    .emote-option[data-emote-slot='0'] { top: -96px; }
+    .emote-option[data-emote-slot='1'] { left: 96px; }
+    .emote-option[data-emote-slot='2'] { top: 96px; }
+    .emote-option[data-emote-slot='3'] { left: -96px; }
+    .emote-option-art, .emote-option-art svg { width: 44px; height: 44px; }
+    .emote-option-name { max-width: 92px; font-size: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #emoteWheel { transition: none; }
+}
+
+/* Emote joué au-dessus du combattant */
+.emote-bubble {
+    position: fixed;
+    z-index: 28;
+    width: 62px;
+    height: 62px;
+    transform: translate(-50%, -100%);
+    pointer-events: none;
+    animation: emoteBubbleIn 0.22s cubic-bezier(0.2, 1.35, 0.4, 1) both;
+    filter: drop-shadow(0 4px 5px rgba(0, 0, 0, 0.6));
+}
+
+.emote-bubble::after {
+    content: '';
+    position: absolute;
+    left: 50%;
+    bottom: -7px;
+    width: 12px;
+    height: 12px;
+    transform: translateX(-50%) rotate(45deg);
+    background: #fff;
+    border-right: 2px solid #0a1030;
+    border-bottom: 2px solid #0a1030;
+}
+
+.emote-bubble svg {
+    position: relative;
+    z-index: 1;
+    width: 62px;
+    height: 62px;
+    display: block;
+    border: 3px solid #0a1030;
+    border-radius: 50%;
+    background: #fff;
+}
+
+@keyframes emoteBubbleIn {
+    from { opacity: 0; transform: translate(-50%, -75%) scale(0.7); }
+    to { opacity: 1; transform: translate(-50%, -100%) scale(1); }
+}
+
+/* Emote visée, exactement au centre du cercle (le bord du cercle n'entre pas dans le calcul) */
+.emote-wheel-center-art {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: 62px;
+    height: 62px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    overflow: hidden;
+    transform: translate(-50%, -50%);
+}
+
+.emote-wheel-center-art svg {
+    width: 62px;
+    height: 62px;
+    display: block;
+}
+
+/* « RELÂCHER » (ou le temps d'attente) sous le cercle : ne cache plus l'emote */
+.emote-wheel-center-art + .emote-wheel-hint {
+    position: absolute;
+    left: 50%;
+    top: calc(100% + 6px);
+    z-index: 2;
+    width: auto;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: rgba(6, 16, 43, 0.82);
+    white-space: nowrap;
+    transform: translateX(-50%);
+}
+
+.emote-wheel-figure {
+    display: grid;
+    width: 52px;
+    height: 52px;
+    place-items: center;
+    color: #ffe03d;
+    font-size: 36px;
+}

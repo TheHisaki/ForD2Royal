@@ -1,0 +1,23 @@
+{
+  "name": "for2d-royal",
+  "version": "0.1.0",
+  "description": "Battle Royale 2D inspiré de Fortnite avec réseau local",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "server": "node server/server.js"
+  },
+  "keywords": [
+    "game",
+    "battle-royale",
+    "fortnite",
+    "2d",
+    "local-network"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "mysql2": "3.24.5",
+    "ws": "^8.22.0"
+  }
+}

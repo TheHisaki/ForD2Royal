@@ -1,0 +1,14 @@
+# Sessions de compte générées au runtime (tokens hachés)
+server/data/account-sessions.json
+
+# Archives locales de conversations Kiro (métadonnées internes)
+/ancienne conv/
+/ancienne conv V2/
+
+# Secrets locaux de connexion
+mdp
+.env
+.env.*
+!.env.example
+mdp.md
+node_modules/
