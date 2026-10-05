@@ -69,8 +69,9 @@ export const WEAPONS = {
 // Armes qu'on peut trouver au sol (la pioche n'en fait pas partie)
 export const LOOT_WEAPONS = ['pistol', 'smg', 'ar', 'shotgun', 'sniper'];
 
-// Zoom automatique du sniper : le légendaire utilise le plafond global.
-export const SNIPER_ZOOM_BY_RARITY = [1.12, 1.24, 1.36, 1.48, 1.60];
+// Zoom automatique du sniper : les raretés élevées élargissent davantage la vue.
+// Le légendaire est le plus dézoomé, au plancher technique global.
+export const SNIPER_ZOOM_BY_RARITY = [0.92, 0.84, 0.76, 0.66, 0.55];
 
 export function sniperZoomForRarity(rarity) {
     const index = Math.max(0, Math.min(SNIPER_ZOOM_BY_RARITY.length - 1, Number(rarity) | 0));
