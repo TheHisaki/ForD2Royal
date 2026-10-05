@@ -27,6 +27,7 @@ import { itemArt } from '../item-art.js?v=10';
 import { InventoryUI } from './inventory-ui.js?v=9';
 import { EndScreen, Spectator } from './end-screen.js?v=9';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=9';
+import { ZOOM } from './config.js?v=9';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -526,6 +527,15 @@ function start() {
     renderer.follow(drop.ship, 0, true);
     renderer.warmup();
 
+    const isSniperEquipped = () => {
+        const held = player.inventory?.[player.slot];
+        return held?.kind === 'weapon' && held.weaponId === 'sniper';
+    };
+    const enforceZoomFloor = () => {
+        renderer.setZoomMin(isSniperEquipped() ? ZOOM.min : 1);
+    };
+    enforceZoomFloor();
+
     const hud = new Hud(world, player, fighters);
     hud.setFlight(drop);
     combatHud = new CombatHud(player, fighters, loot);
@@ -559,6 +569,7 @@ function start() {
         if (!player.alive || player.dbno) return;
         if (i !== player.slot) SFX.play('slot'); // seulement si la case change vraiment
         player.slot = i;
+        enforceZoomFloor();
         hud.selectSlot(i);
     };
     document.querySelectorAll('#hotbar .slot').forEach((btn, i) => btn.addEventListener('click', () => {
@@ -746,7 +757,7 @@ function start() {
             inventoryUI.toggle(false);
         },
         onSlot: (i) => { if (!player.dbno) selectSlot(i); },
-        onZoom: (f) => renderer.zoomBy(f),
+        onZoom: (f) => renderer.zoomBy(f, isSniperEquipped() ? ZOOM.min : 1),
         // Le saut est transmis par p_state (changement de phase)
         onJump: () => { if (!player.dbno) drop.jump(player); },
         onInteract: interact,
@@ -2133,6 +2144,7 @@ function start() {
         else camGap += (fallCameraGap(player.phase === 'air' ? player.altitude : 0) - camGap) * Math.min(1, dt * 3);
         const followH = player.phase === 'ship' ? SHIP_HEIGHT : player.phase === 'air' ? fallHeight(player.altitude) : 0;
         renderer.setFlightView(1 / (followH + camGap), dt, true);
+        enforceZoomFloor();
         renderer.follow(player.phase === 'ship' ? drop.ship : watched, dt);
         renderer.render(watched, dt, time, hooks);
         updateEmoteBubbles(dt);

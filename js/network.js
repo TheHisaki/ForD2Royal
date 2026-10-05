@@ -109,6 +109,8 @@ class NetworkManager {
         this.roomReconnectToken = readRoomReconnectToken();
         this.slot = 1;
         this.reconnectTimer = null;
+        this.roomJoinTimer = null;
+        this.cancelRoomOnCreate = false;
         this.pendingMessages = [];
         this.friendHandlers = new Set();
         this.account = null;
@@ -579,6 +581,9 @@ class NetworkManager {
 
     // fillMatch : remplir la partie avec des bots ; fillTeam : remplir l'équipe avec des bots
     createRoom(mode = 'duo', fillMatch = true, fillTeam = true) {
+        clearTimeout(this.roomJoinTimer);
+        this.roomJoinTimer = null;
+        this.cancelRoomOnCreate = false;
         const skinData = this.getPlayerSkinData();
         const payload = {
             type: 'create_room',
@@ -603,6 +608,8 @@ class NetworkManager {
 
     joinRoom(roomCode) {
         if (!roomCode) return;
+        clearTimeout(this.roomJoinTimer);
+        this.roomJoinTimer = null;
         roomCode = roomCode.trim().toUpperCase();
 
         const skinData = this.getPlayerSkinData();
@@ -626,6 +633,8 @@ class NetworkManager {
 
     // silent : pas de message dans le chat (salle automatique quittée au retour d'une partie)
     leaveRoom(silent = false) {
+        clearTimeout(this.roomJoinTimer);
+        this.roomJoinTimer = null;
         if (this.roomCode) {
             this.send({ type: 'leave_room' });
             this.roomCode = null;
@@ -924,6 +933,13 @@ class NetworkManager {
                 this.updateRoomCodeUI(this.roomCode);
                 this.updateConnectionStatus(`Chef du groupe (Salle ${this.roomCode})`, '#00ff88');
 
+                if (this.cancelRoomOnCreate) {
+                    this.cancelRoomOnCreate = false;
+                    this.readyAfterCreate = false;
+                    this.leaveRoom(true);
+                    break;
+                }
+
                 if (this.readyAfterCreate) {
                     const me = this.roomPlayers.find(p => p.id === this.getPlayerId());
                     if (me) me.ready = true; // évite que le bouton « Prêt » clignote
@@ -1011,9 +1027,18 @@ class NetworkManager {
 
             case 'player_joined':
                 if (msg.player) {
+                    const lobby = window.lobbyManager;
+                    const isLocalDuplicate = Boolean(
+                        lobby?.autoRoom
+                        && String(msg.player.id) !== String(this.getPlayerId())
+                        && msg.player.name === this.getPlayerName()
+                    );
+                    if (isLocalDuplicate) break;
+
                     // Mettre à jour la liste des joueurs
                     this.roomPlayers = this.roomPlayers.filter(p => p.id !== msg.player.id);
                     this.roomPlayers.push(msg.player);
+                    if (lobby) lobby.autoRoom = false;
 
                     if (window.lobbyManager) {
                         window.lobbyManager.addChatMessage(`${msg.player.name} a rejoint le groupe !`);
@@ -1072,7 +1097,7 @@ class NetworkManager {
 
             case 'room_config':
                 if (window.lobbyManager) {
-                    if (msg.mode) window.lobbyManager.setGameModeSilently?.(msg.mode);
+                    if (msg.mode && !window.lobbyManager.autoRoom) window.lobbyManager.setGameModeSilently?.(msg.mode);
                     window.lobbyManager.applyFillConfig?.(msg);
                     const fm = (msg.fillMatch ?? msg.botFill) !== false;
                     const ft = msg.fillTeam !== false;
@@ -1215,7 +1240,10 @@ class NetworkManager {
 
         if (foundCode) {
             console.log('[Network] Code de salle trouvé dans l\'URL:', foundCode);
-            setTimeout(() => {
+            clearTimeout(this.roomJoinTimer);
+            this.roomJoinTimer = setTimeout(() => {
+                this.roomJoinTimer = null;
+                if (this.roomCode || this.readyAfterCreate || this.cancelRoomOnCreate) return;
                 this.joinRoom(foundCode);
                 // Nettoyer le hash après détection
                 history.replaceState(null, '', window.location.pathname);

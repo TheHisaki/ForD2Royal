@@ -307,15 +307,25 @@ class LobbyManager {
         }
 
         const net = window.networkManager;
+        if (!this.localPlayerReady && net?.readyAfterCreate && !net.roomCode) {
+            // Annulation pendant que create_room est encore en transit : le prochain
+            // room_created sera immédiatement quitté sans remettre le joueur prêt.
+            this.autoRoom = false;
+            net.readyAfterCreate = false;
+            net.cancelRoomOnCreate = true;
+        }
+
         if (net && net.isConnected() && net.roomCode) {
-            // Dans une salle : c'est le serveur qui lance la partie quand tout le monde est prêt
-            // (tout de suite si la partie est remplie de bots, sinon file d'attente)
-            net.sendPlayerStatus(this.localPlayerReady);
-            // Salle créée seulement pour la file d'attente : on la quitte en annulant
-            if (!this.localPlayerReady && this.autoRoom && this.getRealPartyPlayerCount() <= 1) {
+            // Une salle automatique de recherche est abandonnée directement : ne pas envoyer
+            // un statut concurrent qui pourrait relancer la file avant leave_room.
+            if (!this.localPlayerReady && this.autoRoom) {
                 this.autoRoom = false;
-                net.leaveRoom();
+                net.leaveRoom(true);
+                return;
             }
+
+            // Dans une salle normale : c'est le serveur qui lance la partie quand tout le groupe est prêt
+            net.sendPlayerStatus(this.localPlayerReady);
         } else if (this.localPlayerReady && !this.fillMatch) {
             // Pas de bots dans la partie : il faut le serveur pour trouver d'autres équipes
             if (net && net.isConnected()) {
@@ -440,8 +450,14 @@ class LobbyManager {
     }
 
     getRealPartyPlayerCount() {
-        if (window.networkManager?.roomCode && Array.isArray(window.networkManager?.roomPlayers) && window.networkManager.roomPlayers.length > 0) {
-            return window.networkManager.roomPlayers.length;
+        // Une auto-room représente toujours le seul joueur local, même si une réponse
+        // réseau transitoire contient encore un doublon de ce joueur.
+        if (this.autoRoom) return 1;
+
+        const roomPlayers = window.networkManager?.roomPlayers;
+        if (window.networkManager?.roomCode && Array.isArray(roomPlayers) && roomPlayers.length > 0) {
+            const ids = new Set(roomPlayers.filter(p => p?.id != null).map(p => String(p.id)));
+            return ids.size || 1;
         }
         return this.players.filter(p => !p.isBot).length || 1;
     }
@@ -1041,9 +1057,31 @@ class LobbyManager {
     /* ===== SYNCHRONISATION DU GROUPE MULTIJOUEUR ===== */
     syncPartyMembers(members) {
         if (!Array.isArray(members)) return;
+
+        // Une même réponse peut arriver après une reconnexion ou une création de salle
+        // automatique. Dédupliquer par ID avant de construire les slots visuels.
+        const uniqueMembers = [];
+        const seenIds = new Set();
+        for (const member of members) {
+            if (!member || member.id == null) continue;
+            const id = String(member.id);
+            if (seenIds.has(id)) continue;
+            seenIds.add(id);
+            uniqueMembers.push(member);
+        }
+
         const myId = window.networkManager?.getPlayerId();
-        const me = members.find(m => m.id === myId) || members[0];
-        const others = members.filter(m => m.id !== myId);
+        let localIndex = uniqueMembers.findIndex(m => String(m.id) === String(myId));
+        if (localIndex < 0 && this.players[0]?.name) {
+            localIndex = uniqueMembers.findIndex(m => m.name === this.players[0].name);
+        }
+        if (localIndex < 0 && this.autoRoom && uniqueMembers.length) localIndex = 0;
+        const me = localIndex >= 0 ? uniqueMembers[localIndex] : null;
+        // Tant que la salle automatique n’a pas reçu un vrai player_joined, ses éventuels
+        // doublons ne doivent jamais devenir des coéquipiers ni forcer le mode DUO.
+        const others = this.autoRoom
+            ? []
+            : uniqueMembers.filter((_, index) => index !== localIndex);
 
         if (me) {
             this.players[0].name = me.name || this.players[0].name;
@@ -1074,7 +1112,6 @@ class LobbyManager {
         });
 
         this.players = newPlayers;
-        if (others.length > 0) this.autoRoom = false; // des amis ont rejoint : c'est un vrai groupe
         this.enforceMinModeForParty();
         this.syncBotTeammates();
         this.updateLeaderPermissions();

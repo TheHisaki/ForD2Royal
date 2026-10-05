@@ -166,8 +166,14 @@ export class Renderer {
         else this.flightMul += (target - this.flightMul) * Math.min(1, dt * 1.5);
     }
 
-    zoomBy(f) {
-        this.zoomMul = clamp(this.zoomMul * f, ZOOM.min, ZOOM.max);
+    setZoomMin(min = ZOOM.min) {
+        const floor = Math.max(ZOOM.min, Math.min(Number(min) || ZOOM.min, ZOOM.max));
+        this.zoomMul = clamp(this.zoomMul, floor, ZOOM.max);
+    }
+
+    zoomBy(f, min = ZOOM.min) {
+        const floor = Math.max(ZOOM.min, Math.min(Number(min) || ZOOM.min, ZOOM.max));
+        this.zoomMul = clamp(this.zoomMul * f, floor, ZOOM.max);
     }
 
     // Coordonnées écran (CSS) -> coordonnées monde
