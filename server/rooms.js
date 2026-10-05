@@ -22,6 +22,8 @@ const AUTH_MAX_FAILS_PER_NAME = 8;    // mots de passe faux pour un même pseudo
 const ADMIN_WEAPON_IDS = new Set(['pistol', 'smg', 'ar', 'shotgun', 'sniper']);
 const ADMIN_MAX_RARITY = 4;
 const ADMIN_POWERS = new Set(['invisibility', 'heal_health', 'heal_shield', 'invincible', 'speed', 'noclip']);
+const ADMIN_ACTIONS = new Set(['kill_target', 'heal_health', 'heal_shield', 'teleport_to_target', 'teleport_target_here', 'give_weapon', 'give_heal', 'kick_target']);
+const ADMIN_HEAL_IDS = new Set(['bandage', 'medkit', 'shieldPotion']);
 
 // Nom court de l'action renvoyé au client (le formulaire sait quoi débloquer)
 const ACCOUNT_ACTIONS = {
@@ -1467,6 +1469,76 @@ class RoomManager {
         else this.startGameForRoom(room);
     }
 
+    handleAdminAction(ws, room, data) {
+        if (!ws.isAdmin) return;
+        const action = String(data.action || '').toLowerCase();
+        if (!ADMIN_ACTIONS.has(action)) return;
+
+        const targetId = String(data.targetId || '');
+        if (!targetId || targetId.length > 128) return;
+        const target = this.findMatchPlayer(room, targetId);
+        const targetIsHuman = !!target;
+        if (target && (!target.ws || target.inLobby)) return;
+        if (action === 'kick_target') {
+            if (!targetIsHuman) return;
+            return this.kickFromMatch(ws, room, target.id);
+        }
+        if (targetIsHuman && target.id === ws.playerId && (action === 'teleport_target_here' || action === 'teleport_to_target')) return;
+
+        const payload = {
+            type: 'admin_action_execute',
+            action,
+            targetId,
+            sourceId: ws.playerId
+        };
+        if (action === 'give_weapon') {
+            const weaponId = String(data.weaponId || '').toLowerCase();
+            const rarity = Number(data.rarity);
+            if (!ADMIN_WEAPON_IDS.has(weaponId) || !Number.isInteger(rarity) || rarity < 0 || rarity > ADMIN_MAX_RARITY) return;
+            payload.weaponId = weaponId;
+            payload.rarity = rarity;
+        } else if (action === 'give_heal') {
+            const itemId = String(data.itemId || '');
+            const count = Math.max(1, Math.min(10, Number(data.count) | 0));
+            if (!ADMIN_HEAL_IDS.has(itemId)) return;
+            payload.itemId = itemId;
+            payload.count = count;
+        }
+
+        const authority = this.findMatchPlayer(room, room.authorityId);
+        const executor = action === 'teleport_to_target' ? ws : target?.ws || authority?.ws;
+        if (!executor || executor.readyState !== 1) return;
+        this.send(executor, payload);
+    }
+
+    kickFromMatch(ws, room, targetId) {
+        if (!ws.isAdmin) return;
+        const target = this.findMatchPlayer(room, targetId);
+        if (!target || !target.ws) return;
+        if (target.id === ws.playerId) return;
+
+        const targetSocket = target.ws;
+        this.send(targetSocket, {
+            type: 'player_kicked',
+            roomCode: room.code,
+            playerId: target.id,
+            message: 'Tu as été expulsé de la partie par un administrateur.'
+        });
+
+        const owningRoom = this.roomForSocket(targetSocket) || room;
+        const targetRoomCode = this.playerRooms.get(targetSocket);
+        if (targetRoomCode) this.playerRooms.delete(targetSocket);
+        owningRoom.players.delete(target.id);
+        delete targetSocket.playerId;
+        target.ws = null;
+        target.inLobby = true;
+
+        if (room.authorityId === target.id) this.migrateAuthority(room);
+        this.broadcastToMatch(room, { type: 'player_gone', playerId: target.id, kicked: true });
+        try { targetSocket.close(4003, 'kicked'); } catch { /* socket déjà fermée */ }
+        this.maybeReturnToLobby(room);
+    }
+
     relayGameMessage(ws, data) {
         const code = this.playerRooms.get(ws);
         if (!code) return;
@@ -1477,6 +1549,10 @@ class RoomManager {
         if (room.state !== 'game' || !ws.playerId) return;
         const sender = room.players.get(ws.playerId);
         if (!sender || sender.ws !== ws || sender.inLobby) return;
+
+        if (data.type === 'admin_action') {
+            return this.handleAdminAction(ws, room, data);
+        }
 
         if (data.type === 'admin_power') {
             if (!ws.isAdmin) return;

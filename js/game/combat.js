@@ -209,6 +209,18 @@ export class Combat {
         return true;
     }
 
+    adminKill(victim, attacker = null) {
+        if (!victim?.alive || !this.owns(victim)) return false;
+        victim.health = 0;
+        victim.shield = 0;
+        victim.alive = false;
+        victim.dbno = false;
+        victim.usingItem = null;
+        victim.reloadTimer = 0;
+        this.events.onKill?.(attacker, victim, 'admin');
+        return true;
+    }
+
     /*
        Bouclier d'abord, puis la vie.
        opts (optionnel) : { ignoreShield: true } → tout va directement dans la vie

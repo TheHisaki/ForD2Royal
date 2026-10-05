@@ -1748,6 +1748,16 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
     border-color: #ff98a8;
 }
 
+.admin-player-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.admin-player-actions .admin-hack-btn { min-height: 32px; }
+.admin-hack-btn.is-danger { color: #fff; background: rgba(190, 0, 45, 0.7); border-color: #ff6b82; }
+.admin-target-status { min-height: 15px; margin: 0; color: rgba(255, 220, 225, 0.7); font: 11px var(--font-body); }
+
 .admin-panel-pane[hidden] { display: none; }
 
 .admin-hack-grid {

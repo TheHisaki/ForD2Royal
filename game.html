@@ -117,11 +117,28 @@
                 <button type="button" id="adminPanelClose" aria-label="Fermer les outils admin">×</button>
             </div>
             <div class="admin-panel-categories" role="tablist" aria-label="Catégories admin">
-                <button type="button" class="admin-category is-active" data-admin-category="give-weapon" role="tab" aria-selected="true" aria-controls="adminPaneGiveWeapon">Give d’arme</button>
+                <button type="button" class="admin-category is-active" data-admin-category="players" role="tab" aria-selected="true" aria-controls="adminPanePlayers">Joueurs</button>
+                <button type="button" class="admin-category" data-admin-category="give-weapon" role="tab" aria-selected="false" aria-controls="adminPaneGiveWeapon">Give</button>
                 <button type="button" class="admin-category" data-admin-category="hack" role="tab" aria-selected="false" aria-controls="adminPaneHack">Hack</button>
             </div>
 
-            <div class="admin-panel-pane" id="adminPaneGiveWeapon" data-admin-pane="give-weapon" role="tabpanel">
+            <div class="admin-panel-pane" id="adminPanePlayers" data-admin-pane="players" role="tabpanel">
+                <div class="admin-panel-content">
+                    <label for="adminTargetSelect">Joueur ciblé</label>
+                    <select id="adminTargetSelect" aria-label="Joueur ciblé"></select>
+                    <p id="adminTargetStatus" class="admin-target-status">Moi</p>
+                    <div class="admin-player-actions">
+                        <button type="button" class="admin-hack-btn is-action" data-admin-action="kill_target">Tuer</button>
+                        <button type="button" class="admin-hack-btn is-action" data-admin-action="heal_health">Vie max</button>
+                        <button type="button" class="admin-hack-btn is-action" data-admin-action="heal_shield">Bouclier max</button>
+                        <button type="button" class="admin-hack-btn is-action" data-admin-action="teleport_to_target">Me TP à lui</button>
+                        <button type="button" class="admin-hack-btn is-action" data-admin-action="teleport_target_here">Le TP à moi</button>
+                        <button type="button" class="admin-hack-btn is-danger" data-admin-action="kick_target">Kick complet</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="admin-panel-pane" id="adminPaneGiveWeapon" data-admin-pane="give-weapon" role="tabpanel" hidden>
                 <div class="admin-panel-content">
                     <label for="adminWeaponSelect">Arme</label>
                     <select id="adminWeaponSelect">
@@ -139,7 +156,15 @@
                         <option value="3">Épique</option>
                         <option value="4">Légendaire</option>
                     </select>
-                    <button type="button" id="adminDropWeaponBtn">Déposer devant moi</button>
+                    <button type="button" id="adminGiveWeaponBtn">Donner l’arme au joueur</button>
+                    <label for="adminHealSelect">Soin</label>
+                    <select id="adminHealSelect">
+                        <option value="bandage">Bandage</option>
+                        <option value="medkit">Trousse de soins</option>
+                        <option value="shieldPotion">Potion de bouclier</option>
+                    </select>
+                    <button type="button" id="adminGiveHealBtn">Donner le soin au joueur</button>
+                    <button type="button" class="admin-hack-btn is-action" id="adminDropWeaponBtn">Déposer devant moi</button>
                 </div>
             </div>
 

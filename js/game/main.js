@@ -27,6 +27,7 @@ import { itemArt } from '../item-art.js?v=10';
 import { InventoryUI } from './inventory-ui.js?v=9';
 import { EndScreen, Spectator } from './end-screen.js?v=9';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=9';
+import { WORLD_SIZE } from './config.js?v=9';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -240,8 +241,8 @@ function start() {
     const owns = (f) => !isMultiplayer || f === player || (f?.isBot === true && isHost);
     const fighterById = (id) => {
         if (id === null || id === undefined) return null;
-        if (id === player.id) return player;
-        return remotePlayersMap.get(id) || fighters.find(f => f.id === id) || null;
+        if (String(id) === String(player.id)) return player;
+        return remotePlayersMap.get(id) || fighters.find(f => String(f.id) === String(id)) || null;
     };
     const netItem = (s) => (s ? {
         kind: s.kind, weaponId: s.weaponId || '', itemId: s.itemId || '',
@@ -611,6 +612,91 @@ function start() {
         });
     }
 
+    function giveWeaponToFighter(f, weaponId, rarity) {
+        if (!f?.alive || !LOOT_WEAPONS.includes(weaponId) || !WEAPONS[weaponId]) return false;
+        const slot = f.inventory.findIndex((item, index) => index > 0 && !item);
+        const targetSlot = slot >= 0 ? slot : (f.slot > 0 ? f.slot : 1);
+        if (slot < 0 && f.inventory[targetSlot]) loot.throwItem(f, f.inventory[targetSlot]);
+        f.inventory[targetSlot] = {
+            kind: 'weapon', weaponId, rarity: Math.max(0, Math.min(RARITIES.length - 1, Number(rarity) | 0)),
+            mag: WEAPONS[weaponId].magSize || 0
+        };
+        f.slot = targetSlot;
+        return true;
+    }
+
+    function giveHealToFighter(f, itemId, count = 1) {
+        if (!f?.alive || !['bandage', 'medkit', 'shieldPotion'].includes(itemId)) return false;
+        const maxStack = HEALS[itemId]?.stack || 1;
+        let left = Math.max(1, Math.min(maxStack, Number(count) | 0));
+        for (let i = 1; i < f.inventory.length && left > 0; i++) {
+            const item = f.inventory[i];
+            if (item?.kind === 'heal' && item.itemId === itemId) {
+                const add = Math.min(left, maxStack - item.count);
+                item.count += add;
+                left -= add;
+            }
+        }
+        for (let i = 1; i < f.inventory.length && left > 0; i++) {
+            if (!f.inventory[i]) {
+                f.inventory[i] = { kind: 'heal', itemId, count: left };
+                left = 0;
+            }
+        }
+        return left === 0;
+    }
+
+    function teleportFighter(f, x, y) {
+        if (!f || !Number.isFinite(x) || !Number.isFinite(y)) return false;
+        f.x = Math.max(f.r, Math.min(WORLD_SIZE - f.r, x));
+        f.y = Math.max(f.r, Math.min(WORLD_SIZE - f.r, y));
+        f.vx = 0;
+        f.vy = 0;
+        f.resolveCollisions(world);
+        f.resolveCollisions(world);
+        return true;
+    }
+
+    function applyAdminAction(msg) {
+        if (msg.action === 'teleport_to_target') {
+            const destination = fighterById(msg.targetId);
+            if (destination && destination !== player) teleportFighter(player, destination.x, destination.y);
+            return;
+        }
+        const target = fighterById(msg.targetId);
+        const canOwnTarget = target && owns(target);
+        if (!target || !canOwnTarget) return;
+        switch (msg.action) {
+            case 'kill_target':
+                combat.adminKill(target, fighterById(msg.sourceId));
+                break;
+            case 'heal_health':
+                combat.adminHeal?.(target, 'health');
+                break;
+            case 'heal_shield':
+                combat.adminHeal?.(target, 'shield');
+                break;
+            case 'give_weapon':
+                giveWeaponToFighter(target, msg.weaponId, msg.rarity);
+                break;
+            case 'give_heal':
+                giveHealToFighter(target, msg.itemId, msg.count);
+                break;
+            case 'teleport_to_target': {
+                const destination = fighterById(msg.targetId);
+                if (destination && destination !== player) teleportFighter(player, destination.x, destination.y);
+                break;
+            }
+            case 'teleport_target_here': {
+                const source = fighterById(msg.sourceId);
+                if (source) teleportFighter(target, source.x + Math.cos(source.angle) * 55, source.y + Math.sin(source.angle) * 55);
+                break;
+            }
+            default:
+                break;
+        }
+    }
+
     // ================= ROUE D'EMOTES (clic droit maintenu, au centre de l'écran) =================
     // Anti-spam : une emote toutes les EMOTE_COOLDOWN secondes. Les emotes reçues des autres
     // joueurs sont aussi ignorées si elles arrivent plus vite (et le serveur les filtre aussi).
@@ -872,6 +958,12 @@ function start() {
     const adminPanelStatus = document.getElementById('adminPanelStatus');
     const adminPanelClose = document.getElementById('adminPanelClose');
     const adminDropWeaponBtn = document.getElementById('adminDropWeaponBtn');
+    const adminGiveWeaponBtn = document.getElementById('adminGiveWeaponBtn');
+    const adminHealSelect = document.getElementById('adminHealSelect');
+    const adminGiveHealBtn = document.getElementById('adminGiveHealBtn');
+    const adminTargetSelect = document.getElementById('adminTargetSelect');
+    const adminTargetStatus = document.getElementById('adminTargetStatus');
+    const adminActionButtons = [...document.querySelectorAll('[data-admin-action]')];
     const adminCategoryButtons = [...document.querySelectorAll('[data-admin-category]')];
     const adminPowerButtons = [...document.querySelectorAll('[data-admin-power]')];
     const adminSpeedRange = document.getElementById('adminSpeedRange');
@@ -891,6 +983,57 @@ function start() {
             pane.hidden = pane.dataset.adminPane !== category;
         });
     }
+
+    let adminTargetId = String(player.id);
+
+    function adminTargetFighter() {
+        return fighterById(adminTargetId) || player;
+    }
+
+    function refreshAdminTargets() {
+        if (!adminTargetSelect) return;
+        const current = String(adminTargetId);
+        const candidates = [];
+        const seen = new Set();
+        for (const fighter of fighters) {
+            if (!fighter || fighter.id == null || seen.has(String(fighter.id))) continue;
+            seen.add(String(fighter.id));
+            candidates.push(fighter);
+        }
+        candidates.sort((a, b) => String(a.id) === String(player.id) ? -1 : String(b.id) === String(player.id) ? 1 : String(a.name || '').localeCompare(String(b.name || '')));
+        adminTargetSelect.replaceChildren();
+        for (const fighter of candidates) {
+            const option = document.createElement('option');
+            option.value = String(fighter.id);
+            option.textContent = `${fighter.name || 'Joueur'}${fighter.isBot ? ' (bot)' : fighter.id === player.id ? ' (moi)' : ''}`;
+            adminTargetSelect.appendChild(option);
+        }
+        if (!candidates.some(f => String(f.id) === current)) adminTargetId = String(player.id);
+        adminTargetSelect.value = adminTargetId;
+        const target = adminTargetFighter();
+        if (adminTargetStatus) {
+            adminTargetStatus.textContent = `${target.name || 'Joueur'} · ${target.alive ? (target.dbno ? 'À terre' : 'En vie') : 'Éliminé'}`;
+        }
+    }
+
+    function selectedAdminTargetId() {
+        return String(adminTargetSelect?.value || adminTargetId || player.id);
+    }
+
+    function sendAdminAction(action, payload = {}) {
+        if (!adminEnabled || !player.alive) return;
+        const targetId = selectedAdminTargetId();
+        const message = { type: 'admin_action', action, targetId, ...payload };
+        if (isMultiplayer) netSend(message);
+        else applyAdminAction({ ...message, sourceId: player.id });
+        setAdminStatus(`${action} envoyé à ${adminTargetFighter()?.name || 'la cible'}.`);
+    }
+
+    adminTargetSelect?.addEventListener('change', () => {
+        adminTargetId = String(adminTargetSelect.value || player.id);
+        refreshAdminTargets();
+        updateAdminPowerButtons();
+    });
 
     function updateAdminPowerButtons() {
         const states = {
@@ -960,6 +1103,25 @@ function start() {
         setAdminStatus(action ? `Action ${power === 'heal_health' ? 'vie' : 'bouclier'} appliquée.` : `${power} : ${enabled ? 'activé' : 'désactivé'}.`);
     }
 
+    function giveAdminWeaponToTarget() {
+        const weaponId = adminWeaponSelect?.value;
+        const rarity = Number(adminRaritySelect?.value || 0);
+        if (!LOOT_WEAPONS.includes(weaponId) || !WEAPONS[weaponId]) return;
+        sendAdminAction('give_weapon', { weaponId, rarity });
+    }
+
+    function giveAdminHealToTarget() {
+        const itemId = adminHealSelect?.value;
+        if (!['bandage', 'medkit', 'shieldPotion'].includes(itemId)) return;
+        sendAdminAction('give_heal', { itemId, count: 1 });
+    }
+
+    adminGiveWeaponBtn?.addEventListener('click', giveAdminWeaponToTarget);
+    adminGiveHealBtn?.addEventListener('click', giveAdminHealToTarget);
+    adminActionButtons.forEach((button) => {
+        button.addEventListener('click', () => sendAdminAction(button.dataset.adminAction));
+    });
+
     adminCategoryButtons.forEach((button) => {
         button.addEventListener('click', () => selectAdminCategory(button.dataset.adminCategory));
     });
@@ -972,7 +1134,7 @@ function start() {
     adminSpeedRange?.addEventListener('change', () => {
         if (Number(player.adminSpeedMul || 1) > 1) sendAdminPower('speed');
     });
-    selectAdminCategory('give-weapon');
+    selectAdminCategory('players');
     updateAdminPowerButtons();
 
     function toggleAdminPanel(force) {
@@ -986,6 +1148,7 @@ function start() {
             toggleSettings(false);
             inventoryUI?.toggle(false);
             adminPanel.hidden = false;
+            refreshAdminTargets();
             adminWeaponSelect?.focus();
         } else {
             adminPanel.hidden = true;
@@ -1031,6 +1194,7 @@ function start() {
        - player_gone        (serveur) un joueur a quitté la partie pour de bon
     */
     let reconnectDelay = 1000;
+    let kickedFromGame = false;
     let reviveSeenAt = 0;            // dernière fois qu'un coéquipier nous réanimait (p_state.rv)
     let lastBotSeen = new Map();     // bot -> nombre de b_sync consécutifs sans lui
 
@@ -1090,6 +1254,7 @@ function start() {
             }
         }
         if (changed) updateSquadHud();
+        if (adminPanelOpen) refreshAdminTargets();
     }
 
     // Changement d'hôte : celui qui le devient reprend la simulation des bots là où elle en est
@@ -1271,6 +1436,12 @@ function start() {
                 SFX.play('click', { x: fighter.x, y: fighter.y, vol: 0.45 });
                 break;
             }
+            case 'player_kicked':
+                kickedFromGame = true;
+                setAdminStatus?.('Tu as été expulsé de la partie.');
+                try { gameWs?.close(4003, 'kicked'); } catch { /* déjà fermé */ }
+                setTimeout(() => { window.location.href = 'index.html'; }, 500);
+                break;
             case 'player_gone': {
                 // Joueur parti pour de bon (retour au lobby, onglet fermé) : éliminé sur TOUTES
                 // les machines (pas seulement chez l'hôte, qui est peut-être celui qui part).
@@ -1367,6 +1538,9 @@ function start() {
                 if (c && !c.opened) loot.openChest(c, fighterById(msg.s), false);
                 break;
             }
+            case 'admin_action_execute':
+                applyAdminAction(msg);
+                break;
             case 'admin_power_state':
                 applyAdminPowerState(msg);
                 break;
@@ -1430,6 +1604,7 @@ function start() {
         });
         ws.addEventListener('close', () => {
             if (gameWs === ws) gameWs = null;
+            if (kickedFromGame) return;
             // Coupure (wifi, serveur relancé...) : on se reconnecte à la même partie
             setTimeout(connectGame, reconnectDelay);
             reconnectDelay = Math.min(5000, reconnectDelay * 1.5);
