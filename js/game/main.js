@@ -1444,7 +1444,7 @@ function start() {
         // Clic droit maintenu : roue d'emotes ; le relâchement joue l'emote visée
         if (updateEmoteInput()) return;
         // Pas de tir tant qu'un panneau est ouvert (carte, paramètres, inventaire) OU si le joueur est K.O.
-        if (!player.alive || player.dbno || player.phase !== 'ground' || hud.mapOpen || settingsOpen || adminPanelOpen || inventoryUI.open) return;
+        if (!player.alive || player.dbno || player.phase !== 'ground' || hud.mapOpen || settingsOpen || inventoryUI.open) return;
         const held = player.inventory[player.slot];
         if (!held) return;
         if (held.kind === 'heal') {
