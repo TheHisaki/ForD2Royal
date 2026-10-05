@@ -874,6 +874,8 @@ function start() {
     const adminDropWeaponBtn = document.getElementById('adminDropWeaponBtn');
     const adminCategoryButtons = [...document.querySelectorAll('[data-admin-category]')];
     const adminPowerButtons = [...document.querySelectorAll('[data-admin-power]')];
+    const adminSpeedRange = document.getElementById('adminSpeedRange');
+    const adminSpeedValue = document.getElementById('adminSpeedValue');
 
     function setAdminStatus(text) {
         if (adminPanelStatus) adminPanelStatus.textContent = text;
@@ -897,6 +899,9 @@ function start() {
             speed: Number(player.adminSpeedMul || 1) > 1,
             noclip: player.adminNoclip === true
         };
+        const speed = Number(player.adminSpeedMul || 1) > 1 ? Number(player.adminSpeedMul) : Number(adminSpeedRange?.value || 2);
+        if (adminSpeedRange) adminSpeedRange.value = String(speed);
+        if (adminSpeedValue) adminSpeedValue.textContent = `×${speed.toFixed(1).replace('.', ',')}`;
         adminPowerButtons.forEach((button) => {
             const power = button.dataset.adminPower;
             if (!(power in states)) return;
@@ -945,7 +950,7 @@ function start() {
             power === 'speed' ? Number(player.adminSpeedMul || 1) > 1 :
             player.adminNoclip
         );
-        const value = power === 'speed' ? 2 : undefined;
+        const value = power === 'speed' ? Math.max(1, Math.min(3, Number(adminSpeedRange?.value || 2))) : undefined;
         const message = { type: 'admin_power', power, enabled, value };
         if (isMultiplayer) {
             netSend(message);
@@ -960,6 +965,12 @@ function start() {
     });
     adminPowerButtons.forEach((button) => {
         button.addEventListener('click', () => sendAdminPower(button.dataset.adminPower));
+    });
+    adminSpeedRange?.addEventListener('input', () => {
+        if (adminSpeedValue) adminSpeedValue.textContent = `×${Number(adminSpeedRange.value).toFixed(1).replace('.', ',')}`;
+    });
+    adminSpeedRange?.addEventListener('change', () => {
+        if (Number(player.adminSpeedMul || 1) > 1) sendAdminPower('speed');
     });
     selectAdminCategory('give-weapon');
     updateAdminPowerButtons();
@@ -1233,7 +1244,7 @@ function start() {
     function handleNet(msg) {
         if (!msg || typeof msg.type !== 'string') return;
         // L'émetteur (msg.id) est ajouté par le serveur ; on ignore nos propres messages
-        if (msg.id && msg.id === player.id && msg.type !== 'room_joined') return;
+        if (msg.id && msg.id === player.id && msg.type !== 'room_joined' && !(msg.type === 'admin_drop_weapon' && isHost)) return;
         switch (msg.type) {
             case 'room_joined':
                 if (Array.isArray(msg.players)) syncRoomPlayers(msg.players);

@@ -147,7 +147,11 @@
                 <div class="admin-hack-grid">
                     <button type="button" class="admin-hack-btn" data-admin-power="invisibility" aria-pressed="false">Invisibilité</button>
                     <button type="button" class="admin-hack-btn" data-admin-power="invincible" aria-pressed="false">Invincible</button>
-                    <button type="button" class="admin-hack-btn" data-admin-power="speed" aria-pressed="false">Vitesse ×2</button>
+                    <div class="admin-speed-control">
+                        <label for="adminSpeedRange">Vitesse <output id="adminSpeedValue">×2,0</output></label>
+                        <input id="adminSpeedRange" type="range" min="1" max="3" step="0.1" value="2" aria-label="Multiplicateur de vitesse">
+                        <button type="button" class="admin-hack-btn" data-admin-power="speed" aria-pressed="false">Activer la vitesse</button>
+                    </div>
                     <button type="button" class="admin-hack-btn" data-admin-power="noclip" aria-pressed="false">Noclip</button>
                     <button type="button" class="admin-hack-btn is-action" data-admin-power="heal_health">Heal vie</button>
                     <button type="button" class="admin-hack-btn is-action" data-admin-power="heal_shield">Heal bouclier</button>

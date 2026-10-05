@@ -1768,6 +1768,27 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
     letter-spacing: 0;
 }
 
+.admin-speed-control {
+    grid-column: 1 / -1;
+    display: grid;
+    gap: 6px;
+    padding: 8px;
+    background: rgba(255, 255, 255, 0.07);
+    border: 1px solid rgba(255, 150, 165, 0.28);
+    border-radius: 5px;
+}
+
+.admin-speed-control label {
+    display: flex;
+    justify-content: space-between;
+    color: #ffdce2;
+    font: 700 12px var(--font-body);
+}
+
+.admin-speed-control output { color: #ff8ca0; }
+.admin-speed-control input[type="range"] { width: 100%; accent-color: #ff5570; }
+.admin-speed-control .admin-hack-btn { width: 100%; }
+
 .admin-hack-btn.is-active {
     color: #fff;
     background: linear-gradient(180deg, #ff5570, #b7002d);
