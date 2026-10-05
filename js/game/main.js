@@ -1071,8 +1071,7 @@ function start() {
     const adminPanelClose = document.getElementById('adminPanelClose');
     const adminDropWeaponBtn = document.getElementById('adminDropWeaponBtn');
     const adminGiveWeaponBtn = document.getElementById('adminGiveWeaponBtn');
-    const adminHealSelect = document.getElementById('adminHealSelect');
-    const adminGiveHealBtn = document.getElementById('adminGiveHealBtn');
+    const adminRarityLabel = document.getElementById('adminRarityLabel');
     const adminTargetSelect = document.getElementById('adminTargetSelect');
     const adminTargetStatus = document.getElementById('adminTargetStatus');
     const adminActionButtons = [...document.querySelectorAll('[data-admin-action]')];
@@ -1215,21 +1214,42 @@ function start() {
         setAdminStatus(action ? `Action ${power === 'heal_health' ? 'vie' : 'bouclier'} appliquée.` : `${power} : ${enabled ? 'activé' : 'désactivé'}.`);
     }
 
-    function giveAdminWeaponToTarget() {
-        const weaponId = adminWeaponSelect?.value;
+    const ADMIN_HEAL_GROUP = '__heals__';
+
+    function updateAdminGiveControls() {
+        const isHealing = adminWeaponSelect?.value === ADMIN_HEAL_GROUP;
+        if (!adminRaritySelect) return;
+
+        const options = isHealing
+            ? Object.values(HEALS).map((heal) => ({ value: heal.id, label: heal.name }))
+            : RARITIES.map((rarity, index) => ({ value: String(index), label: rarity.name }));
+        adminRaritySelect.replaceChildren(...options.map(({ value, label }) => {
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            return option;
+        }));
+        if (options.length) adminRaritySelect.value = options[0].value;
+        if (adminRarityLabel) adminRarityLabel.textContent = isHealing ? 'Produit de soin' : 'Rareté';
+        adminDropWeaponBtn?.toggleAttribute('hidden', isHealing);
+    }
+
+    function giveAdminItemToTarget() {
+        const selected = adminWeaponSelect?.value;
+        if (selected === ADMIN_HEAL_GROUP) {
+            const itemId = adminRaritySelect?.value;
+            if (!HEALS[itemId]) return;
+            sendAdminAction('give_heal', { itemId, count: 1 });
+            return;
+        }
         const rarity = Number(adminRaritySelect?.value || 0);
-        if (!LOOT_WEAPONS.includes(weaponId) || !WEAPONS[weaponId]) return;
-        sendAdminAction('give_weapon', { weaponId, rarity });
+        if (!LOOT_WEAPONS.includes(selected) || !WEAPONS[selected]) return;
+        sendAdminAction('give_weapon', { weaponId: selected, rarity });
     }
 
-    function giveAdminHealToTarget() {
-        const itemId = adminHealSelect?.value;
-        if (!['bandage', 'medkit', 'shieldPotion', 'healingSpray', 'stimPatch'].includes(itemId)) return;
-        sendAdminAction('give_heal', { itemId, count: 1 });
-    }
-
-    adminGiveWeaponBtn?.addEventListener('click', giveAdminWeaponToTarget);
-    adminGiveHealBtn?.addEventListener('click', giveAdminHealToTarget);
+    adminWeaponSelect?.addEventListener('change', updateAdminGiveControls);
+    adminGiveWeaponBtn?.addEventListener('click', giveAdminItemToTarget);
+    updateAdminGiveControls();
     adminActionButtons.forEach((button) => {
         button.addEventListener('click', () => sendAdminAction(button.dataset.adminAction));
     });

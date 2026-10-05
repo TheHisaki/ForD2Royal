@@ -179,7 +179,7 @@
 
             <div class="admin-panel-pane" id="adminPaneGiveWeapon" data-admin-pane="give-weapon" role="tabpanel" hidden>
                 <div class="admin-panel-content">
-                    <label for="adminWeaponSelect">Arme</label>
+                    <label for="adminWeaponSelect">Arme / soin</label>
                     <select id="adminWeaponSelect">
                         <option value="pistol">Pistolet</option>
                         <option value="crossbow">Arbalète</option>
@@ -188,8 +188,9 @@
                         <option value="ar">Fusil d’assaut</option>
                         <option value="shotgun">Fusil à pompe</option>
                         <option value="sniper">Fusil de précision</option>
+                        <option value="__heals__">Soin</option>
                     </select>
-                    <label for="adminRaritySelect">Rareté</label>
+                    <label id="adminRarityLabel" for="adminRaritySelect">Rareté</label>
                     <select id="adminRaritySelect">
                         <option value="0">Commun</option>
                         <option value="1">Peu commun</option>
@@ -197,16 +198,7 @@
                         <option value="3">Épique</option>
                         <option value="4">Légendaire</option>
                     </select>
-                    <button type="button" id="adminGiveWeaponBtn">Donner l’arme au joueur</button>
-                    <label for="adminHealSelect">Soin</label>
-                    <select id="adminHealSelect">
-                        <option value="bandage">Bandage</option>
-                        <option value="medkit">Trousse de soins</option>
-                        <option value="shieldPotion">Potion de bouclier</option>
-                        <option value="healingSpray">Spray de soin</option>
-                        <option value="stimPatch">Patch stimulant</option>
-                    </select>
-                    <button type="button" id="adminGiveHealBtn">Donner le soin au joueur</button>
+                    <button type="button" id="adminGiveWeaponBtn">Donner au joueur</button>
                     <button type="button" class="admin-hack-btn is-action" id="adminDropWeaponBtn">Déposer devant moi</button>
                 </div>
             </div>
@@ -599,6 +591,6 @@
     })();
     </script>
 
-    <script type="module" src="js/game/main.js?v=15"></script>
+    <script type="module" src="js/game/main.js?v=16"></script>
 </body>
 </html>

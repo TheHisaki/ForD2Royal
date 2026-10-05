@@ -19,11 +19,11 @@ const GROUP_INVITE_COOLDOWN = 20 * 1000; // délai minimum avant de réinviter l
 const AUTH_WINDOW = 10 * 60 * 1000;   // fenêtre de comptage des tentatives
 const AUTH_MAX_PER_IP = 20;           // connexions + créations par adresse IP
 const AUTH_MAX_FAILS_PER_NAME = 8;    // mots de passe faux pour un même pseudo
-const ADMIN_WEAPON_IDS = new Set(['pistol', 'smg', 'ar', 'shotgun', 'sniper']);
+const ADMIN_WEAPON_IDS = new Set(['pistol', 'crossbow', 'ricochet', 'smg', 'ar', 'shotgun', 'sniper']);
 const ADMIN_MAX_RARITY = 4;
 const ADMIN_POWERS = new Set(['invisibility', 'heal_health', 'heal_shield', 'invincible', 'speed', 'noclip']);
 const ADMIN_ACTIONS = new Set(['kill_target', 'heal_health', 'heal_shield', 'teleport_to_target', 'teleport_target_here', 'give_weapon', 'give_heal', 'kick_target']);
-const ADMIN_HEAL_IDS = new Set(['bandage', 'medkit', 'shieldPotion']);
+const ADMIN_HEAL_IDS = new Set(['bandage', 'medkit', 'shieldPotion', 'healingSpray', 'stimPatch']);
 
 // Nom court de l'action renvoyé au client (le formulaire sait quoi débloquer)
 const ACCOUNT_ACTIONS = {
