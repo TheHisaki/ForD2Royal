@@ -363,6 +363,9 @@
     transition: border-color 0.2s, background 0.2s;
 }
 
+/* L'ancien choix de remplissage reste dans le DOM pour compatibilité, mais ne s'affiche plus. */
+#modeOptFillMatch[hidden] { display: none !important; }
+
 .mode-option-row:hover {
     border-color: rgba(120, 180, 255, 0.25);
     background: rgba(10, 20, 55, 0.8);
