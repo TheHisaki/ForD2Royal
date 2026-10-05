@@ -710,6 +710,10 @@ class RoomManager {
             // botFill = « Remplir la partie avec des bots » ; fillTeam = « Remplir l'équipe avec des bots »
             botFill: (hostData.fillMatch ?? hostData.botFill) !== false,
             fillTeam: hostData.fillTeam !== false,
+            // Le choix du type de partie est demandé à chaque lancement. Une auto-room
+            // peut toutefois fournir « players » dès sa création après le choix local.
+            startChoice: hostData.startChoice === 'bots' || hostData.startChoice === 'players' ? hostData.startChoice : null,
+            startChoicePending: false,
             state: 'lobby',
             seed: Math.floor(Math.random() * 1000000),
             createdAt: Date.now(),
@@ -994,6 +998,9 @@ class RoomManager {
         const fillMatch = typeof data.fillMatch === 'boolean' ? data.fillMatch : data.botFill;
         if (typeof fillMatch === 'boolean') room.botFill = fillMatch;
         if (typeof data.fillTeam === 'boolean') room.fillTeam = data.fillTeam;
+        // Un changement de configuration invalide un choix de lancement en attente.
+        room.startChoice = null;
+        room.startChoicePending = false;
 
         console.log(`[Multiplayer] Config salle ${code}: mode=${room.mode}, remplir partie=${room.botFill}, remplir équipe=${room.fillTeam !== false}`);
 
@@ -1011,25 +1018,74 @@ class RoomManager {
         this.checkRoomReadyState(room);
     }
 
+    requestStartChoice(room) {
+        const leader = room.players.get(room.hostId);
+        if (!leader?.ws || leader.ws.readyState !== 1) return;
+        this.send(leader.ws, {
+            type: 'start_choice_required',
+            mode: room.mode,
+            playersCount: room.players.size
+        });
+    }
+
+    chooseStartChoice(ws, data) {
+        const code = this.playerRooms.get(ws);
+        const room = code ? this.rooms.get(code) : null;
+        if (!room || room.state !== 'lobby' || room.hostId !== ws.playerId) return;
+        if (data.choice !== 'bots' && data.choice !== 'players') return;
+
+        const allReady = room.players.size > 0 && [...room.players.values()].every(p => p.ready);
+        if (!allReady) {
+            room.startChoice = null;
+            room.startChoicePending = false;
+            return;
+        }
+
+        room.startChoicePending = false;
+        room.startChoice = data.choice;
+        if (data.choice === 'bots') {
+            room.botFill = true;
+            console.log(`[Multiplayer] Choix du chef dans ${room.code} : partie avec bots`);
+            this.startGameForRoom(room);
+        } else {
+            // Ce choix signifie réellement « aucun bot », y compris dans les places d'équipe.
+            room.botFill = false;
+            room.fillTeam = false;
+            console.log(`[Multiplayer] Choix du chef dans ${room.code} : vrais joueurs uniquement`);
+            this.enqueueMatchmaking(room);
+        }
+    }
+
     /* ===== LOGIQUE DE PRÉPARATION & LANCEMENT DU JEU ===== */
 
     checkRoomReadyState(room) {
         if (!room || room.state !== 'lobby') return;
         const allReady = room.players.size > 0 && [...room.players.values()].every(p => p.ready);
 
-        if (allReady) {
-            if (room.botFill !== false) {
-                // AVEC BOTS : lancement direct avec le duo / équipe en ligne + bots pour le reste
-                console.log(`[Multiplayer] Tous prêts dans ${room.code} (Avec bots) : lancement immédiat !`);
-                this.startGameForRoom(room);
-            } else {
-                // SANS BOTS : mise en file d'attente matchmaking (nécessite >= 2 équipes)
-                console.log(`[Multiplayer] Tous prêts dans ${room.code} (Sans bots) : mise en file d'attente (${room.mode})`);
-                this.enqueueMatchmaking(room);
-            }
-        } else {
-            // Un joueur a annulé ou la salle n'est plus prête
+        if (!allReady) {
+            // Une annulation invalide le choix précédent : le prochain lancement redemandera.
+            room.startChoice = null;
+            room.startChoicePending = false;
             this.dequeueMatchmaking(room);
+            return;
+        }
+
+        // Toujours demander le choix au chef pour ce nouveau lancement, même si une
+        // ancienne configuration indiquait déjà bots ou matchmaking.
+        if (!room.startChoice) {
+            if (!room.startChoicePending) {
+                room.startChoicePending = true;
+                this.requestStartChoice(room);
+            }
+            return;
+        }
+
+        if (room.startChoice === 'bots') {
+            console.log(`[Multiplayer] Tous prêts dans ${room.code} (Avec bots) : lancement immédiat !`);
+            this.startGameForRoom(room);
+        } else {
+            console.log(`[Multiplayer] Tous prêts dans ${room.code} (Sans bots) : mise en file d'attente (${room.mode})`);
+            this.enqueueMatchmaking(room);
         }
     }
 
@@ -1184,8 +1240,8 @@ class RoomManager {
         const authorityId = validRooms[0].hostId;
         const flightAt = Date.now() + FLIGHT_DELAY; // même départ du vaisseau pour toutes les équipes
 
-        // Chaque équipe garde son choix « Remplir l'équipe » (sinon elle joue en sous-nombre)
-        const teams = validRooms.map((r, i) => ({ team: i + 1, humans: r.players.size, fillTeam: r.fillTeam !== false }));
+        // Le choix « vrais joueurs » interdit aussi les bots coéquipiers.
+        const teams = validRooms.map((r, i) => ({ team: i + 1, humans: r.players.size, fillTeam: false }));
 
         // Relier les salles pour que les messages en cours de partie soient partagés
         validRooms.forEach((r, teamIdx) => {
@@ -1203,7 +1259,7 @@ class RoomManager {
                 // Partie sans bots adverses : seulement les équipes de la file d'attente
                 botFill: false,
                 fillMatch: false,
-                fillTeam: r.fillTeam !== false,
+                fillTeam: false,
                 myTeam: teamIdx + 1,
                 authorityId,
                 teams,
@@ -1309,6 +1365,8 @@ class RoomManager {
         room.state = 'lobby';
         room.matchedRooms = null;
         room.authorityId = null;
+        room.startChoice = null;
+        room.startChoicePending = false;
         room.seed = Math.floor(Math.random() * 1000000);
         if (room.authorityTimer) clearTimeout(room.authorityTimer);
         room.authorityTimer = null;
@@ -1387,6 +1445,10 @@ class RoomManager {
         const player = room.players.get(playerId);
         if (!player) return;
         room.players.delete(playerId);
+        if (room.state === 'lobby') {
+            room.startChoice = null;
+            room.startChoicePending = false;
+        }
         console.log(`[Multiplayer] Joueur ${playerId} a quitté la salle ${room.code}`);
 
         if (room.players.size === 0) {
@@ -1416,6 +1478,8 @@ class RoomManager {
     startGameForRoom(room) {
         if (!room || room.state !== 'lobby') return;
         this.dequeueMatchmaking(room);
+        room.startChoice = null;
+        room.startChoicePending = false;
         room.state = 'game';
         room.seed = Math.floor(Math.random() * 1000000);
         room.matchedRooms = null;
@@ -1464,9 +1528,24 @@ class RoomManager {
         const room = this.rooms.get(code);
         if (!room || room.hostId !== ws.playerId) return;
 
-        // Sans bots dans la partie : on passe par la file d'attente (au moins 2 équipes)
-        if (room.botFill === false) this.enqueueMatchmaking(room);
-        else this.startGameForRoom(room);
+        if (room.state !== 'lobby') return;
+        const allReady = room.players.size > 0 && [...room.players.values()].every(p => p.ready);
+        if (!allReady) return;
+        if (!room.startChoice) {
+            if (!room.startChoicePending) {
+                room.startChoicePending = true;
+                this.requestStartChoice(room);
+            }
+            return;
+        }
+        if (room.startChoice === 'players') {
+            room.botFill = false;
+            room.fillTeam = false;
+            this.enqueueMatchmaking(room);
+        } else {
+            room.botFill = true;
+            this.startGameForRoom(room);
+        }
     }
 
     handleAdminAction(ws, room, data) {

@@ -290,6 +290,9 @@ wss.on('connection', (ws, req) => {
                 case 'update_config':
                     roomManager.updateConfig(ws, msg);
                     break;
+                case 'start_choice':
+                    roomManager.chooseStartChoice(ws, msg);
+                    break;
                 case 'chat':
                     roomManager.sendChat(ws, msg.message);
                     break;

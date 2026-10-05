@@ -164,6 +164,19 @@
             </div>
         </div>
 
+        <!-- Choix du type de partie, demandé au chef quand tout le groupe est prêt -->
+        <div id="startChoice" class="party-confirm" hidden role="dialog" aria-modal="true" aria-labelledby="startChoiceTitle" aria-describedby="startChoiceMessage">
+            <div class="party-confirm-card">
+                <span class="group-invite-kicker">LANCEMENT DE LA PARTIE</span>
+                <h2 id="startChoiceTitle">Comment jouer cette partie ?</h2>
+                <p id="startChoiceMessage" class="group-invite-message">Avec des bots, la partie démarre immédiatement : il n’y aura pas d’équipe adverse humaine. Avec de vrais joueurs, il faudra attendre d’autres équipes et aucun bot ne sera ajouté.</p>
+                <div class="group-invite-actions">
+                    <button type="button" class="friends-secondary" id="startChoicePlayers">Vrais joueurs</button>
+                    <button type="button" class="friends-primary" id="startChoiceBots">Avec des bots</button>
+                </div>
+            </div>
+        </div>
+
         <!-- ===== ZONE PRINCIPALE ===== -->
         <main class="lobby-main">
             <!-- Panneau gauche : saison, défis, chat -->
@@ -800,7 +813,7 @@
                     </div>
                     <button type="button" class="mode-toggle" id="modeFillTeamToggle" role="switch" aria-checked="true" aria-labelledby="modeFillTeamLabel" aria-describedby="modeFillTeamDesc"></button>
                 </div>
-                <div class="mode-option-row" id="modeOptFillMatch">
+                <div class="mode-option-row" id="modeOptFillMatch" hidden>
                     <div class="mode-option-text">
                         <span class="mode-option-label" id="modeFillMatchLabel">🤖 Remplir la partie avec des bots</span>
                         <span class="mode-option-desc" id="modeFillMatchDesc">Des équipes de bots complètent la carte : la partie démarre tout de suite. Désactivé : file d'attente avec de vrais joueurs (au moins 2 équipes, puis un compte à rebours configurable).</span>
@@ -812,7 +825,7 @@
             <div class="mode-panel-foot">
                 <div class="mode-selected-info">
                     <span class="mode-selected-name" id="modeSelectedName">SOLO</span>
-                    <span class="mode-selected-detail" id="modeSelectedDetail">1 joueur · Sans bots</span>
+                    <span class="mode-selected-detail" id="modeSelectedDetail">1 joueur · Choix au lancement</span>
                 </div>
                 <button type="button" class="mode-confirm-btn" id="modeConfirmBtn">
                     <span>Confirmer</span>
@@ -997,9 +1010,9 @@
     <script type="module" src="js/lobby-skin.js"></script>
     <!-- Passe de combat, Profil, Classements + niveau du lobby (module ES) -->
     <script type="module" src="js/lobby-hub.js?v=2"></script>
-    <script src="js/network.js?v=9"></script>
+    <script src="js/network.js?v=10"></script>
     <script src="js/friends.js?v=4"></script>
-    <script src="js/lobby.js?v=9"></script>
+    <script src="js/lobby.js?v=10"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

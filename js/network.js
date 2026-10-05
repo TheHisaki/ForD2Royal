@@ -579,8 +579,9 @@ class NetworkManager {
 
     /* ===== ACTIONS DE SALLE ===== */
 
-    // fillMatch : remplir la partie avec des bots ; fillTeam : remplir l'équipe avec des bots
-    createRoom(mode = 'duo', fillMatch = true, fillTeam = true) {
+    // fillMatch/fillTeam restent acceptés pour compatibilité ; le choix de match
+    // peut désormais être fourni au lancement de l'auto-room.
+    createRoom(mode = 'duo', fillMatch = true, fillTeam = true, startChoice = null) {
         clearTimeout(this.roomJoinTimer);
         this.roomJoinTimer = null;
         this.cancelRoomOnCreate = false;
@@ -595,6 +596,7 @@ class NetworkManager {
             botFill: fillMatch !== false,
             fillMatch: fillMatch !== false,
             fillTeam: fillTeam !== false,
+            ...(startChoice === 'bots' || startChoice === 'players' ? { startChoice } : {}),
             skin: skinData.skin,
             backpack: skinData.backpack,
             pickaxeSkin: skinData.pickaxeSkin,
@@ -635,6 +637,7 @@ class NetworkManager {
     leaveRoom(silent = false) {
         clearTimeout(this.roomJoinTimer);
         this.roomJoinTimer = null;
+        window.lobbyManager?.closeStartChoice?.();
         if (this.roomCode) {
             this.send({ type: 'leave_room' });
             this.roomCode = null;
@@ -689,6 +692,12 @@ class NetworkManager {
         if (typeof fillMatch === 'boolean') { msg.fillMatch = fillMatch; msg.botFill = fillMatch; }
         if (typeof fillTeam === 'boolean') msg.fillTeam = fillTeam;
         this.send(msg);
+    }
+
+    sendStartChoice(choice) {
+        if (choice !== 'bots' && choice !== 'players') return false;
+        this.send({ type: 'start_choice', choice });
+        return true;
     }
 
     sendChatMessage(text) {
@@ -1107,6 +1116,10 @@ class NetworkManager {
                 }
                 break;
 
+            case 'start_choice_required':
+                window.lobbyManager?.openStartChoice?.(msg);
+                break;
+
             case 'matchmaking_status':
                 if (window.lobbyManager) {
                     window.lobbyManager.handleMatchmakingStatus?.(msg);
@@ -1149,6 +1162,7 @@ class NetworkManager {
 
         // Fermer l'overlay de matchmaking si ouvert
         if (window.lobbyManager) {
+            window.lobbyManager.closeStartChoice?.();
             window.lobbyManager.handleMatchmakingStatus?.({ state: 'idle' });
         }
 
