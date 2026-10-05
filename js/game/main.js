@@ -6,7 +6,7 @@
 // ?v=10 : force le navigateur à recharger les modules changés (synchro multijoueur, emotes)
 import { generateWorld, surfaceAt } from './world.js?v=9';
 import { Player } from './player.js?v=9';
-import { Renderer } from './renderer.js?v=11';
+import { Renderer } from './renderer.js?v=12';
 import { Hud } from './hud.js?v=10';
 import { Input } from './input.js?v=10';
 import {
@@ -18,7 +18,7 @@ import { BotManager, roofAlphaAt } from './bots.js?v=13';
 import { Corruption } from './corruption.js?v=9';
 import { CombatHud } from './combat-hud.js?v=11';
 import { Effects } from './effects.js?v=13';
-import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=9';
+import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=10';
 import { drawPlayer, drawDying } from './draw.js?v=9';
 import { SFX } from '../sfx.js?v=14';
 import { Settings } from '../settings.js?v=9';
@@ -963,6 +963,8 @@ function start() {
     });
     selectAdminCategory('give-weapon');
     updateAdminPowerButtons();
+
+    function toggleAdminPanel(force) {
         if (!adminEnabled || !adminPanel) return;
         const open = typeof force === 'boolean' ? force : !adminPanelOpen;
         if (open === adminPanelOpen) return;
