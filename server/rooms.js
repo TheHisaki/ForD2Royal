@@ -29,7 +29,8 @@ const ACCOUNT_ACTIONS = {
     account_rename: 'rename',
     account_profile_import: 'profile',
     account_profile_save: 'profile',
-    admin_set_matchmaking_countdown: 'admin_countdown'
+    admin_set_matchmaking_countdown: 'admin_countdown',
+    admin_skip_matchmaking_countdown: 'admin_countdown_skip'
 };
 
 // Identifiant de planeur reçu d'un client : court texte sûr, sinon rien
@@ -428,6 +429,9 @@ class RoomManager {
         if (type === 'admin_set_matchmaking_countdown') {
             return this.setMatchmakingCountdown(ws, msg.seconds);
         }
+        if (type === 'admin_skip_matchmaking_countdown') {
+            return this.skipMatchmakingCountdown(ws, msg.mode);
+        }
         if (type === 'account_session') {
             if (!(await this.authenticateToken(ws, msg.token))) {
                 return this.sendFriend(ws, { type: 'account_error', action: 'session', code: 'session_invalid', message: 'Session expirée, reconnecte-toi.' });
@@ -558,6 +562,57 @@ class RoomManager {
             this.notifyAccount(otherId, { type: 'friends_changed' });
             for (const socket of this.accountSockets.get(otherId) || []) await this.sendFriendState(socket);
         }
+    }
+
+    async skipMatchmakingCountdown(ws, rawMode) {
+        if (!(await this.requireAccount(ws)) || !ws.isAdmin) {
+            return this.sendFriend(ws, {
+                type: 'account_error',
+                action: 'admin_countdown_skip',
+                code: 'admin_required',
+                message: 'Droits administrateur requis.'
+            });
+        }
+
+        const mode = String(rawMode || '').trim().toLowerCase();
+        if (!/^(solo|duo|trio|section)$/.test(mode)) {
+            return this.sendFriend(ws, {
+                type: 'account_error',
+                action: 'admin_countdown_skip',
+                code: 'invalid_mode',
+                message: 'Mode de matchmaking invalide.'
+            });
+        }
+
+        const room = this.roomForSocket(ws);
+        const queue = this.matchmakingQueues.get(mode);
+        if (!room || !queue?.timer || !queue.rooms.has(room.code)) {
+            return this.sendFriend(ws, {
+                type: 'account_error',
+                action: 'admin_countdown_skip',
+                code: 'not_in_countdown',
+                message: 'Aucun compte à rebours actif dans ta file.'
+            });
+        }
+
+        queue.secondsLeft = Math.min(queue.secondsLeft, 3);
+        this.broadcastToQueue(queue, {
+            type: 'matchmaking_status',
+            state: 'countdown',
+            secondsLeft: queue.secondsLeft,
+            countdownDuration: 3,
+            teamsCount: queue.rooms.size,
+            mode: queue.mode
+        });
+
+        const update = {
+            type: 'admin_countdown_skipped',
+            seconds: queue.secondsLeft,
+            mode: queue.mode,
+            message: `Compte à rebours accéléré à ${queue.secondsLeft} secondes.`
+        };
+        this.sendFriend(ws, update);
+        this.notifyAdmins(update, ws);
     }
 
     async setMatchmakingCountdown(ws, rawSeconds) {

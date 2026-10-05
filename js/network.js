@@ -695,10 +695,10 @@ class NetworkManager {
         this.send({ type: 'start_game' });
     }
 
-    setMatchmakingCountdown(seconds) {
+    skipMatchmakingCountdown(mode) {
         if (!this.isAuthenticated() || !this.isAdmin) return false;
-        if (seconds !== 3 && seconds !== 30) return false;
-        this.send({ type: 'admin_set_matchmaking_countdown', seconds });
+        if (typeof mode !== 'string' || !/^(solo|duo|trio|section)$/i.test(mode)) return false;
+        this.send({ type: 'admin_skip_matchmaking_countdown', mode: mode.toLowerCase() });
         return true;
     }
 
@@ -886,8 +886,9 @@ class NetworkManager {
                 break;
             case 'admin_countdown_updated':
                 this.matchmakingCountdownSeconds = msg.seconds === 3 ? 3 : 30;
-                window.lobbyManager?.updateAdminControls?.(this.matchmakingCountdownSeconds);
-                window.lobbyManager?.showToast?.(msg.message || `Compte à rebours : ${this.matchmakingCountdownSeconds} s`);
+                break;
+            case 'admin_countdown_skipped':
+                window.lobbyManager?.showToast?.('Compte à rebours accéléré à 3 secondes.');
                 break;
             case 'friends_state':
                 // Gardé en mémoire : le panneau Amis peut être créé après cette réponse

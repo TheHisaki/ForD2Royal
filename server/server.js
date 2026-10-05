@@ -222,7 +222,7 @@ const GAME_MESSAGES = new Set([
 
 const ACCOUNT_MESSAGES = new Set([
     'account_register', 'account_login', 'account_session', 'account_logout', 'account_rename',
-    'account_profile_import', 'account_profile_save', 'admin_set_matchmaking_countdown', 'friend_request', 'friend_accept',
+    'account_profile_import', 'account_profile_save', 'admin_set_matchmaking_countdown', 'admin_skip_matchmaking_countdown', 'friend_request', 'friend_accept',
     'friend_reject', 'friend_remove', 'friend_invite',
     'group_invite', 'group_invite_accept', 'group_invite_reject'
 ]);

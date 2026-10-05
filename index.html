@@ -350,20 +350,6 @@
                     </div>
                 </section>
 
-                <!-- Outils réservés aux comptes administrateurs -->
-                <section class="card admin-controls" id="adminControls" hidden aria-labelledby="adminControlsTitle">
-                    <div class="admin-controls-head">
-                        <span class="admin-kicker">ADMIN</span>
-                        <h3 class="network-title" id="adminControlsTitle">Contrôle du matchmaking</h3>
-                    </div>
-                    <p class="admin-controls-desc">Durée du compte à rebours quand deux équipes sont trouvées.</p>
-                    <div class="admin-countdown-options" role="group" aria-label="Durée du compte à rebours">
-                        <button type="button" class="admin-countdown-btn" id="adminCountdown30" aria-pressed="true">30 s</button>
-                        <button type="button" class="admin-countdown-btn" id="adminCountdown3" aria-pressed="false">3 s</button>
-                    </div>
-                    <p class="admin-countdown-status" id="adminCountdownStatus" role="status" aria-live="polite">Réglage actuel : 30 secondes</p>
-                </section>
-
                 <div class="ready-section">
                     <button class="ready-button" id="readyBtn">
                         <span class="ready-text">PRÊT</span>
@@ -927,11 +913,12 @@
                     <span class="mm-teams-label">équipes prêtes</span>
                 </div>
 
-                <!-- Minuteur configurable (30 secondes par défaut, 3 secondes pour un admin) quand >= 2 équipes sont prêtes -->
+                <!-- Minuteur de 30 secondes ; le bouton admin peut accélérer la file active à 3 secondes -->
                 <div class="mm-countdown-wrap" id="mmCountdownWrap" hidden>
                     <div class="mm-countdown-label">LANCEMENT DE LA PARTIE DANS</div>
                     <div class="mm-countdown-number" id="mmCountdownNumber">30</div>
                     <div class="mm-countdown-sub" id="mmCountdownSub">D'autres équipes peuvent encore rejoindre la partie</div>
+                    <button type="button" class="mm-admin-skip-btn" id="mmAdminSkipBtn" hidden>ADMIN · PASSER À 3 S</button>
                 </div>
             </div>
 

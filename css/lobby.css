@@ -1319,66 +1319,6 @@
 }
 
 
-/* Contrôle admin du compte à rebours */
-.admin-controls {
-    padding: 13px 16px;
-    border-color: rgba(255, 48, 77, 0.55);
-    background: linear-gradient(135deg, rgba(70, 8, 24, 0.9), rgba(20, 6, 20, 0.78));
-    box-shadow: 0 0 20px rgba(255, 30, 64, 0.12);
-}
-
-.admin-controls-head {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
-}
-
-.admin-kicker {
-    color: #ff405a;
-    font-family: var(--font-display);
-    font-size: 14px;
-    letter-spacing: 1.5px;
-}
-
-.admin-controls .network-title {
-    color: #ffd8de;
-    margin-bottom: 0;
-}
-
-.admin-controls-desc,
-.admin-countdown-status {
-    color: rgba(255, 220, 225, 0.72);
-    font-size: 12px;
-    line-height: 1.35;
-}
-
-.admin-controls-desc { margin: 4px 0 10px; }
-
-.admin-countdown-options {
-    display: flex;
-    gap: 8px;
-}
-
-.admin-countdown-btn {
-    flex: 1;
-    padding: 7px 10px;
-    color: #ffd8de;
-    border: 1px solid rgba(255, 100, 120, 0.5);
-    border-radius: var(--radius);
-    background: rgba(255, 30, 64, 0.12);
-    font-size: 17px;
-}
-
-.admin-countdown-btn.is-selected {
-    color: #fff;
-    background: linear-gradient(180deg, #ff5570, #b90029);
-    border-color: #ff98a8;
-    box-shadow: 0 0 14px rgba(255, 30, 64, 0.35);
-}
-
-.admin-countdown-status { margin-top: 8px; }
-
 /* Bouton PRÊT (le gros bouton jaune) */
 /* marge latérale : le bouton est incliné, sinon ses coins sont coupés */
 .ready-section { padding: 0 12px; }
@@ -2010,6 +1950,27 @@
     font-size: 13px;
     color: rgba(255, 255, 255, 0.6);
     margin-top: 4px;
+}
+
+.mm-admin-skip-btn {
+    margin-top: 12px;
+    padding: 9px 16px;
+    color: #fff;
+    background: linear-gradient(180deg, #ff5a73 0%, #b7002d 100%);
+    border: 1px solid rgba(255, 190, 198, 0.75);
+    border-radius: var(--radius);
+    box-shadow: 0 0 18px rgba(255, 30, 64, 0.32);
+    font-size: 16px;
+}
+
+.mm-admin-skip-btn:hover {
+    background: linear-gradient(180deg, #ff7e91 0%, #d00038 100%);
+    box-shadow: 0 0 24px rgba(255, 30, 64, 0.52);
+}
+
+.mm-admin-skip-btn:disabled {
+    cursor: wait;
+    opacity: 0.7;
 }
 
 .mm-cancel-btn {

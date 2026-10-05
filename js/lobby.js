@@ -60,10 +60,8 @@ class LobbyManager {
             if (!['account_authenticated', 'account_updated', 'account_logged_out', 'profile_ready'].includes(msg?.type)) return;
             this.players[0].name = window.networkManager?.getPlayerName?.() || this.players[0].name;
             this.players[0].isAdmin = Boolean(window.networkManager?.isAdmin);
-            this.updateAdminControls();
             this.updateUI();
         });
-        this.updateAdminControls();
         this.updateBotFillUI();
         this.updateUI();
         this.startAnimations();
@@ -224,9 +222,8 @@ class LobbyManager {
             });
         }
 
-        // Contrôle admin du compte à rebours de matchmaking
-        document.getElementById('adminCountdown30')?.addEventListener('click', () => this.setAdminCountdown(30));
-        document.getElementById('adminCountdown3')?.addEventListener('click', () => this.setAdminCountdown(3));
+        // Contrôle admin disponible uniquement pendant le compte à rebours
+        document.getElementById('mmAdminSkipBtn')?.addEventListener('click', () => this.skipMatchmakingToThree());
 
         // Menu ☰ : panneau des paramètres (les interrupteurs sont gérés par js/settings.js)
         const menuBtn = document.getElementById('settingsBtn');
@@ -626,43 +623,6 @@ class LobbyManager {
         if (matchSwitch) matchSwitch.setAttribute('aria-checked', String(this.fillMatch));
 
         this.updateModeFooter();
-    }
-
-    updateAdminControls(seconds = null) {
-        const panel = document.getElementById('adminControls');
-        if (!panel) return;
-
-        const network = window.networkManager;
-        const visible = Boolean(network?.isAuthenticated?.() && network.isAdmin);
-        panel.hidden = !visible;
-        if (!visible) return;
-
-        const current = seconds === 3 || seconds === 30
-            ? seconds
-            : (network.matchmakingCountdownSeconds === 3 ? 3 : 30);
-        network.matchmakingCountdownSeconds = current;
-
-        const button30 = document.getElementById('adminCountdown30');
-        const button3 = document.getElementById('adminCountdown3');
-        button30?.classList.toggle('is-selected', current === 30);
-        button3?.classList.toggle('is-selected', current === 3);
-        button30?.setAttribute('aria-pressed', String(current === 30));
-        button3?.setAttribute('aria-pressed', String(current === 3));
-
-        const status = document.getElementById('adminCountdownStatus');
-        if (status) status.textContent = `Réglage actuel : ${current} secondes`;
-        this.updateModeFooter();
-    }
-
-    setAdminCountdown(seconds) {
-        const network = window.networkManager;
-        if (!network?.isAuthenticated?.() || !network.isAdmin) {
-            this.showToast('Connecte-toi avec un compte administrateur.');
-            return;
-        }
-        if (!network.setMatchmakingCountdown?.(seconds)) return;
-        const status = document.getElementById('adminCountdownStatus');
-        if (status) status.textContent = 'Enregistrement du réglage...';
     }
 
     // Réglages reçus du serveur (le chef du groupe les a changés)
@@ -1130,14 +1090,38 @@ class LobbyManager {
     }
 
     /* ===== GESTION DE LA FILE D'ATTENTE (MATCHMAKING SANS BOTS) ===== */
+    skipMatchmakingToThree() {
+        const network = window.networkManager;
+        if (!network?.isAuthenticated?.() || !network.isAdmin) return;
+        if (!network.skipMatchmakingCountdown?.(this.matchmakingMode)) return;
+        const button = document.getElementById('mmAdminSkipBtn');
+        if (button) {
+            button.disabled = true;
+            button.textContent = 'COMPTE À REBOURS ACCÉLÉRÉ';
+        }
+    }
+
     handleMatchmakingStatus(msg) {
         const overlay = document.getElementById('matchmakingOverlay');
         if (!overlay) return;
 
         if (!msg || msg.state === 'idle') {
+            this.matchmakingMode = null;
+            document.getElementById('mmAdminSkipBtn')?.setAttribute('hidden', '');
             overlay.classList.remove('is-visible');
             setTimeout(() => { overlay.hidden = true; }, 300);
             return;
+        }
+
+        this.matchmakingMode = msg.mode || this.currentGameMode?.toLowerCase() || 'duo';
+        const adminSkipBtn = document.getElementById('mmAdminSkipBtn');
+        const canAdminSkip = msg.state === 'countdown'
+            && Number(msg.secondsLeft) > 3
+            && Boolean(window.networkManager?.isAuthenticated?.() && window.networkManager.isAdmin);
+        if (adminSkipBtn) {
+            adminSkipBtn.hidden = !canAdminSkip;
+            adminSkipBtn.disabled = false;
+            adminSkipBtn.textContent = 'ADMIN · PASSER À 3 S';
         }
 
         overlay.hidden = false;
@@ -1306,7 +1290,6 @@ class LobbyManager {
 
     updateUI() {
         if (this.players[0]) this.players[0].isAdmin = Boolean(window.networkManager?.isAdmin);
-        this.updateAdminControls();
 
         // Mettre à jour l'affichage des joueurs
         const slots = document.querySelectorAll('.player-slot');

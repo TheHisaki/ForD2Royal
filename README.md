@@ -161,4 +161,4 @@ Ce projet est sous licence MIT. Libre à vous de l'utiliser, le modifier et l'h�
 
 Le compte dont le pseudo est `thehisaki` est administrateur par défaut. Le serveur reconnaît les administrateurs uniquement après authentification du compte ; un pseudo temporaire ne peut donc pas obtenir ces droits.
 
-Pour ajouter d’autres pseudos sans modifier le code, renseignez la variable d’environnement `ADMIN_USERNAMES` sur Hostinger, avec des pseudos séparés par des virgules (par exemple `thehisaki,moderateur`). Le panneau rouge **Contrôle du matchmaking** apparaît alors dans le lobby et permet de choisir le compte à rebours de la file d’attente entre **30 s** et **3 s**. La vérification est également faite côté serveur.
+Pour ajouter d’autres pseudos sans modifier le code, renseignez la variable d’environnement `ADMIN_USERNAMES` sur Hostinger, avec des pseudos séparés par des virgules (par exemple `thehisaki,moderateur`). Lorsqu’une file de matchmaking démarre son compte à rebours, un bouton rouge **ADMIN · PASSER À 3 S** apparaît uniquement dans cette fenêtre pour les administrateurs et accélère la file active à 3 secondes. La vérification est faite côté serveur.
