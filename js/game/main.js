@@ -1431,6 +1431,7 @@ function start() {
         if (Number.isFinite(m.dt)) mate.dbnoTimer = m.dt;
         if (Number.isFinite(m.fl)) mate.flashTimer = m.fl;
         if (Number.isFinite(m.st)) mate.stimTimer = m.st;
+        if (Number.isFinite(m.rl)) mate.reloadTimer = m.rl;
         // Soin en cours (affichage seulement : total infini, la copie ne se soigne jamais elle-même)
         if (m.use && !mate.usingItem) mate.usingItem = { slot: mate.slot, t: 0, total: Infinity };
         else if (!m.use) mate.usingItem = null;
@@ -2449,6 +2450,7 @@ function start() {
                 al: player.alive,
                 fl: Math.round((player.flashTimer || 0) * 10) / 10,
                 st: Math.round((player.stimTimer || 0) * 10) / 10,
+                rl: Math.round((player.reloadTimer || 0) * 10) / 10,
                 use: !!player.usingItem,
                 rv: reviving ? [reviving.id, Math.round((reviving.reviveProgress || 0) * 100) / 100] : null
             });

@@ -255,6 +255,7 @@ export class Combat {
             else this._recycle(b);
         }
         it.mag--;
+        if (it.mag <= 0) this.startReload(f); // recharge automatiquement après la dernière balle
         f.fireCooldown = 1 / w.fireRate;
         f.usingItem = null;
         const mx = f.x + Math.cos(f.angle) * muzzle;
