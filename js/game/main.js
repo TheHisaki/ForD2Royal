@@ -183,8 +183,12 @@ function start() {
 
     const fighters = [player];
 
-    // Multijoueur WebSocket : détection et initialisation des coéquipiers réels
-    const isMultiplayer = Boolean(gameConfig.isMultiplayer && gameConfig.roomCode && gameConfig.myPlayerId);
+    // Multijoueur WebSocket : seule une URL de salle créée pour cette page peut activer le réseau.
+    // La configuration persistée peut appartenir à une ancienne partie multijoueur ; elle ne
+    // doit jamais transformer un nouveau lancement local en invité sans synchronisation.
+    const isMultiplayer = Boolean(
+        roomParam && gameConfig.roomCode === roomParam && gameConfig.myPlayerId
+    );
     const adminEnabled = gameConfig.isAdmin === true;
     /*
        Hôte (« autorité ») : UN seul joueur de la partie simule les bots, la corruption

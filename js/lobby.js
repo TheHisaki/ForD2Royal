@@ -754,8 +754,15 @@ class LobbyManager {
                 fillTeam: this.botsEnabled,
                 isAdmin: Boolean(window.networkManager?.isAdmin)
             };
-            // Partie hors ligne : pas d'équipes reçues du serveur
-            if (!window.networkManager?.roomCode) delete cfg.teams;
+            // Partie hors ligne : ne jamais conserver l'état réseau d'une ancienne partie.
+            // Sinon game.html pourrait être lancé sans ?room= mais démarrer en invité,
+            // ce qui bloque les bots sur le vaisseau en attendant un hôte inexistant.
+            if (!window.networkManager?.roomCode) {
+                for (const key of ['isMultiplayer', 'roomCode', 'seed', 'mySlot', 'myPlayerId', 'myTeam',
+                    'isHost', 'authorityId', 'roomPlayers', 'teams', 'returningFromGame', 'autoRoom']) {
+                    delete cfg[key];
+                }
+            }
 
             // Si connecté à une salle réseau, préserver les identifiants et membres
             if (window.networkManager?.roomCode) {
