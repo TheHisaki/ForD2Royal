@@ -3,7 +3,7 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=23 : visibilité complète en mode spectateur après une mort en maison
+// ?v=24 : largage duel au-dessus des villes avec bus en panne et expulsion à 5 s
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { Player } from './player.js?v=11';
 import { Renderer } from './renderer.js?v=14';
@@ -11,7 +11,7 @@ import { Hud } from './hud.js?v=13';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT
-} from './drop.js?v=15';
+} from './drop.js?v=16';
 import { Combat } from './combat.js?v=11';
 import { Loot } from './loot.js?v=11';
 import { BotManager, roofAlphaAt } from './bots.js?v=16';
@@ -151,8 +151,12 @@ function start() {
     const loot = new Loot(world, gameSeed); // coffres (ajoutés aux obstacles) + butin au sol
     const effects = new Effects();
 
-    // Départ dans le vaisseau (trajet synchronisé par la graine en multijoueur)
-    const drop = new Drop(world, gameSeed);
+    const duelTownIndex = Math.max(0, Math.min(1, (Number(gameConfig.myTeam) || 1) - 1));
+    const duelTargetTown = isDuel ? world.towns[duelTownIndex] : null;
+    const drop = new Drop(world, gameSeed, {
+        duel: isDuel,
+        targetTown: duelTargetTown
+    });
     const player = new Player(drop.ship.x, drop.ship.y, world);
     player.phase = 'ship';
     player.team = 1;
@@ -2510,6 +2514,26 @@ function start() {
         if (waitEl.textContent !== txt) waitEl.textContent = txt;
     }
 
+    function showDuelExpulsion(sec) {
+        if (sec === null) {
+            waitEl?.remove();
+            waitEl = null;
+            return;
+        }
+        if (!waitEl) {
+            waitEl = document.createElement('div');
+            waitEl.setAttribute('role', 'status');
+            waitEl.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;' +
+                'min-width:290px;padding:18px 30px;border-radius:12px;background:rgba(8,12,32,.9);' +
+                'border:2px solid #ffcc45;box-shadow:0 0 30px rgba(255,80,40,.45);' +
+                'color:#fff;font:400 32px "Bebas Neue",Impact,sans-serif;letter-spacing:3px;text-align:center;pointer-events:none';
+            document.body.appendChild(waitEl);
+        }
+        const n = Math.max(0, Math.ceil(Number(sec) || 0));
+        const txt = `EXPULSION DES JOUEURS · ${n}`;
+        if (waitEl.textContent !== txt) waitEl.textContent = txt;
+    }
+
     /* ----- Envois réseau périodiques ----- */
     function netTick(now) {
         // Rien à envoyer tant que l'heure de la partie n'est pas connue (état pas encore à jour)
@@ -2567,7 +2591,7 @@ function start() {
             netSend({
                 type: 'world_sync',
                 c: corruption.state === 'idle' ? -1 : Math.round(corruption.elapsed * 1000) / 1000,
-                d: Math.round(drop.dist)
+                d: isDuel ? Math.round(drop.dist * 100) / 100 : Math.round(drop.dist)
             });
         }
     }
@@ -2682,7 +2706,8 @@ function start() {
         } else if (clockBase === null || now < clockBase) {
             // Le vaisseau n'est pas encore parti (ou l'heure n'est pas encore connue)
             waitOnBoard(dt);
-            showFlightWait(clockBase === null ? 0 : Math.ceil((clockBase - now) / 1000));
+            if (isDuel) showDuelExpulsion(5);
+            else showFlightWait(clockBase === null ? 0 : Math.ceil((clockBase - now) / 1000));
         } else {
             if (waitEl) showFlightWait(null);
             let behind = (now - clockBase) / 1000 - simClock;
@@ -2697,6 +2722,10 @@ function start() {
             } else {
                 dt = 0; // en avance (heure corrigée) : on attend que l'horloge nous rattrape
             }
+        }
+        if (isDuel) {
+            if (player.phase === 'ship') showDuelExpulsion(drop.timeLeft);
+            else showDuelExpulsion(null);
         }
         flushLootSpawns();
         netTick(now);

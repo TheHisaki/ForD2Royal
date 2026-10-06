@@ -210,13 +210,42 @@ function seededRandom(seed) {
 }
 
 export class Drop {
-    constructor(world, seed = null) {
+    constructor(world, seed = null, options = {}) {
         this.world = world;
+        this.duelMode = Boolean(options.duel && options.targetTown);
+        this.targetTown = options.targetTown || null;
+        this.duelCountdown = 5;
+        this.duelTime = 0;
         const width = world?.width || 6000;
         const height = world?.height || 6000;
         const scale = Math.min(width, height) / 6000;
         const margin = 450 * scale;
-        // Trajet : une droite qui passe près du centre, avec un angle au hasard
+
+        if (this.duelMode) {
+            // En 1V1, le bus est immobilisé à environ 200 m au-dessus de la ville.
+            // L'altitude 1 correspond au bus et le planeur s'ouvre à 2/3 : environ 100 m.
+            this.angle = 0;
+            this.path = {
+                ax: this.targetTown.x, ay: this.targetTown.y,
+                bx: this.targetTown.x, by: this.targetTown.y
+            };
+            this.length = 1;
+            this.enterAt = 0;
+            this.exitAt = 0;
+            this.dist = 0;
+            this.ship = {
+                x: this.targetTown.x,
+                y: this.targetTown.y,
+                angle: this.angle,
+                active: true,
+                broken: true
+            };
+            this.trail = [];
+            this.trailTimer = 0;
+            return;
+        }
+
+        // Trajet classique : une droite qui passe près du centre, avec un angle au hasard
         // (utilise la graine si en multijoueur pour synchroniser tous les joueurs)
         const rng = seed ? seededRandom(seed) : Math.random;
         const angle = rng() * Math.PI * 2;
@@ -243,7 +272,7 @@ export class Drop {
         }
 
         this.dist = 0;
-        this.ship = { ...this.pointAt(0), angle, active: true };
+        this.ship = { ...this.pointAt(0), angle, active: true, broken: false };
         this.trail = [];
         this.trailTimer = 0;
     }
@@ -257,20 +286,31 @@ export class Drop {
     }
 
     get autoJumpAt() {
-        return this.exitAt + SHIP_SPEED * AUTO_JUMP_GRACE;
+        return this.duelMode ? this.duelCountdown : this.exitAt + SHIP_SPEED * AUTO_JUMP_GRACE;
     }
 
     get canJump() {
-        return this.dist >= this.enterAt && this.dist <= this.autoJumpAt;
+        return this.duelMode
+            ? this.duelTime >= this.duelCountdown
+            : this.dist >= this.enterAt && this.dist <= this.autoJumpAt;
     }
 
-    // Secondes avant le saut automatique
+    // Secondes avant l'éjection automatique
     get timeLeft() {
-        return Math.max(0, (this.exitAt - this.dist) / SHIP_SPEED);
+        return this.duelMode
+            ? Math.max(0, this.duelCountdown - this.duelTime)
+            : Math.max(0, (this.exitAt - this.dist) / SHIP_SPEED);
     }
 
-    // Multijoueur : recale le vaisseau sur la distance parcourue chez l'hôte
+    // Multijoueur : recale le vaisseau sur la distance/horloge de l'hôte
     syncTo(dist, tolerance = 40) {
+        if (this.duelMode) {
+            if (!Number.isFinite(dist) || Math.abs(dist - this.duelTime) <= 0.15) return;
+            this.duelTime = Math.max(0, Math.min(this.duelCountdown, dist));
+            this.dist = this.duelTime;
+            this.ship.active = this.duelTime < this.duelCountdown;
+            return;
+        }
         if (!Number.isFinite(dist) || Math.abs(dist - this.dist) <= tolerance) return;
         this.dist = Math.max(0, dist);
         Object.assign(this.ship, this.pointAt(this.dist));
@@ -284,20 +324,40 @@ export class Drop {
     jump(player, force = false) {
         if (player.phase !== 'ship') return false;
         if (!force && !this.canJump) return false;
-        if (force && this.exitAt !== null && this.dist > this.autoJumpAt) {
+        if (!this.duelMode && force && this.exitAt !== null && this.dist > this.autoJumpAt) {
             // En retard (onglet en arrière-plan, recalage réseau) : éjecté au bord de l'île
             Object.assign(player, this.pointAt(this.autoJumpAt));
         }
+        if (this.duelMode) {
+            player.x = this.targetTown.x;
+            player.y = this.targetTown.y;
+            this.ship.active = false;
+        }
         player.phase = 'air';
         player.altitude = 1;
-        player.vx = Math.cos(this.angle) * 200; // garde un peu l'élan du vaisseau
-        player.vy = Math.sin(this.angle) * 200;
+        player.vx = this.duelMode ? 0 : Math.cos(this.angle) * 200;
+        player.vy = this.duelMode ? 0 : Math.sin(this.angle) * 200;
         return true;
     }
 
     update(dt, player, input, aimX, aimY) {
-        // ----- Vaisseau (continue sa route même après le saut) -----
-        if (this.ship.active) {
+        // ----- Vaisseau -----
+        if (this.duelMode) {
+            // Bus en panne : il reste immobile au-dessus de la ville pendant 5 s.
+            if (player.phase === 'ship') {
+                this.duelTime = Math.min(this.duelCountdown, this.duelTime + dt);
+                if (this.duelTime >= this.duelCountdown - 0.001) this.duelTime = this.duelCountdown;
+                this.dist = this.duelTime;
+                this.ship.active = this.duelTime < this.duelCountdown;
+            }
+            this.trailTimer += dt;
+            if (this.trailTimer > 0.08 && this.ship.active) {
+                this.trailTimer = 0;
+                this.trail.push({ x: this.ship.x - 110, y: this.ship.y - 34, life: 1 },
+                    { x: this.ship.x - 110, y: this.ship.y + 34, life: 1 });
+            }
+        } else if (this.ship.active) {
+            // Trajet classique : le vaisseau continue sa route même après le saut.
             this.dist += SHIP_SPEED * dt;
             Object.assign(this.ship, this.pointAt(this.dist));
             if (this.dist > this.length) this.ship.active = false;
@@ -369,7 +429,7 @@ export class Drop {
         const pr = _shipProj;
         airProject(0, 0, SHIP_HEIGHT, pr);
         if (pr.alpha > 0) {
-            ctx.fillStyle = '#ffffff';
+            ctx.fillStyle = this.ship.broken ? '#4a4550' : '#ffffff';
             for (const t of this.trail) {
                 airProject(t.x, t.y, SHIP_HEIGHT, pr);
                 const rad = (14 + (1 - t.life) * 26) * pr.k;
@@ -1098,17 +1158,38 @@ function drawShip(ctx, ship, time) {
     ctx.lineWidth = 6;
     ctx.strokeStyle = OUTLINE;
 
-    // Flammes des réacteurs
+    // Réacteurs : le bus duel est en panne (fumée sombre, étincelles, voyant rouge)
     const flick = 1 + Math.sin(time * 40) * 0.12;
-    for (const side of SIDES) {
-        ctx.fillStyle = '#ff9d00';
-        ctx.beginPath();
-        ctx.ellipse(-150 - 22 * flick, side * 36, 34 * flick, 15, 0, 0, Math.PI * 2);
-        ctx.fill();
-        ctx.fillStyle = '#ffe03d';
-        ctx.beginPath();
-        ctx.ellipse(-140 - 12 * flick, side * 36, 20 * flick, 9, 0, 0, Math.PI * 2);
-        ctx.fill();
+    if (ship.broken) {
+        for (const side of SIDES) {
+            ctx.fillStyle = 'rgba(55, 62, 78, 0.75)';
+            ctx.beginPath();
+            ctx.ellipse(-165 - Math.sin(time * 3 + side) * 12, side * 36, 28 + flick * 8, 18 + flick * 5, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ff334b';
+            ctx.beginPath();
+            ctx.arc(-122, side * 36, 7 + Math.sin(time * 10 + side) * 2, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.strokeStyle = '#ffb627';
+            ctx.lineWidth = 3;
+            ctx.beginPath();
+            ctx.moveTo(-178, side * 36 - 18);
+            ctx.lineTo(-195, side * 36 - 31);
+            ctx.moveTo(-177, side * 36 + 12);
+            ctx.lineTo(-194, side * 36 + 25);
+            ctx.stroke();
+        }
+    } else {
+        for (const side of SIDES) {
+            ctx.fillStyle = '#ff9d00';
+            ctx.beginPath();
+            ctx.ellipse(-150 - 22 * flick, side * 36, 34 * flick, 15, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.fillStyle = '#ffe03d';
+            ctx.beginPath();
+            ctx.ellipse(-140 - 12 * flick, side * 36, 20 * flick, 9, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
     }
 
     // Ailes
