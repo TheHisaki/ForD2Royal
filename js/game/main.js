@@ -3,7 +3,7 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=22 : filtrage des animations extérieures et traces de pas
+// ?v=23 : visibilité complète en mode spectateur après une mort en maison
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { Player } from './player.js?v=11';
 import { Renderer } from './renderer.js?v=14';
@@ -2268,6 +2268,9 @@ function start() {
     // Visibilité intérieure : depuis une maison, seuls les combattants dans cette
     // même maison sont rendus normalement. Les autres restent signalés au sol.
     function canSeeFromHouse(fighter) {
+        // Après la mort, la caméra devient spectateur : elle ne doit plus être
+        // limitée par la dernière maison visitée par le joueur.
+        if (!player.alive) return true;
         const viewerHouse = player.phase === 'ground' ? buildingAt(player.x, player.y) : null;
         if (!viewerHouse || fighter === player) return true;
         if (fighter.phase !== 'ground') return false;
