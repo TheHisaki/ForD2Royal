@@ -3,7 +3,7 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=21 : visibilité des joueurs depuis l'intérieur des maisons
+// ?v=22 : filtrage des animations extérieures et traces de pas
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { Player } from './player.js?v=11';
 import { Renderer } from './renderer.js?v=14';
@@ -12,7 +12,7 @@ import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT
 } from './drop.js?v=15';
-import { Combat } from './combat.js?v=10';
+import { Combat } from './combat.js?v=11';
 import { Loot } from './loot.js?v=11';
 import { BotManager, roofAlphaAt } from './bots.js?v=16';
 import { Corruption } from './corruption.js?v=11';
@@ -278,7 +278,7 @@ function start() {
         onFire(f, w, mx, my) {
             // Combattant caché dans une maison (toit fermé pour nous) : pas d'effet visible
             // par-dessus le toit (le son reste, on peut l'entendre)
-            const hidden = roofAlphaAt(world, f.x, f.y) > 0.5;
+            const hidden = !canSeeFromHouse(f) || roofAlphaAt(world, f.x, f.y) > 0.5;
             if (w.type === 'melee') {
                 if (!hidden) effects.swing(f.x, f.y, f.angle, f.r);
                 SFX.play('swing', { x: f.x, y: f.y });
@@ -304,14 +304,16 @@ function start() {
             }
         },
         onThrowableBounce(p) {
-            effects.grenadeBounce(p.x, p.y);
+            if (canSeeFromHouse(p.owner)) effects.grenadeBounce(p.x, p.y);
             SFX.play('grenadeBounce', { x: p.x, y: p.y });
         },
         onExplode(x, y, throwable, owner, visual) {
             // Visuel et son identiques sur toutes les machines (même pour une grenade rejouée)
             const fx = BLAST_FX[throwable.id];
-            if (fx) effects[fx](x, y, throwable.radius);
-            else effects.impact(x, y, owner?.angle || 0, 'wall');
+            if (canSeeFromHouse(owner)) {
+                if (fx) effects[fx](x, y, throwable.radius);
+                else effects.impact(x, y, owner?.angle || 0, 'wall');
+            }
             SFX.play('explosion', { x, y, kind: throwable.id });
             const shake = BLAST_SHAKE[throwable.id] || 0;
             if (shake > 0 && player.alive) {
@@ -323,8 +325,8 @@ function start() {
             if (visual || !isMultiplayer || owns(target)) return;
             netSend({ type: 'p_effect', t: target.id, e: effect, v: Math.round(factor * 100) / 100, x: Math.round(x), y: Math.round(y) });
         },
-        onImpact(x, y, angle, kind, target) {
-            effects.impact(x, y, angle, kind);
+        onImpact(x, y, angle, kind, target, owner) {
+            if (canSeeFromHouse(owner)) effects.impact(x, y, angle, kind);
             SFX.play('impact', { x, y, kind });
             if (target) {
                 // Petit recul de la cible dans le sens de la balle
@@ -392,7 +394,7 @@ function start() {
             if (isMultiplayer) netSend({ type: 'dbno', v: victim.id, k: attacker ? attacker.id : null, w: weaponId || '' });
         },
         onRevive(reviver, target) {
-            effects.healDone(target.x, target.y, false);
+            if (canSeeFromHouse(target)) effects.healDone(target.x, target.y, false);
             SFX.play('healDone', { x: target.x, y: target.y });
             if (target === player) {
                 combatHud?.killBanner(`RÉANIMÉ PAR ${reviver.name.toUpperCase()} !`);
@@ -402,7 +404,7 @@ function start() {
             }
         },
         onHealed(f, h) {
-            if (roofAlphaAt(world, f.x, f.y) <= 0.5) effects.healDone(f.x, f.y, h.shield > 0);
+            if (canSeeFromHouse(f) && roofAlphaAt(world, f.x, f.y) <= 0.5) effects.healDone(f.x, f.y, h.shield > 0);
             SFX.play('healDone', { x: f.x, y: f.y, shield: h.shield > 0 });
         },
         onReload(f, w) {
@@ -418,6 +420,7 @@ function start() {
             SFX.play('healStart', { x: f.x, y: f.y, item: h.id, vol: actionVol(f) });
         }
     });
+    combat.canSee = (fighter) => canSeeFromHouse(fighter);
     combat.teamMode = teamMode;
     combat.owns = owns;
     // Grenades en vol / au sol : même dessin que leur icône (Combat n'importe pas icons.js)
@@ -430,12 +433,13 @@ function start() {
     function showDeath(killer, victim, weaponId) {
         // Photo du personnage pour l'animation de mort (avant que son inventaire tombe)
         corpses.push({
+            fighter: victim,
             x: victim.x, y: victim.y, r: victim.r, angle: victim.angle,
             colors: victim.colors, skinStyle: victim.skinStyle,
             packMotif: victim.packMotif, packAccent: victim.packAccent,
             inventory: victim.inventory.slice(), slot: victim.slot, t: 0
         });
-        effects.death(victim.x, victim.y, victim.colors);
+        if (canSeeFromHouse(victim)) effects.death(victim.x, victim.y, victim.colors);
         SFX.play('eliminate', { x: victim.x, y: victim.y });
         if (killer && killer !== victim && weaponId !== 'corruption') killerOf.set(victim, killer);
         if (victim === player) {
@@ -469,7 +473,7 @@ function start() {
 
     // K.O. d'un combattant (ici ou sur une autre machine)
     function showDbno(victim, attacker) {
-        effects.death(victim.x, victim.y, victim.colors);
+        if (canSeeFromHouse(victim)) effects.death(victim.x, victim.y, victim.colors);
         SFX.play('playerDown', { x: victim.x, y: victim.y });
         combatHud?.addKill(attacker, victim, 'knockout');
         if (victim === player) {
@@ -518,14 +522,14 @@ function start() {
     }
 
     loot.onChestOpen = (c, f, local = true) => {
-        effects.chestOpen(c.x, c.y);
+        if (canSeeFromHouse(f)) effects.chestOpen(c.x, c.y);
         SFX.play('chest', { x: c.x, y: c.y, muffle: chestMuffle(c) });
         if (f === player) stats.chests++;
         // Ouvert ici par un combattant qu'on gère : les autres l'ouvrent aussi (sans butin)
         if (local && isMultiplayer && owns(f)) netSend({ type: 'chest_open', c: c.id, s: f?.id ?? null });
     };
     loot.onPickup = (f, item, color) => {
-        effects.pickup(item.x, item.y, color);
+        if (canSeeFromHouse(f)) effects.pickup(item.x, item.y, color);
         SFX.play('pickup', { x: item.x, y: item.y, kind: item.kind });
     };
 
@@ -1425,7 +1429,7 @@ function start() {
 
     // Effets d'un tir rejoué (même rendu que onFire)
     function remoteFireFx(f, w) {
-        const hidden = roofAlphaAt(world, f.x, f.y) > 0.5;
+        const hidden = !canSeeFromHouse(f) || roofAlphaAt(world, f.x, f.y) > 0.5;
         if (w.type === 'melee') {
             if (!hidden) effects.swing(f.x, f.y, f.angle, f.r);
             SFX.play('swing', { x: f.x, y: f.y });
@@ -1452,6 +1456,7 @@ function start() {
     function quietDeath(f) {
         if (!f.alive) return;
         corpses.push({
+            fighter: f,
             x: f.x, y: f.y, r: f.r, angle: f.angle, colors: f.colors, skinStyle: f.skinStyle,
             packMotif: f.packMotif, packAccent: f.packAccent,
             inventory: (f.inventory || []).slice(), slot: f.slot, t: 0
@@ -1970,15 +1975,17 @@ function start() {
                 f._slideT = (f._slideT || 0) + dt;
                 if (slide.stage === 0 && f._slideT > 0.05) {
                     f._slideT = 0;
-                    effects.roofDebris(f.x - Math.cos(slide.dir) * f.r * 0.6, f.y - Math.sin(slide.dir) * f.r * 0.6,
-                        slide.color, slide.dir, 2);
+                    if (canSeeFromHouse(f)) {
+                        effects.roofDebris(f.x - Math.cos(slide.dir) * f.r * 0.6, f.y - Math.sin(slide.dir) * f.r * 0.6,
+                            slide.color, slide.dir, 2);
+                    }
                     if ((f._slideSteps = (f._slideSteps || 0) + 1) % 2 === 0) {
                         SFX.play('step', { x: f.x, y: f.y, surface: 'tile', vol: f === player ? 0.9 : 0.5 });
                     }
                 }
                 if (slide.stage === 1 && !f._slideJumped) {
                     f._slideJumped = true; // départ du bord : gerbe de tuiles
-                    effects.roofDebris(f.x, f.y, slide.color, slide.dir, 7);
+                    if (canSeeFromHouse(f)) effects.roofDebris(f.x, f.y, slide.color, slide.dir, 7);
                 }
             } else if (f._slideJumped) {
                 f._slideJumped = false;
@@ -1986,7 +1993,7 @@ function start() {
 
             // Atterrissage : nuage de poussière (et petite secousse pour le joueur)
             if (f._prevPhase === 'air' && f.phase === 'ground') {
-                effects.landing(f.x, f.y);
+                if (canSeeFromHouse(f)) effects.landing(f.x, f.y);
                 SFX.play('land', { x: f.x, y: f.y });
                 if (f === player) renderer.shake(6);
             }
@@ -2012,7 +2019,7 @@ function start() {
                     f._healT = 0;
                     const it = f.inventory[f.usingItem.slot];
                     const shield = (HEALS[it?.itemId]?.shield || 0) > 0;
-                    if (roofAlphaAt(world, f.x, f.y) <= 0.5) effects.healTick(f.x, f.y, shield);
+                    if (canSeeFromHouse(f) && roofAlphaAt(world, f.x, f.y) <= 0.5) effects.healTick(f.x, f.y, shield);
                     SFX.play('healTick', { x: f.x, y: f.y, shield });
                 }
             }
@@ -2020,7 +2027,7 @@ function start() {
 
         // Chiffres de dégâts (un par cible et par image), jaunes et plus gros si ça fait mal
         for (const [victim, d] of pendingDamage) {
-            effects.damageNumber(victim.x, victim.y - victim.r - 14, d.amount, d.shield, d.amount >= 50);
+            if (canSeeFromHouse(victim)) effects.damageNumber(victim.x, victim.y - victim.r - 14, d.amount, d.shield, d.amount >= 50);
         }
         pendingDamage.clear();
 
@@ -2267,34 +2274,6 @@ function start() {
         return buildingAt(fighter.x, fighter.y) === viewerHouse;
     }
 
-    // Trace de base laissée par les joueurs extérieurs : elle reste sous les toits
-    // et ne révèle donc pas un joueur caché dans une autre maison.
-    function drawOutsideHouseTraces(ctx, v) {
-        const viewerHouse = player.phase === 'ground' ? buildingAt(player.x, player.y) : null;
-        if (!viewerHouse) return;
-        for (const fighter of fighters) {
-            if (fighter === player || !fighter.alive || fighter.adminInvisible || fighter.phase !== 'ground') continue;
-            if (buildingAt(fighter.x, fighter.y) === viewerHouse) continue;
-            if (v && (fighter.x < v.minX - 80 || fighter.x > v.maxX + 80 ||
-                      fighter.y < v.minY - 80 || fighter.y > v.maxY + 80)) continue;
-
-            const r = Math.max(12, fighter.r * 0.72);
-            ctx.save();
-            ctx.globalAlpha = 0.3;
-            ctx.fillStyle = 'rgba(8, 16, 40, 0.72)';
-            ctx.beginPath();
-            ctx.ellipse(fighter.x + r * 0.18, fighter.y + r * 0.3, r * 0.72, r * 0.42, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.globalAlpha = 0.5;
-            ctx.strokeStyle = 'rgba(210, 220, 235, 0.38)';
-            ctx.lineWidth = Math.max(2, fighter.r * 0.08);
-            ctx.beginPath();
-            ctx.arc(fighter.x, fighter.y, r * 0.5, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.restore();
-        }
-    }
-
     function drawTeammateOffscreen(ctx) {
         if (!teamMode || !player.alive) return;
         const teammates = fighters.filter(f => f !== player && f.alive && !f.adminInvisible && f.team === player.team && canSeeFromHouse(f));
@@ -2448,10 +2427,12 @@ function start() {
         under: (ctx, v) => {
             loot.draw(ctx, time, v);
             effects.drawGround(ctx, v);
-            drawOutsideHouseTraces(ctx, v);
         },
         entities: (ctx, v) => {
-            for (const c of corpses) drawDying(ctx, c, time);
+            for (const c of corpses) {
+                if (c.fighter && !canSeeFromHouse(c.fighter)) continue;
+                drawDying(ctx, c, time);
+            }
             for (const f of fighters) {
                 if (!f.alive || f.adminInvisible || f.phase !== 'ground') continue;
                 if (!canSeeFromHouse(f)) continue;

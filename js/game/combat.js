@@ -42,6 +42,7 @@ export class Combat {
         this._freeThrowables = [];
         this.smokeZones = [];
         this.teamMode = false; // set by main.js for duo/trio/section
+        this.canSee = null;     // filtre visuel optionnel (ex. joueur dans une maison)
         /*
            Multijoueur : chaque combattant a UN seul « propriétaire » qui décide de
            ses dégâts, de son K.O. et de sa mort (le joueur pour lui-même, l'hôte pour
@@ -177,7 +178,7 @@ export class Combat {
         if (!t || p.done) return;
         p.done = true;
         if (t.id === 'smoke') {
-            this.smokeZones.push({ x: p.x, y: p.y, r: t.radius, age: 0, duration: t.duration || 8, seed: Math.random() * 10 });
+            this.smokeZones.push({ x: p.x, y: p.y, r: t.radius, age: 0, duration: t.duration || 8, seed: Math.random() * 10, owner: p.owner });
         }
         if (!p.visual) {
             for (const target of this.fighters) {
@@ -748,10 +749,10 @@ export class Combat {
                     b.bounces--;
                     b.x -= oldUx * 3;
                     b.y -= b.uy * 3;
-                    this.events.onImpact?.(b.x, b.y, Math.atan2(b.vy, b.vx), 'ricochet', null);
+                    this.events.onImpact?.(b.x, b.y, Math.atan2(b.vy, b.vx), 'ricochet', null, b.owner);
                     continue;
                 }
-                this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), 'wall', null);
+                this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), 'wall', null, b.owner);
                 return false;
             }
             for (let i = 0; i < targets.length; i++) {
@@ -761,7 +762,7 @@ export class Combat {
                 const dx = b.x - t.x;
                 const dy = b.y - t.y;
                 if (dx * dx + dy * dy < rr * rr) {
-                    this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), t.shield > 0 ? 'shield' : 'health', b.visual ? null : t);
+                    this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), t.shield > 0 ? 'shield' : 'health', b.visual ? null : t, b.owner);
                     if (!b.visual) this.damage(t, b.damage, b.owner, b.weaponId);
                     return false;
                 }
@@ -799,11 +800,13 @@ export class Combat {
         ctx.lineJoin = 'round';
         const list = this.bullets;
         // Traceurs : jaunes (armes classiques), bleutés (ricochet) ; les carreaux sont dessinés à part
+        const visible = this.canSee;
         for (const [kind, color] of [['normal', '#fff3a8'], ['ricochet', '#8ff3ff']]) {
             ctx.beginPath();
             let any = false;
             for (let i = 0; i < list.length; i++) {
                 const b = list[i];
+                if (visible && !visible(b.owner)) continue;
                 if (b.weaponId === 'crossbow') continue;
                 if ((b.weaponId === 'ricochet') !== (kind === 'ricochet')) continue;
                 const len = Math.min(TRACER, b.dist + 6);
@@ -820,10 +823,15 @@ export class Combat {
             ctx.stroke();
         }
         for (let i = 0; i < list.length; i++) {
+            if (visible && !visible(list[i].owner)) continue;
             if (list[i].weaponId === 'crossbow') this._drawBolt(ctx, list[i]);
         }
-        for (const p of this.throwables) this._drawGrenade(ctx, p);
-        for (const zone of this.smokeZones) this._drawSmoke(ctx, zone);
+        for (const p of this.throwables) {
+            if (!visible || visible(p.owner)) this._drawGrenade(ctx, p);
+        }
+        for (const zone of this.smokeZones) {
+            if (!visible || visible(zone.owner)) this._drawSmoke(ctx, zone);
+        }
         ctx.restore();
     }
 
