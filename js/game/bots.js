@@ -6,10 +6,10 @@
    réfléchit que ~4 fois par seconde pour que 24 bots coûtent peu.
    ================================== */
 
-import { B, PLAYER, isWater } from './config.js?v=11';
-import { Player } from './player.js';
+import { B, PLAYER, isWater } from './config.js?v=12';
+import { Player } from './player.js?v=11';
 import { clamp, pick, airProject } from './utils.js';
-import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=14';
+import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=15';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
 import { hasBackpackArt } from './backpack-art.js';

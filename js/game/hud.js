@@ -3,9 +3,9 @@
    Minimap, carte plein écran, nom du lieu, barres de vie, inventaire.
    ================================== */
 
-import { B, BIOME_NAMES, OCEAN_DEEP, SEED, isWater } from './config.js?v=11';
-import { nearestLake, distToRoads } from './world.js?v=11';
-import { groundRGB, drawPlaza, drawField } from './draw.js';
+import { B, BIOME_NAMES, OCEAN_DEEP, SEED, isWater } from './config.js?v=12';
+import { nearestLake, distToRoads } from './world.js?v=12';
+import { groundRGB, drawPlaza, drawField } from './draw.js?v=11';
 import { fbm, valueNoise } from './noise.js';
 import { SFX } from '../sfx.js';
 
@@ -58,7 +58,7 @@ function mapGround(world, RES) {
             const i = py * RES + px;
             const s = world.sampleGround(x, y);
             biomes[i] = s.biome;
-            groundRGB(data, i * 4, s);
+            groundRGB(data, i * 4, s, world.theme?.colors);
             // Altitude (bruit) : seulement là où l'on dessine du relief
             if (s.biome === B.MONTAGNE || s.biome === B.NEIGE) height[i] = fbm(x * 0.0022, y * 0.0022, terrainSeed + 11, 4);
         }
@@ -181,13 +181,14 @@ export function buildMapImage(world, size = 1024) {
         ctx.moveTo(r.points[0], r.points[1]);
         for (let i = 2; i < r.points.length; i += 2) ctx.lineTo(r.points[i], r.points[i + 1]);
     };
-    ctx.strokeStyle = 'rgba(92, 62, 34, 0.9)';
+    const roadLook = world.theme?.mapRoad || null;
+    ctx.strokeStyle = roadLook?.edge || 'rgba(92, 62, 34, 0.9)';
     ctx.lineWidth = 9 * px;
     for (const r of world.roads) { roadLine(r); ctx.stroke(); }
-    ctx.strokeStyle = '#d9b47c';
+    ctx.strokeStyle = roadLook?.fill || '#d9b47c';
     ctx.lineWidth = 6 * px;
     for (const r of world.roads) { roadLine(r); ctx.stroke(); }
-    ctx.strokeStyle = 'rgba(255, 246, 220, 0.75)';
+    ctx.strokeStyle = roadLook?.dash || 'rgba(255, 246, 220, 0.75)';
     ctx.lineWidth = 1.2 * px;
     ctx.setLineDash([5 * px, 6 * px]);
     for (const r of world.roads) { roadLine(r); ctx.stroke(); }
@@ -741,15 +742,16 @@ export class Hud {
         if (p.phase !== 'ground') p.biome = this.world.sampleGround(p.x, p.y).biome;
         let name;
         let sub;
+        const names = this.world.theme?.biomeNames || BIOME_NAMES;
         const town = this.world.towns.find(t => Math.hypot(p.x - t.x, p.y - t.y) < t.radius);
         if (town) {
             name = town.name;
-            sub = BIOME_NAMES[town.biome] || '';
+            sub = names[town.biome] || '';
         } else if (p.biome === B.LAC) {
             name = nearestLake(this.world, p.x, p.y).name;
-            sub = BIOME_NAMES[B.LAC];
+            sub = names[B.LAC];
         } else {
-            name = BIOME_NAMES[p.biome] || '';
+            name = names[p.biome] || '';
             sub = '';
         }
 
@@ -835,7 +837,7 @@ export class Hud {
         const y1 = Math.min(base.height, sy + h);
         // Océan autour de l'île, seulement si le bord du monde est dans la vue
         if (x0 > sx || y0 > sy || x1 < sx + w || y1 < sy + h) {
-            ctx.fillStyle = OCEAN_DEEP;
+            ctx.fillStyle = this.world.theme?.oceanDeep || OCEAN_DEEP;
             ctx.fillRect(0, 0, w, h);
         }
         if (x1 > x0 && y1 > y0) {
@@ -884,7 +886,7 @@ export class Hud {
         const k = size / this.world.width;
         const dpr = this.dpr;
 
-        ctx.fillStyle = OCEAN_DEEP;
+        ctx.fillStyle = this.world.theme?.oceanDeep || OCEAN_DEEP;
         ctx.fillRect(0, 0, size, size);
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';

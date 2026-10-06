@@ -16,15 +16,15 @@
 
 import {
     CHUNK_SIZE, GROUND_RES, GRID_STEP, VIEW, ZOOM, OCEAN_DEEP, RENDER
-} from './config.js?v=11';
+} from './config.js?v=12';
 import { clamp, rectsOverlap, frameView } from './utils.js';
 import {
     groundRGB, drawRoads, drawPlaza, drawField, drawBuildingBase, drawRoof,
     castsShadow, drawShadow, drawObject, drawPlayer, drawDoorMarkers
-} from './draw.js';
+} from './draw.js?v=11';
 import {
     circleClass, rectClass, clipOutside, recolor, drawCorruptDetails, drawCorruptObject, drawCorruptRoof
-} from './corrupt-look.js';
+} from './corrupt-look.js?v=2';
 
 const OVERVIEW_RES = 30;                            // aperçu de l'île : 1 pixel = 30 unités
 const MAX_JOBS = 4;                                 // chunks à moitié construits gardés en mémoire
@@ -77,7 +77,7 @@ function roadPieces(roads, x0, y0, x1, y1) {
             } else if (start >= 0) {
                 const a = Math.max(0, start - 1);
                 const b = Math.min(n - 1, i);
-                out.push({ points: p.slice(a * 2, b * 2 + 2), width: r.width });
+                out.push({ points: p.slice(a * 2, b * 2 + 2), width: r.width, edge: r.edge, fill: r.fill, cobble: r.cobble });
                 start = -1;
             }
         }
@@ -96,6 +96,10 @@ export class Renderer {
         this.nChunksY = Math.ceil(world.height / CHUNK_SIZE);
         this.allChunks = this.nChunksX * this.nChunksY;
         this.groundN = CHUNK_SIZE / GROUND_RES + 2;
+        // Thème de la carte (null = apparence classique)
+        this.groundColors = world.theme?.colors || undefined;
+        this.oceanDeep = world.theme?.oceanDeep || OCEAN_DEEP;
+        this.gridColor = world.theme?.grid || 'rgba(0,0,0,0.07)';
         this.cam = { x: world.width / 2, y: world.height / 2 };
         this.zoomMul = 1;
         this.zoomTarget = 1;
@@ -278,7 +282,7 @@ export class Renderer {
         for (let j = 0; j < n; j++) {
             const wy = (j + 0.5) * OVERVIEW_RES;
             for (let i = 0; i < n; i++) {
-                groundRGB(data, (j * n + i) * 4, this.world.sampleGround((i + 0.5) * OVERVIEW_RES, wy));
+                groundRGB(data, (j * n + i) * 4, this.world.sampleGround((i + 0.5) * OVERVIEW_RES, wy), this.groundColors);
             }
         }
         cctx.putImageData(img, 0, 0);
@@ -315,7 +319,7 @@ export class Renderer {
             const wy = y0 + (j - 0.5) * GROUND_RES;
             let k = j * n * 4;
             for (let i = 0; i < n; i++, k += 4) {
-                groundRGB(data, k, this.world.sampleGround(x0 + (i - 0.5) * GROUND_RES, wy));
+                groundRGB(data, k, this.world.sampleGround(x0 + (i - 0.5) * GROUND_RES, wy), this.groundColors);
             }
             if (now() >= deadline) break;
         }
@@ -375,7 +379,7 @@ export class Renderer {
         }
 
         // Quadrillage
-        ctx.strokeStyle = 'rgba(0,0,0,0.07)';
+        ctx.strokeStyle = this.gridColor;
         ctx.lineWidth = 2;
         ctx.beginPath();
         for (let x = Math.ceil(x0 / GRID_STEP) * GRID_STEP; x <= x1; x += GRID_STEP) {
@@ -537,7 +541,7 @@ export class Renderer {
 
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalAlpha = 1;
-        ctx.fillStyle = OCEAN_DEEP;
+        ctx.fillStyle = this.oceanDeep;
         ctx.fillRect(0, 0, cw, ch);
 
         // Tremblement de caméra (décroît tout seul)

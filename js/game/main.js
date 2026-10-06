@@ -3,23 +3,23 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=18 : recharge les modules de génération et propagation du monde
-import { generateWorld, surfaceAt } from './world.js?v=11';
-import { Player } from './player.js?v=10';
-import { Renderer } from './renderer.js?v=13';
-import { Hud } from './hud.js?v=12';
+// ?v=19 : recharge les modules du thème de la carte 1V1 (Île Jumelle)
+import { generateWorld, surfaceAt } from './world.js?v=12';
+import { Player } from './player.js?v=11';
+import { Renderer } from './renderer.js?v=14';
+import { Hud } from './hud.js?v=13';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT
-} from './drop.js?v=14';
+} from './drop.js?v=15';
 import { Combat } from './combat.js?v=10';
-import { Loot } from './loot.js?v=10';
-import { BotManager, roofAlphaAt } from './bots.js?v=14';
-import { Corruption } from './corruption.js?v=10';
+import { Loot } from './loot.js?v=11';
+import { BotManager, roofAlphaAt } from './bots.js?v=15';
+import { Corruption } from './corruption.js?v=11';
 import { CombatHud } from './combat-hud.js?v=12';
 import { Effects } from './effects.js?v=14';
 import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=11';
-import { drawPlayer, drawDying } from './draw.js?v=10';
+import { drawPlayer, drawDying } from './draw.js?v=11';
 import { iconCanvas } from './icons.js';
 import { SFX } from '../sfx.js?v=15';
 import { Settings } from '../settings.js?v=9';
@@ -2418,7 +2418,7 @@ function start() {
         overlay: (ctx, v) => {
             corruption.drawWorld(ctx, v, time); // au-dessus du sol et des toits, sous le vaisseau et les chutes
             if (player.throwState && player.phase === 'ground' && player.alive) combat.drawThrowPreview(ctx, player, player.angle);
-            drawSkyHaze(ctx, v);          // voile d'altitude : le sol paraît lointain depuis le ciel
+            drawSkyHaze(ctx, v, world.theme?.haze); // voile d'altitude : le sol paraît lointain depuis le ciel
             bots.drawAir(ctx, time, v);   // culling fait dans drawFalling (position en perspective)
             if (isMultiplayer) {
                 for (const mate of remotePlayersMap.values()) {

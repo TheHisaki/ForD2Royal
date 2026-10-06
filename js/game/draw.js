@@ -4,7 +4,7 @@
    les objets et le joueur (style cartoon façon ZombsRoyale).
    ================================== */
 
-import { B, BIOME_COLORS } from './config.js';
+import { B, BIOME_COLORS } from './config.js?v=12';
 import { shadeHex, fighterSeed } from './utils.js';
 import { WEAPONS, HEALS, THROWABLES, drawWeapon } from './weapons.js';
 import { iconCanvas } from './icons.js';
@@ -16,8 +16,9 @@ const TAU = Math.PI * 2;
 /* ===================== SOL ===================== */
 
 // Écrit la couleur du sol (r, g, b, 255) dans "data" à l'index i
-export function groundRGB(data, i, s) {
-    const c = BIOME_COLORS[s.biome] || BIOME_COLORS[B.PLAINE];
+// colors : palette du thème de la carte (BIOME_COLORS par défaut)
+export function groundRGB(data, i, s, colors = BIOME_COLORS) {
+    const c = colors[s.biome] || colors[B.PLAINE];
     const sh = s.shade;
     let k;
     switch (s.biome) {
@@ -60,17 +61,31 @@ export function drawRoads(ctx, roads, extra = 0) {
     ctx.save();
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.strokeStyle = '#8b6540';
     for (const r of roads) {
+        ctx.strokeStyle = r.edge || '#8b6540';
         ctx.lineWidth = r.width + 14 + extra;
         roadPath(ctx, r.points);
         ctx.stroke();
     }
-    ctx.strokeStyle = '#c69d66';
     for (const r of roads) {
+        ctx.strokeStyle = r.fill || '#c69d66';
         ctx.lineWidth = r.width + extra;
         roadPath(ctx, r.points);
         ctx.stroke();
+    }
+    // Routes pavées (thème) : rangées de pavés en pointillés
+    for (const r of roads) {
+        if (!r.cobble) continue;
+        ctx.strokeStyle = r.cobble;
+        ctx.lineCap = 'butt';
+        ctx.setLineDash([14, 10]);
+        for (const k of [0.62, 0.22]) {
+            ctx.lineWidth = r.width * k;
+            roadPath(ctx, r.points);
+            ctx.stroke();
+        }
+        ctx.setLineDash([]);
+        ctx.lineCap = 'round';
     }
     ctx.restore();
 }
@@ -85,7 +100,27 @@ export function drawPlaza(ctx, town) {
     ctx.fillStyle = town.plaza;
     ctx.fill();
 
-    if (town.style === 'city') {
+    if (town.pattern === 'tiles') {
+        // Dalles de grès : quadrillage légèrement décalé
+        ctx.save();
+        ctx.clip();
+        ctx.strokeStyle = 'rgba(80, 30, 10, 0.16)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        for (let y = town.y - R; y <= town.y + R; y += 44) {
+            ctx.moveTo(town.x - R, y);
+            ctx.lineTo(town.x + R, y);
+            const shift = Math.round((y - town.y + R) / 44) % 2 ? 22 : 0;
+            for (let x = town.x - R + shift; x <= town.x + R; x += 44) {
+                ctx.moveTo(x, y);
+                ctx.lineTo(x, y + 44);
+            }
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    if (town.style === 'city' || town.pattern === 'rings') {
         // Pavés : cercles concentriques + lignes radiales
         ctx.save();
         ctx.clip();
@@ -465,7 +500,7 @@ export function drawRoof(ctx, b) {
 /* ===================== OBJETS ===================== */
 
 export function castsShadow(o) {
-    return o.type !== 'fountain' && o.type !== 'deadbush';
+    return o.type !== 'fountain' && o.type !== 'deadbush' && o.type !== 'leaves';
 }
 
 export function drawShadow(ctx, o) {
@@ -641,6 +676,18 @@ export function drawObject(ctx, o) {
             ctx.strokeStyle = o.base;
             ctx.lineWidth = 2;
             ctx.stroke();
+            break;
+        }
+        case 'leaves': {
+            // Feuilles mortes éparpillées (3 teintes alternées)
+            const s = o.spots;
+            const colors = [o.base, o.alt || o.light, o.dark];
+            for (let i = 0, k = 0; i < s.length; i += 3, k++) {
+                ctx.beginPath();
+                ctx.ellipse(x + s[i], y + s[i + 1], r * 0.26, r * 0.12, s[i + 2], 0, TAU);
+                ctx.fillStyle = colors[k % 3];
+                ctx.fill();
+            }
             break;
         }
         case 'stump': {

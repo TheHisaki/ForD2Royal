@@ -6,7 +6,7 @@
 import {
     SEED, WORLD_SIZE, B, REGION_SEEDS, SNOW_PEAK, LAKES,
     ROAD_WIDTH, getMapProfile, isWater
-} from './config.js?v=11';
+} from './config.js?v=12';
 import { fbm, valueNoise, mulberry32 } from './noise.js';
 import { SpatialGrid, shadeHex, pick, rectsOverlap, rectPointDist, segDist } from './utils.js';
 
@@ -18,6 +18,12 @@ export const ground = { biome: B.PLAINE, edge: 0, shade: 0.5 };
 // Au-delà de cette distance (en rayons de lac), ni lac ni plage.
 const LAKE_REACH = 1.14 + 0.175 + 0.01;
 
+// Union douce de deux distances signées (k = rayon de raccord)
+function smoothMin(a, b, k) {
+    const h = Math.max(k - Math.abs(a - b), 0) / k;
+    return Math.min(a, b) - h * h * k * 0.25;
+}
+
 function createGroundSampler(profile, result = { biome: B.PLAINE, edge: 0, shade: 0.5 }) {
     const scale = Math.min(profile.width, profile.height) / WORLD_SIZE;
     const invScale = 1 / scale;
@@ -25,6 +31,7 @@ function createGroundSampler(profile, result = { biome: B.PLAINE, edge: 0, shade
     const regions = profile.regionSeeds;
     const lakes = profile.lakes;
     const peak = profile.snowPeak;
+    const twin = profile.shape?.type === 'twin' ? profile.shape : null;
 
     return function sampleProfileGround(x, y) {
         result.edge = 0;
@@ -32,13 +39,27 @@ function createGroundSampler(profile, result = { biome: B.PLAINE, edge: 0, shade
         const ny = y * invScale;
         result.shade = valueNoise(nx * 0.012, ny * 0.012, terrainSeed + 9);
 
-        // Forme de l'île : un carré aux coins arrondis, avec une côte irrégulière.
-        const halfX = profile.width / 2;
-        const halfY = profile.height / 2;
-        const dx = (x - halfX) / halfX;
-        const dy = (y - halfY) / halfY;
-        let d = Math.sqrt(Math.sqrt(dx * dx * dx * dx + dy * dy * dy * dy));
-        d += (fbm(nx * 0.0011, ny * 0.0011, terrainSeed + 1, 3) - 0.5) * 0.14;
+        let d;
+        if (twin) {
+            // Île jumelle : distance signée aux deux disques fondus + îlots, ramenée
+            // sur la même échelle que la carte classique (0,86 = début de la plage).
+            let sd = smoothMin(
+                Math.hypot(x - twin.lobes[0].x, y - twin.lobes[0].y) - twin.lobes[0].r,
+                Math.hypot(x - twin.lobes[1].x, y - twin.lobes[1].y) - twin.lobes[1].r,
+                twin.blend
+            );
+            for (const s of twin.islets) sd = Math.min(sd, Math.hypot(x - s.x, y - s.y) - s.r);
+            sd += (fbm(nx * 0.0011, ny * 0.0011, terrainSeed + 1, 3) - 0.5) * twin.coastNoise;
+            d = 0.86 + sd / twin.coastScale;
+        } else {
+            // Forme de l'île : un carré aux coins arrondis, avec une côte irrégulière.
+            const halfX = profile.width / 2;
+            const halfY = profile.height / 2;
+            const dx = (x - halfX) / halfX;
+            const dy = (y - halfY) / halfY;
+            d = Math.sqrt(Math.sqrt(dx * dx * dx * dx + dy * dy * dy * dy));
+            d += (fbm(nx * 0.0011, ny * 0.0011, terrainSeed + 1, 3) - 0.5) * 0.14;
+        }
 
         if (d > 0.93) { result.biome = B.OCEAN; return result; }
         if (d > 0.895) {
@@ -207,6 +228,7 @@ export function generateWorld({ mapId = 'default' } = {}) {
         },
         width: profile.width,
         height: profile.height,
+        theme: profile.theme || null,   // null = apparence classique
         sampleGround: groundSampler,
         lakes: profile.lakes.map(l => ({ ...l })),
         towns: profile.towns.map(t => ({ ...t })),
@@ -221,7 +243,7 @@ export function generateWorld({ mapId = 'default' } = {}) {
     };
 
     // Les routes, villes et la nature consultent tous le même sampler de profil.
-    buildRoads(world, rng, profile.roadLinks);
+    buildRoads(world, rng, profile.roadLinks, profile.roadCurve ?? 0.32);
     for (const town of world.towns) buildTown(world, town, rng);
     scatterNature(world, rng, profile.natureAttempts);
     return world;
@@ -229,7 +251,8 @@ export function generateWorld({ mapId = 'default' } = {}) {
 
 /* ----- Chemins ----- */
 
-function buildRoads(world, rng, roadLinks) {
+function buildRoads(world, rng, roadLinks, curve = 0.32) {
+    const look = world.theme?.road || null;
     const byId = id => world.towns.find(t => t.id === id);
 
     for (const [a, b] of roadLinks) {
@@ -239,7 +262,7 @@ function buildRoads(world, rng, roadLinks) {
         const nx = -(C.y - A.y) / len;
         const ny = (C.x - A.x) / len;
         // Point de contrôle décalé sur le côté : chemin courbe
-        const off = (rng() - 0.5) * 0.32 * len;
+        const off = (rng() - 0.5) * curve * len;
         const cx = (A.x + C.x) / 2 + nx * off;
         const cy = (A.y + C.y) / 2 + ny * off;
         const phase = rng() * Math.PI * 2;
@@ -260,11 +283,14 @@ function buildRoads(world, rng, roadLinks) {
         }
 
         const m = ROAD_WIDTH;
-        world.roads.push({
+        const road = {
             points,
             width: ROAD_WIDTH,
             bbox: { minX: minX - m, minY: minY - m, maxX: maxX + m, maxY: maxY + m }
-        });
+        };
+        // Thème : couleurs de la route (pavés) ; sinon chemin de terre classique
+        if (look) Object.assign(road, { edge: look.edge, fill: look.fill, cobble: look.cobble });
+        world.roads.push(road);
 
         for (let i = 0; i < points.length - 2; i += 2) {
             const seg = { ax: points[i], ay: points[i + 1], bx: points[i + 2], by: points[i + 3] };
@@ -308,6 +334,23 @@ const STYLES = {
         sizes: [[230, 200]],
         roofs: ['#c23b32', '#a8452e'],
         floor: '#b89468', wall: '#4a2f1f', plaza: '#a9855a', plazaEdge: '#7d6040', roofType: 'gable'
+    },
+    // ----- Carte 1V1 (thème automne) -----
+    // Hameau forestier : toits bordeaux / sapin / ardoise, place pavée, grand érable au centre
+    maple: {
+        houses: 6,
+        sizes: [[240, 200], [260, 220], [300, 230], [220, 220]],
+        roofs: ['#8e2f3b', '#3e6b5a', '#4a5d7a', '#b8862f', '#6b3f6e'],
+        floor: '#b98a5c', wall: '#3b2a24', plaza: '#b9ab98', plazaEdge: '#7d6c5c', roofType: 'gable',
+        pattern: 'rings'
+    },
+    // Comptoir du canyon : maisons en adobe à toit plat, place dallée, puits de grès
+    mesa: {
+        houses: 6,
+        sizes: [[240, 200], [280, 220], [220, 220], [320, 220]],
+        roofs: ['#b5523b', '#c96f45', '#d99a5b', '#9c4632'],
+        floor: '#e2b48a', wall: '#6e3b28', plaza: '#d6a06e', plazaEdge: '#a8653f', roofType: 'flat',
+        pattern: 'tiles'
     }
 };
 
@@ -316,11 +359,14 @@ function buildTown(world, town, rng) {
     town.plazaR = Math.round(town.radius * 0.3);
     town.plaza = st.plaza;
     town.plazaEdge = st.plazaEdge;
+    if (st.pattern) town.pattern = st.pattern;
     const taken = [];
 
     // Élément central de la place
     if (town.style === 'city') addProp(world, 'fountain', town.x, town.y, 75);
     if (town.style === 'desert') addProp(world, 'well', town.x, town.y, 42);
+    if (town.style === 'mesa') addProp(world, 'well', town.x, town.y, 46, '#c58b5e');
+    if (town.style === 'maple') addGreatMaple(world, town, rng);
 
     if (town.style === 'farm') {
         const barn = placeRect(world, town, 480, 320, taken, rng, false);
@@ -470,11 +516,22 @@ function addObject(world, o) {
 
 const PROP_COLORS = { fountain: '#bdb8ab', well: '#9a958a', hay: '#e6c65c' };
 
-function addProp(world, type, x, y, r) {
-    const base = PROP_COLORS[type];
+function addProp(world, type, x, y, r, color = null) {
+    const base = color || PROP_COLORS[type];
     addObject(world, {
         type, x, y, r, cr: r, layer: 'ground', nature: false,
         base, dark: shadeHex(base, -0.35), light: shadeHex(base, 0.2)
+    });
+}
+
+// Grand érable rouge au milieu de la place du hameau (repère visible de loin)
+function addGreatMaple(world, town, rng) {
+    const r = Math.round(town.plazaR * 0.9); // la bordure pavée reste visible autour
+    const base = '#c23b2e';
+    addObject(world, {
+        type: 'tree', x: town.x, y: town.y, r, cr: r * 0.26, layer: 'top', nature: true,
+        base, dark: shadeHex(base, -0.35), light: shadeHex(base, 0.16),
+        pts: blobPoints(rng, r, 9, 0.06)
     });
 }
 
@@ -493,6 +550,109 @@ const TREE_COLORS = {
     [B.FORET]: ['#2e7a3c', '#378a44', '#26683a', '#3f8f3a'],
     [B.PLAINE]: ['#4fa34a', '#5cb14e', '#449a46', '#4fa34a', '#e08a2e']
 };
+
+/*
+   Végétation par thème (la carte classique n'en a pas : NATURE / TREE_COLORS ci-dessus).
+   Mêmes types d'objets (mêmes collisions), seulement d'autres couleurs, d'autres
+   proportions et un décor au sol en plus : les tas de feuilles mortes ('leaves').
+*/
+const NATURE_THEMES = {
+    autumn: {
+        rules: {
+            [B.FORET]:    { rate: 1,     pick: r => (r < 0.62 ? 'tree' : r < 0.75 ? 'bush' : r < 0.9 ? 'leaves' : r < 0.96 ? 'rock' : 'stump') },
+            [B.PLAINE]:   { rate: 0.11,  pick: r => (r < 0.3 ? 'tree' : r < 0.55 ? 'bush' : r < 0.9 ? 'leaves' : 'rock') },
+            [B.DESERT]:   { rate: 0.085, pick: r => (r < 0.55 ? 'rock' : r < 0.85 ? 'deadbush' : 'cactus') },
+            [B.MONTAGNE]: { rate: 0.3,   pick: r => (r < 0.5 ? 'rock' : r < 0.9 ? 'pine' : 'bush') },
+            [B.NEIGE]:    { rate: 0.22,  pick: r => (r < 0.6 ? 'pine' : 'rock') },
+            [B.BEACH]:    { rate: 0.04,  pick: r => (r < 0.6 ? 'rock' : 'deadbush') }
+        },
+        trees: {
+            [B.FORET]: ['#d9622b', '#c23b2e', '#e3a72f', '#b8452c', '#e07b2f', '#8a9a3a'],
+            [B.PLAINE]: ['#e3a72f', '#d9822b', '#9aa43c', '#c9562e']
+        },
+        bush: { [B.FORET]: '#b5652c', [B.MONTAGNE]: '#6f7a52', default: '#a8a23e' },
+        pine: '#2c5856',
+        rock: { [B.DESERT]: '#b4583a', [B.MONTAGNE]: '#7a7290', [B.NEIGE]: '#bdb9d0', default: '#a39098' },
+        bigRock: [B.DESERT, B.MONTAGNE, B.NEIGE],  // gros blocs (mesas du canyon)
+        cactus: '#6b8f4a',
+        deadbush: '#7a4f35',
+        stump: '#7d4f33',
+        leaves: [['#e07b2f', '#f2b04a'], ['#c23b2e', '#e3683f'], ['#e3a72f', '#f6cf63']]
+    }
+};
+
+// Variante thémée de makeNature (la carte classique garde exactement l'ancien code)
+function makeThemedNature(type, x, y, biome, rng, th) {
+    const o = { type, x, y, r: 30, cr: 0, layer: 'ground', nature: true, base: '#888888' };
+    switch (type) {
+        case 'tree':
+            o.r = biome === B.FORET ? 62 + rng() * 36 : 50 + rng() * 30;
+            o.base = pick(rng, th.trees[biome] || th.trees[B.PLAINE]);
+            o.cr = o.r * 0.3;
+            o.layer = 'top';
+            o.pts = blobPoints(rng, o.r, 7 + Math.floor(rng() * 3), 0.07);
+            break;
+        case 'bush':
+            o.r = 30 + rng() * 14;
+            o.base = th.bush[biome] || th.bush.default;
+            o.layer = 'top';
+            o.pts = blobPoints(rng, o.r, 5, 0.1);
+            break;
+        case 'pine':
+            o.r = 46 + rng() * 26;
+            o.base = th.pine;
+            o.cr = o.r * 0.28;
+            o.layer = 'top';
+            o.snowy = biome === B.NEIGE;
+            o.pts = starPoints(rng, o.r, 10);
+            break;
+        case 'rock': {
+            const big = th.bigRock.includes(biome);
+            o.r = big ? 34 + rng() * 60 : 24 + rng() * 26;
+            o.base = th.rock[biome] || th.rock.default;
+            o.cr = o.r * 0.88;
+            o.snowy = biome === B.NEIGE;
+            o.pts = rockPoints(rng, o.r);
+            break;
+        }
+        case 'cactus':
+            o.r = 20 + rng() * 12;
+            o.base = th.cactus;
+            o.cr = o.r;
+            o.flower = rng() < 0.3;
+            break;
+        case 'deadbush':
+            o.r = 20 + rng() * 10;
+            o.base = th.deadbush;
+            o.branches = Array.from({ length: 5 }, () => rng() * Math.PI * 2);
+            break;
+        case 'stump':
+            o.r = 20 + rng() * 8;
+            o.base = th.stump;
+            o.cr = o.r;
+            break;
+        case 'leaves': {
+            // Tas de feuilles mortes : décor au sol, sans collision ni ombre
+            o.r = 30 + rng() * 18;
+            const [base, light] = pick(rng, th.leaves);
+            o.base = base;
+            o.alt = light;
+            const n = 9 + Math.floor(rng() * 6);
+            o.spots = new Float32Array(n * 3);
+            for (let i = 0; i < n; i++) {
+                const a = rng() * Math.PI * 2;
+                const d = Math.sqrt(rng()) * o.r * 0.8;
+                o.spots[i * 3] = Math.cos(a) * d;
+                o.spots[i * 3 + 1] = Math.sin(a) * d;
+                o.spots[i * 3 + 2] = rng() * Math.PI;
+            }
+            break;
+        }
+    }
+    o.dark = shadeHex(o.base, -0.35);
+    o.light = shadeHex(o.base, 0.16);
+    return o;
+}
 
 // Contour "patate" d'un arbre ou buisson
 function blobPoints(rng, r, bumps, amp) {
@@ -613,6 +773,8 @@ function canPlace(world, o, biome) {
 
     const near = world.render.query(o.x - o.r - 110, o.y - o.r - 110, o.x + o.r + 110, o.y + o.r + 110, world._segTmp);
     for (const n of near) {
+        // Les feuilles mortes se glissent sous les feuillages (et inversement)
+        if ((o.type === 'leaves' && n.layer === 'top') || (n.type === 'leaves' && o.layer === 'top')) continue;
         const d = Math.hypot(n.x - o.x, n.y - o.y);
         // En forêt, les feuillages se chevauchent pour faire un bois dense
         const dense = biome === B.FORET && n.type === 'tree' && o.type === 'tree';
@@ -624,11 +786,13 @@ function canPlace(world, o, biome) {
 
 function scatterNature(world, rng, attempts = 30000) {
     const margin = Math.min(150, world.width * 0.05);
+    const th = world.theme ? NATURE_THEMES[world.theme.id] || null : null;
+    const rules = th ? th.rules : NATURE;
     for (let i = 0; i < attempts; i++) {
         const x = margin + rng() * (world.width - margin * 2);
         const y = margin + rng() * (world.height - margin * 2);
         const biome = world.sampleGround(x, y).biome;
-        const rule = NATURE[biome];
+        const rule = rules[biome];
         if (!rule || rng() > rule.rate) continue;
 
         const type = rule.pick(rng());
@@ -637,11 +801,11 @@ function scatterNature(world, rng, attempts = 30000) {
         const town = townAt(world, x, y, 40);
         if (town) {
             if (rng() < 0.75) continue;
-            if (!['tree', 'bush', 'pine', 'cactus'].includes(type)) continue;
+            if (!['tree', 'bush', 'pine', 'cactus', 'leaves'].includes(type)) continue;
             if (Math.hypot(x - town.x, y - town.y) < town.plazaR + 80) continue;
         }
 
-        const o = makeNature(type, x, y, biome, rng);
+        const o = th ? makeThemedNature(type, x, y, biome, rng, th) : makeNature(type, x, y, biome, rng);
         if (canPlace(world, o, biome)) addObject(world, o);
     }
 }

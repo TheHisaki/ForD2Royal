@@ -3,9 +3,9 @@
    Déplacement, visée et collisions.
    ================================== */
 
-import { PLAYER, isWater } from './config.js?v=11';
+import { PLAYER, isWater } from './config.js?v=12';
 import { INVENTORY_SLOTS } from './weapons.js';
-import { sampleGround } from './world.js?v=11';
+import { sampleGround } from './world.js?v=12';
 import { clamp } from './utils.js';
 
 export class Player {

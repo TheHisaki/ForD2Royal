@@ -103,13 +103,47 @@ export const ROAD_LINKS = [
     ['pic', 'bois'], ['dune', 'ferme'], ['pic', 'dune']
 ];
 
-// Carte dédiée au duel : profil autonome, plus compact et géographiquement distinct.
+/*
+   Carte dédiée au duel : « L'Île Jumelle ».
+   Deux îles rondes reliées par un isthme, en diagonale (nord-ouest / sud-est),
+   symétriques par rapport au centre pour que le 1v1 reste équitable :
+   - rive nord-ouest : bois d'automne, monts ardoise et cimes givrées ;
+   - rive sud-est : canyon écarlate et prairie dorée ;
+   - deux îlots isolés dans les coins vides.
+   Thème visuel propre (couleurs du sol, végétation, routes, villes, noms des zones).
+*/
 export const DUEL_MAP_ID = 'duel-two-towns';
 export const TOWNS_DUEL = [
-    { id: 'forge-aube', name: 'Forge de l’Aube', x: 720, y: 720, radius: 360, style: 'mountain', biome: B.MONTAGNE },
-    { id: 'port-ambre', name: 'Port d’Ambre', x: 2280, y: 2240, radius: 390, style: 'desert', biome: B.DESERT }
+    { id: 'erables',  name: 'Hameau des Érables', x: 1040, y: 960,  radius: 440, style: 'maple', biome: B.FORET },
+    { id: 'ecarlate', name: 'Comptoir Écarlate',  x: 1960, y: 2040, radius: 440, style: 'mesa',  biome: B.DESERT }
 ];
-export const ROAD_LINKS_DUEL = [['forge-aube', 'port-ambre']];
+export const ROAD_LINKS_DUEL = [['erables', 'ecarlate']];
+
+// Thème « automne crépusculaire » : couleurs du sol dans l'ordre des biomes (B)
+export const DUEL_THEME = {
+    id: 'autumn',
+    colors: [
+        [24, 84, 118],    // océan : bleu pétrole
+        [46, 150, 158],   // lagon turquoise
+        [238, 206, 170],  // grève rosée
+        [186, 170, 84],   // prairie dorée
+        [124, 86, 54],    // sous-bois roux (tapis de feuilles)
+        [200, 104, 68],   // canyon écarlate
+        [110, 102, 122],  // monts ardoise
+        [234, 232, 246],  // cimes givrées
+        [52, 160, 166]    // lacs turquoise
+    ],
+    oceanDeep: 'rgb(24, 84, 118)',
+    haze: '#ffd9b8',                       // voile d'altitude chaud (heure dorée)
+    grid: 'rgba(60, 20, 0, 0.06)',
+    biomeNames: [
+        'Mer d’Ardoise', 'Lagon', 'Grève rosée', 'Prairie dorée', 'Bois d’automne',
+        'Canyon écarlate', 'Monts ardoise', 'Cimes givrées', 'Lac'
+    ],
+    // Routes pavées gris-lavande (au lieu des chemins de terre)
+    road: { edge: '#4f4256', fill: '#9d90a6', cobble: 'rgba(40, 24, 48, 0.18)' },
+    mapRoad: { edge: 'rgba(52, 38, 60, 0.9)', fill: '#c4b8cc', dash: 'rgba(255, 244, 230, 0.7)' }
+};
 
 // Les profils sont immuables côté configuration : generateWorld clone les données
 // géographiques avant de construire les grilles et les objets de la partie.
@@ -129,22 +163,39 @@ export const MAP_PRESETS = {
         width: 3000,
         height: 3000,
         terrainSeed: 773421,
+        // Forme : deux disques fondus (isthme au centre) + îlots
+        shape: {
+            type: 'twin',
+            lobes: [{ x: 960, y: 960, r: 780 }, { x: 2040, y: 2040, r: 780 }],
+            islets: [{ x: 2390, y: 610, r: 150 }, { x: 610, y: 2390, r: 150 }],
+            blend: 160,        // rondeur de l'isthme
+            coastNoise: 240,   // côte découpée (unités)
+            coastScale: 2200   // largeur des bandes plage / lagon
+        },
+        // Biomes symétriques par rapport au centre (1500, 1500)
         regionSeeds: [
-            { b: B.MONTAGNE, x: 620, y: 600 },
-            { b: B.FORET, x: 2310, y: 620 },
-            { b: B.DESERT, x: 620, y: 2350 },
-            { b: B.PLAINE, x: 1500, y: 1450 },
-            { b: B.PLAINE, x: 2320, y: 2250 }
+            { b: B.MONTAGNE, x: 480, y: 520 },
+            { b: B.FORET, x: 1380, y: 760 },
+            { b: B.FORET, x: 700, y: 1380 },
+            { b: B.PLAINE, x: 1040, y: 960 },
+            { b: B.PLAINE, x: 1500, y: 1500 },
+            { b: B.PLAINE, x: 1620, y: 2240 },
+            { b: B.FORET, x: 2300, y: 1620 },
+            { b: B.DESERT, x: 1960, y: 2040 },
+            { b: B.DESERT, x: 2520, y: 2480 }
         ],
-        snowPeak: { x: 600, y: 590, radius: 280 },
+        snowPeak: { x: 470, y: 500, radius: 210 },
         lakes: [
-            { x: 1450, y: 610, r: 145, name: 'Lac des Brumes' },
-            { x: 1980, y: 1460, r: 185, name: 'Lac Miroir' },
-            { x: 1010, y: 1700, r: 125, name: 'Étang Cuivré' }
+            { x: 560, y: 1250, r: 130, name: 'Lac des Érables' },
+            { x: 760, y: 470, r: 95, name: 'Lac Givré' },
+            { x: 2440, y: 1750, r: 130, name: 'Bassin Pourpre' },
+            { x: 2240, y: 2530, r: 95, name: 'Oasis Rouge' }
         ],
         towns: TOWNS_DUEL,
         roadLinks: ROAD_LINKS_DUEL,
-        natureAttempts: 12000
+        roadCurve: 0.12,   // route presque droite : elle reste sur l'isthme
+        natureAttempts: 20000,
+        theme: DUEL_THEME
     }
 };
 

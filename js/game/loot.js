@@ -4,8 +4,8 @@
    Le contenu change à chaque partie (Math.random).
    ================================== */
 
-import { isWater } from './config.js?v=11';
-import { townAt } from './world.js?v=11';
+import { isWater } from './config.js?v=12';
+import { townAt } from './world.js?v=12';
 import { rectPointDist } from './utils.js';
 import { RARITIES, AMMO_TYPES, WEAPONS, LOOT_WEAPONS, HEALS, THROWABLES, INVENTORY_SLOTS, drawWeapon } from './weapons.js';
 import { iconCanvas } from './icons.js';

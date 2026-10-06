@@ -5,7 +5,7 @@
    (le bouclier ne protège pas), et de plus en plus au fil de la partie.
    ================================== */
 
-import { isWater } from './config.js?v=11';
+import { isWater } from './config.js?v=12';
 
 /* ===================== RÉGLAGES ===================== */
 

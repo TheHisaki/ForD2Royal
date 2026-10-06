@@ -5,7 +5,7 @@
    ================================== */
 
 import { clamp, inFrameView, fighterSeed, airProject, frameView, rectPointDist } from './utils.js';
-import { drawPlayer, drawStyledHead } from './draw.js';
+import { drawPlayer, drawStyledHead } from './draw.js?v=11';
 import { GLIDER_ART } from '../glider-art.js';
 import { drawBackpack } from './backpack-art.js';
 
@@ -189,12 +189,12 @@ export function updateRoofSlide(f, dt) {
 
 // Voile d'air entre la caméra et le sol : la carte paraît plus lointaine en altitude.
 // À dessiner après le sol et avant ce qui vole (v = bornes de la vue, repère monde).
-export function drawSkyHaze(ctx, v) {
+export function drawSkyHaze(ctx, v, color = '#cfe4ff') {
     const depth = clamp((frameView.camH - 1) / SHIP_HEIGHT, 0, 1);
     if (depth <= 0.01) return;
     ctx.save();
     ctx.globalAlpha = depth * 0.22;
-    ctx.fillStyle = '#cfe4ff';
+    ctx.fillStyle = color;
     ctx.fillRect(v.minX, v.minY, v.maxX - v.minX, v.maxY - v.minY);
     ctx.restore();
 }
