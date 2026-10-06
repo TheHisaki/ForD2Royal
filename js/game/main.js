@@ -3,7 +3,7 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=20 : zoom intérieur des maisons + thème de la carte 1V1
+// ?v=21 : visibilité des joueurs depuis l'intérieur des maisons
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { Player } from './player.js?v=11';
 import { Renderer } from './renderer.js?v=14';
@@ -14,7 +14,7 @@ import {
 } from './drop.js?v=15';
 import { Combat } from './combat.js?v=10';
 import { Loot } from './loot.js?v=11';
-import { BotManager, roofAlphaAt } from './bots.js?v=15';
+import { BotManager, roofAlphaAt } from './bots.js?v=16';
 import { Corruption } from './corruption.js?v=11';
 import { CombatHud } from './combat-hud.js?v=12';
 import { Effects } from './effects.js?v=14';
@@ -2258,9 +2258,46 @@ function start() {
     }
 
     /* ----- Indicateurs de coéquipiers hors écran ----- */
+    // Visibilité intérieure : depuis une maison, seuls les combattants dans cette
+    // même maison sont rendus normalement. Les autres restent signalés au sol.
+    function canSeeFromHouse(fighter) {
+        const viewerHouse = player.phase === 'ground' ? buildingAt(player.x, player.y) : null;
+        if (!viewerHouse || fighter === player) return true;
+        if (fighter.phase !== 'ground') return false;
+        return buildingAt(fighter.x, fighter.y) === viewerHouse;
+    }
+
+    // Trace de base laissée par les joueurs extérieurs : elle reste sous les toits
+    // et ne révèle donc pas un joueur caché dans une autre maison.
+    function drawOutsideHouseTraces(ctx, v) {
+        const viewerHouse = player.phase === 'ground' ? buildingAt(player.x, player.y) : null;
+        if (!viewerHouse) return;
+        for (const fighter of fighters) {
+            if (fighter === player || !fighter.alive || fighter.adminInvisible || fighter.phase !== 'ground') continue;
+            if (buildingAt(fighter.x, fighter.y) === viewerHouse) continue;
+            if (v && (fighter.x < v.minX - 80 || fighter.x > v.maxX + 80 ||
+                      fighter.y < v.minY - 80 || fighter.y > v.maxY + 80)) continue;
+
+            const r = Math.max(12, fighter.r * 0.72);
+            ctx.save();
+            ctx.globalAlpha = 0.3;
+            ctx.fillStyle = 'rgba(8, 16, 40, 0.72)';
+            ctx.beginPath();
+            ctx.ellipse(fighter.x + r * 0.18, fighter.y + r * 0.3, r * 0.72, r * 0.42, 0, 0, Math.PI * 2);
+            ctx.fill();
+            ctx.globalAlpha = 0.5;
+            ctx.strokeStyle = 'rgba(210, 220, 235, 0.38)';
+            ctx.lineWidth = Math.max(2, fighter.r * 0.08);
+            ctx.beginPath();
+            ctx.arc(fighter.x, fighter.y, r * 0.5, 0, Math.PI * 2);
+            ctx.stroke();
+            ctx.restore();
+        }
+    }
+
     function drawTeammateOffscreen(ctx) {
         if (!teamMode || !player.alive) return;
-        const teammates = fighters.filter(f => f !== player && f.alive && !f.adminInvisible && f.team === player.team);
+        const teammates = fighters.filter(f => f !== player && f.alive && !f.adminInvisible && f.team === player.team && canSeeFromHouse(f));
         if (!teammates.length) return;
 
         const sw = renderer.cssW;
@@ -2350,7 +2387,9 @@ function start() {
         const m = 50;
         for (const mate of remotePlayersMap.values()) {
             if (!mate.alive || mate.adminInvisible || mate.phase !== 'ground') continue;
-            if (v && (mate.x < v.minX - m || mate.x > v.maxX + m || mate.y < v.minY - m || mate.y > v.maxY + m)) continue;
+            if (!canSeeFromHouse(mate)) continue;
+            if (v && (mate.x < v.minX - m || mate.x > v.maxX + m ||
+                      mate.y < v.minY - m || mate.y > v.maxY + m)) continue;
             const roofA = roofAlphaAt(world, mate.x, mate.y);
             if (roofA > 0.9) continue;
 
@@ -2409,11 +2448,13 @@ function start() {
         under: (ctx, v) => {
             loot.draw(ctx, time, v);
             effects.drawGround(ctx, v);
+            drawOutsideHouseTraces(ctx, v);
         },
         entities: (ctx, v) => {
             for (const c of corpses) drawDying(ctx, c, time);
             for (const f of fighters) {
                 if (!f.alive || f.adminInvisible || f.phase !== 'ground') continue;
+                if (!canSeeFromHouse(f)) continue;
                 if (f.x < v.minX - 80 || f.x > v.maxX + 80 || f.y < v.minY - 80 || f.y > v.maxY + 80) continue;
                 drawPlayer(ctx, f, time);
             }
@@ -2423,15 +2464,15 @@ function start() {
             corruption.drawWorld(ctx, v, time); // au-dessus du sol et des toits, sous le vaisseau et les chutes
             if (player.throwState && player.phase === 'ground' && player.alive) combat.drawThrowPreview(ctx, player, player.angle);
             drawSkyHaze(ctx, v, world.theme?.haze); // voile d'altitude : le sol paraît lointain depuis le ciel
-            bots.drawAir(ctx, time, v);   // culling fait dans drawFalling (position en perspective)
+            bots.drawAir(ctx, time, v, canSeeFromHouse);   // culling fait dans drawFalling (position en perspective)
             if (isMultiplayer) {
                 for (const mate of remotePlayersMap.values()) {
-                    if (mate.alive && !mate.adminInvisible && mate.phase === 'air') drawFalling(ctx, mate, time);
+                    if (mate.alive && !mate.adminInvisible && mate.phase === 'air' && canSeeFromHouse(mate)) drawFalling(ctx, mate, time);
                 }
             }
             drop.draw(ctx, player, time);
             effects.drawTop(ctx, v);
-            bots.drawLabels(ctx, v, time);
+            bots.drawLabels(ctx, v, time, canSeeFromHouse);
             if (isMultiplayer) drawRemoteTeammateLabels(ctx, v, time);
             drawTeammateOffscreen(ctx);
             drawHitmarker(ctx);

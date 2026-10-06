@@ -1503,13 +1503,13 @@ export class BotManager {
 
     // v (optionnel) = bornes de la vue {minX, minY, maxX, maxY} : on ne dessine
     // que les bots en chute visibles (grande marge : le personnage est agrandi en altitude)
-    drawAir(ctx, time, v) {
+    drawAir(ctx, time, v, canSee = null) {
         const m = AIR_DRAW_MARGIN;
         const SQUAD_COLORS = { 1: '#00e5ff', 2: '#ffd21e', 3: '#ff4fd8', 4: '#00ff88' };
         const pr = _airPt;
         for (const bot of this.bots) {
             if (!bot.alive || bot.phase !== 'air') continue;
-            // Position en perspective (un bot haut dans le ciel est écarté du centre)
+            if (canSee && !canSee(bot)) continue;
             // drawFalling fait son propre culling (personnage OU ombre au sol visible)
             drawFalling(ctx, bot, time);
 
@@ -1556,7 +1556,7 @@ export class BotManager {
 
     // Pseudo + barres bouclier / vie au-dessus de chaque bot au sol
     // v (optionnel) = bornes de la vue : les bots hors écran sont ignorés
-    drawLabels(ctx, v, time = 0) {
+    drawLabels(ctx, v, time = 0, canSee = null) {
         const W = 52;
         const H = 5;
         const m = LABEL_MARGIN;
@@ -1565,6 +1565,7 @@ export class BotManager {
         list.length = 0;
         for (const bot of this.bots) {
             if (!bot.alive || bot.phase !== 'ground') continue;
+            if (canSee && !canSee(bot)) continue;
             if (v && (bot.x < v.minX - m || bot.x > v.maxX + m ||
                       bot.y < v.minY - m || bot.y > v.maxY + m)) continue;
             // Dans une maison dont le toit est fermé pour celui qui regarde : caché
