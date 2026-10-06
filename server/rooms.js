@@ -11,6 +11,8 @@ const { INITIAL_MATCHMAKING_COUNTDOWN, isAdminName, parseMatchmakingCountdown } 
 const ROOM_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MAX_PLAYERS_PER_ROOM = 4; // Escouade max par lobby
 const MAX_FIGHTERS = 24;        // places sur la carte (même valeur que js/game/main.js)
+const DUEL_MODE = 'duel';
+const MODE_TEAM_SIZES = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4 };
 const FLIGHT_DELAY = 6000;      // ms entre le lancement et le départ du vaisseau (chargement des pages)
 const PLAYER_GONE_DELAY = 10000; // ms sans connexion avant qu'un joueur soit éliminé (parti pour de bon)
 const EMOTE_MIN_GAP = 2500;      // ms minimum entre deux emotes d'un même joueur (anti-spam)
@@ -580,7 +582,7 @@ class RoomManager {
         }
 
         const mode = String(rawMode || '').trim().toLowerCase();
-        if (!/^(solo|duo|trio|section)$/.test(mode)) {
+        if (!/^(duel|solo|duo|trio|section)$/.test(mode)) {
             return this.sendFriend(ws, {
                 type: 'account_error',
                 action: 'admin_countdown_skip',
@@ -706,7 +708,7 @@ class RoomManager {
         const room = {
             code,
             hostId: accountId,
-            mode: hostData.mode || 'duo',
+            mode: Object.prototype.hasOwnProperty.call(MODE_TEAM_SIZES, hostData.mode) ? hostData.mode : 'duo',
             // botFill = « Remplir la partie avec des bots » ; fillTeam = « Remplir l'équipe avec des bots »
             botFill: (hostData.fillMatch ?? hostData.botFill) !== false,
             fillTeam: hostData.fillTeam !== false,
@@ -863,8 +865,8 @@ class RoomManager {
 
         // Partie en cours : seuls ses joueurs (même identifiant) peuvent y revenir.
         // (Prendre la place d'un autre mélangerait les identifiants entre les machines.)
-        if (room.state === 'game') {
-            return this.send(ws, { type: 'error', code: 'room_in_game', message: 'Cette partie a déjà commencé. Réessaie à la fin de la partie.' });
+        if (room.mode === DUEL_MODE && room.players.size >= 2) {
+            return this.send(ws, { type: 'error', code: 'duel_room_full', message: 'Une salle 1v1 ne peut accueillir que deux joueurs.' });
         }
 
         if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
@@ -900,7 +902,7 @@ class RoomManager {
         // Ajuster automatiquement le mode selon le nombre de joueurs présents
         const count = room.players.size;
         let modeChanged = false;
-        if (count >= 2 && (!room.mode || room.mode === 'solo')) {
+        if (count >= 2 && (!room.mode || room.mode === 'solo' || room.mode === 'duel')) {
             room.mode = 'duo';
             modeChanged = true;
         }
@@ -981,8 +983,12 @@ class RoomManager {
         const room = this.rooms.get(code);
         if (!room || room.hostId !== ws.playerId) return;
 
+        if (data.mode && !Object.prototype.hasOwnProperty.call(MODE_TEAM_SIZES, data.mode)) {
+            return this.send(ws, { type: 'error', code: 'invalid_mode', message: 'Mode de jeu invalide.' });
+        }
+
         // Empêcher de choisir un mode avec moins de places que de joueurs réels dans le groupe
-        const modeHierarchy = { solo: 1, duo: 2, trio: 3, section: 4 };
+        const modeHierarchy = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4 };
         if (data.mode && modeHierarchy[data.mode] && modeHierarchy[data.mode] < room.players.size) {
             const requiredName = room.players.size === 2 ? 'duo, trio ou section' : room.players.size === 3 ? 'trio ou section' : 'section';
             console.log(`[Multiplayer] Mode ${data.mode} rejeté : ${room.players.size} joueurs dans le groupe`);
@@ -1205,8 +1211,8 @@ class RoomManager {
             return;
         }
         // Pas plus d'équipes que la carte n'en accueille : les suivantes attendent la prochaine partie
-        const teamSize = { solo: 1, duo: 2, trio: 3, section: 4 }[mode] || 2;
-        const maxTeams = Math.max(2, Math.floor(MAX_FIGHTERS / teamSize));
+        const teamSize = MODE_TEAM_SIZES[mode] || 2;
+        const maxTeams = mode === DUEL_MODE ? 2 : Math.max(2, Math.floor(MAX_FIGHTERS / teamSize));
         const waiting = validRooms.slice(maxTeams);
         validRooms = validRooms.slice(0, maxTeams);
         setTimeout(() => { for (const r of waiting) if (r.state === 'lobby') this.enqueueMatchmaking(r); }, 0);
@@ -1256,6 +1262,7 @@ class RoomManager {
                 roomCode: r.code,
                 seed: sharedSeed,
                 mode: r.mode,
+                mapId: r.mode === DUEL_MODE ? 'duel-two-towns' : 'default',
                 // Partie sans bots adverses : seulement les équipes de la file d'attente
                 botFill: false,
                 fillMatch: false,
@@ -1494,6 +1501,7 @@ class RoomManager {
             roomCode: room.code,
             seed: room.seed,
             mode: room.mode,
+            mapId: room.mode === DUEL_MODE ? 'duel-two-towns' : 'default',
             ...this.fillInfo(room),
             myTeam: 1,
             authorityId: room.authorityId,

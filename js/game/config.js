@@ -102,4 +102,23 @@ export const ROAD_LINKS = [
     ['cite', 'pic'], ['cite', 'bois'], ['cite', 'dune'], ['cite', 'ferme'],
     ['pic', 'bois'], ['dune', 'ferme'], ['pic', 'dune']
 ];
+
+// Carte dédiée au duel : même terrain, rendu et règles que la carte principale,
+// mais deux villes opposées pour donner à chaque combattant un point d'intérêt.
+export const DUEL_MAP_ID = 'duel-two-towns';
+export const TOWNS_DUEL = [
+    { id: 'aube',      name: 'Bastion-Aube',    x: 1450, y: 2900, radius: 520, style: 'city',   biome: B.PLAINE },
+    { id: 'crepuscule', name: 'Port-Crépuscule', x: 4550, y: 3100, radius: 520, style: 'forest', biome: B.PLAINE }
+];
+export const ROAD_LINKS_DUEL = [['aube', 'crepuscule']];
+
+export const MAP_PRESETS = {
+    default: { towns: TOWNS, roadLinks: ROAD_LINKS },
+    [DUEL_MAP_ID]: { towns: TOWNS_DUEL, roadLinks: ROAD_LINKS_DUEL }
+};
+
+export function getMapPreset(mapId = 'default') {
+    return MAP_PRESETS[mapId] || MAP_PRESETS.default;
+}
+
 export const ROAD_WIDTH = 72;

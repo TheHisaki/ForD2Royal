@@ -715,7 +715,7 @@ class NetworkManager {
 
     skipMatchmakingCountdown(mode) {
         if (!this.isAuthenticated() || !this.isAdmin) return false;
-        if (typeof mode !== 'string' || !/^(solo|duo|trio|section)$/i.test(mode)) return false;
+        if (typeof mode !== 'string' || !/^(duel|solo|duo|trio|section)$/i.test(mode)) return false;
         this.send({ type: 'admin_skip_matchmaking_countdown', mode: mode.toLowerCase() });
         return true;
     }
@@ -1168,11 +1168,13 @@ class NetworkManager {
 
         // Sauvegarder la configuration de la partie dans sessionStorage ET localStorage pour game.html
         const teamSize = msg.mode === 'duo' ? 2 : msg.mode === 'trio' ? 3 : msg.mode === 'section' ? 4 : 1;
+        const mapId = msg.mapId || (msg.mode === 'duel' ? 'duel-two-towns' : 'default');
         const roomPlayers = (Array.isArray(msg.players) && msg.players.length > 0) ? msg.players : this.roomPlayers;
         const localPlayer = roomPlayers.find(p => p?.id === this.getPlayerId());
         const isAdmin = localPlayer ? localPlayer.isAdmin === true : this.isAdmin === true;
         const config = {
             mode: msg.mode || 'duo',
+            mapId,
             modeName: (msg.mode || 'duo').toUpperCase(),
             teamSize,
             bots: (msg.fillMatch ?? msg.botFill) !== false,
@@ -1212,8 +1214,9 @@ class NetworkManager {
             const pid = encodeURIComponent(this.getPlayerId());
             const seed = encodeURIComponent(msg.seed || '');
             const mode = encodeURIComponent(msg.mode || 'duo');
+            const map = encodeURIComponent(mapId);
             const auth = encodeURIComponent(msg.authorityId || '');
-            window.location.href = `game.html?room=${msg.roomCode}&slot=${this.slot}&pid=${pid}&seed=${seed}&mode=${mode}&auth=${auth}`;
+            window.location.href = `game.html?room=${msg.roomCode}&slot=${this.slot}&pid=${pid}&seed=${seed}&mode=${mode}&map=${map}&auth=${auth}`;
         }, 1200);
     }
 

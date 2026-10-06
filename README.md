@@ -15,7 +15,7 @@
   - Coffres sonores avec butin animé.
 - **Zone de Corruption (Tempête)** : Rétrécissement progressif en plusieurs phases avec dégâts continus et ambiance sonore dédiée.
 - **Escouades & Réanimation (DBNO)** :
-  - Modes **Solo**, **Duo**, **Trio** et **Section** (1 à 4 joueurs).
+  - Modes **1v1**, **Solo**, **Duo**, **Trio** et **Section** (duel à deux combattants ou équipes de 1 à 4 joueurs).
   - Système de K.O. : les joueurs à terre rampent à 4 pattes à vitesse réduite et peuvent être réanimés par leurs alliés.
   - Indicateurs directionnels à l'écran pointant vers les coéquipiers hors champ.
 - **Bots Intelligents** : IA autonome avec ciblage, ouverture de coffres, suivi d'escouade et repli stratégique en zone sûre.

@@ -4,7 +4,7 @@
    ================================== */
 
 // ?v=10 : force le navigateur à recharger les modules changés (synchro multijoueur, emotes)
-import { generateWorld, surfaceAt } from './world.js?v=9';
+import { generateWorld, surfaceAt } from './world.js?v=10';
 import { Player } from './player.js?v=9';
 import { Renderer } from './renderer.js?v=12';
 import { Hud } from './hud.js?v=11';
@@ -75,6 +75,7 @@ function start() {
     const pidParam = urlParams.get('pid');
     const seedParam = urlParams.get('seed');
     const modeParam = urlParams.get('mode');
+    const mapParam = urlParams.get('map');
     // Config enregistrée pour une AUTRE partie (autre onglet, ancienne partie) : on n'en
     // garde rien de ce qui concerne la salle (liste des joueurs, hôte...)
     if (roomParam && (gameConfig.roomCode !== roomParam || (seedParam && String(gameConfig.seed) !== seedParam))) {
@@ -102,6 +103,7 @@ function start() {
         gameConfig.mode = modeParam;
         gameConfig.modeName = modeParam.toUpperCase();
     }
+    if (mapParam) gameConfig.mapId = mapParam;
     const authParam = urlParams.get('auth');
     if (authParam) gameConfig.authorityId = authParam;
 
@@ -113,15 +115,18 @@ function start() {
         } catch { /* ignore */ }
     }
 
-    // Règle de cohérence stricte : déduire teamSize si mode est duo/trio/section
+    // Règle de cohérence stricte : le duel est une équipe de 1, mais une partie de 2 combattants.
     const m = (gameConfig.mode || gameConfig.modeName || '').toLowerCase();
-    if (m.includes('duo')) gameConfig.teamSize = 2;
+    const isDuel = m === 'duel' || m === '1v1';
+    if (isDuel) gameConfig.teamSize = 1;
+    else if (m.includes('duo')) gameConfig.teamSize = 2;
     else if (m.includes('trio')) gameConfig.teamSize = 3;
     else if (m.includes('section') || m.includes('escouade')) gameConfig.teamSize = 4;
     else if (!gameConfig.teamSize) gameConfig.teamSize = 1;
 
     const teamSize = gameConfig.teamSize;
     const teamMode = teamSize > 1;
+    const mapId = gameConfig.mapId || (isDuel ? 'duel-two-towns' : 'default');
 
     /* ----- Aléatoire synchronisé en multijoueur -----
        En mode multijoueur, la graine (seed) envoyée par le serveur est partagée
@@ -143,7 +148,7 @@ function start() {
         };
     }
 
-    const world = generateWorld();
+    const world = generateWorld({ mapId });
     const loot = new Loot(world, gameSeed); // coffres (ajoutés aux obstacles) + butin au sol
     const effects = new Effects();
 
@@ -556,8 +561,9 @@ function start() {
         }))
         : [];
     const humanSlots = teams.length * teamSize;
+    const maxFighters = isDuel ? 2 : MAX_FIGHTERS;
     const enemyCount = fillMatch
-        ? Math.max(0, Math.floor((MAX_FIGHTERS - humanSlots) / teamSize) * teamSize)
+        ? Math.max(0, Math.floor((maxFighters - humanSlots) / teamSize) * teamSize)
         : 0;
     const bots = new BotManager({
         world, drop, loot, combat, fighters,

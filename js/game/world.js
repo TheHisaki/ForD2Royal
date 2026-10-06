@@ -4,9 +4,9 @@
    ================================== */
 
 import {
-    SEED, WORLD_SIZE, B, REGION_SEEDS, SNOW_PEAK, LAKES, TOWNS,
-    ROAD_LINKS, ROAD_WIDTH, isWater
-} from './config.js';
+    SEED, WORLD_SIZE, B, REGION_SEEDS, SNOW_PEAK, LAKES,
+    ROAD_WIDTH, getMapPreset, isWater
+} from './config.js?v=10';
 import { fbm, valueNoise, mulberry32 } from './noise.js';
 import { SpatialGrid, shadeHex, pick, rectsOverlap, rectPointDist, segDist } from './utils.js';
 
@@ -169,10 +169,13 @@ export function distToRoads(world, x, y, range) {
 
 /* ===================== GÉNÉRATION ===================== */
 
-export function generateWorld() {
+export function generateWorld({ mapId = 'default' } = {}) {
     const rng = mulberry32(SEED);
+    const preset = getMapPreset(mapId);
+    const resolvedMapId = preset === getMapPreset('default') ? 'default' : mapId;
     const world = {
-        towns: TOWNS.map(t => ({ ...t })),
+        mapId: resolvedMapId,
+        towns: preset.towns.map(t => ({ ...t })),
         roads: [],
         buildings: [],
         fields: [],
@@ -183,7 +186,7 @@ export function generateWorld() {
         _segTmp: []
     };
 
-    buildRoads(world, rng);
+    buildRoads(world, rng, preset.roadLinks);
     for (const town of world.towns) buildTown(world, town, rng);
     scatterNature(world, rng);
     return world;
@@ -191,10 +194,10 @@ export function generateWorld() {
 
 /* ----- Chemins ----- */
 
-function buildRoads(world, rng) {
+function buildRoads(world, rng, roadLinks) {
     const byId = id => world.towns.find(t => t.id === id);
 
-    for (const [a, b] of ROAD_LINKS) {
+    for (const [a, b] of roadLinks) {
         const A = byId(a);
         const C = byId(b);
         const len = Math.hypot(C.x - A.x, C.y - A.y);

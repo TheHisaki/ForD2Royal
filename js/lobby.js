@@ -43,7 +43,8 @@ class LobbyManager {
 
         // Cohérence absolue entre le mode et la taille d'équipe
         const mode = (this.currentGameMode || '').toUpperCase();
-        if (mode === 'DUO') this.teamSize = 2;
+        if (mode === 'DUEL' || mode === '1V1') this.teamSize = 1;
+        else if (mode === 'DUO') this.teamSize = 2;
         else if (mode === 'TRIO') this.teamSize = 3;
         else if (mode === 'ESCOUADE' || mode === 'SECTION') this.teamSize = 4;
         else this.teamSize = 1;
@@ -563,7 +564,7 @@ class LobbyManager {
         if (!overlay) return;
 
         const partyCount = this.getRealPartyPlayerCount();
-        const modeHierarchy = { solo: 1, duo: 2, trio: 3, section: 4 };
+        const modeHierarchy = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4 };
 
         overlay.querySelectorAll('.mode-card').forEach(card => {
             const mode = card.dataset.mode;
@@ -615,7 +616,7 @@ class LobbyManager {
 
     selectMode(mode) {
         const partyCount = this.getRealPartyPlayerCount();
-        const modeHierarchy = { solo: 1, duo: 2, trio: 3, section: 4 };
+        const modeHierarchy = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4 };
         if (modeHierarchy[mode] && modeHierarchy[mode] < partyCount) {
             const requiredName = partyCount === 2 ? 'Duo, Trio ou Section' : partyCount === 3 ? 'Trio ou Section' : 'Section';
             this.showToast(`Impossible en groupe de ${partyCount} joueurs : choisissez ${requiredName}.`);
@@ -624,8 +625,8 @@ class LobbyManager {
         }
 
         this._pendingMode = mode;
-        const modeMap = { solo: 'SOLO', duo: 'DUO', trio: 'TRIO', section: 'ESCOUADE' };
-        const teamSizes = { solo: 1, duo: 2, trio: 3, section: 4 };
+        const modeMap = { duel: 'DUEL', solo: 'SOLO', duo: 'DUO', trio: 'TRIO', section: 'ESCOUADE' };
+        const teamSizes = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4 };
 
         this.currentGameMode = modeMap[mode] || 'SOLO';
         this.teamSize = teamSizes[mode] || 1;
@@ -657,9 +658,9 @@ class LobbyManager {
         const detailEl = document.getElementById('modeSelectedDetail');
         if (!nameEl || !detailEl) return;
 
-        const modeNames = { solo: 'SOLO', duo: 'DUO', trio: 'TRIO', section: 'SECTION' };
-        const modePlayers = { solo: '1 joueur', duo: '2 joueurs', trio: '3 joueurs', section: '4 joueurs' };
-        const teamSizes = { solo: 1, duo: 2, trio: 3, section: 4 };
+        const modeNames = { duel: '1V1', solo: 'SOLO', duo: 'DUO', trio: 'TRIO', section: 'SECTION' };
+        const modePlayers = { duel: '1 joueur + 1 adversaire', solo: '1 joueur', duo: '2 joueurs', trio: '3 joueurs', section: '4 joueurs' };
+        const teamSizes = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4 };
 
         nameEl.textContent = modeNames[this._pendingMode] || 'SOLO';
         const ts = teamSizes[this._pendingMode] || 1;
@@ -670,25 +671,29 @@ class LobbyManager {
 
     // Met à jour les 3 boutons (accueil + 2 interrupteurs du menu des modes)
     updateBotFillUI() {
-        const solo = this.teamSize <= 1;
+        const solo = this.currentGameMode === 'SOLO';
+        const duel = this.currentGameMode === 'DUEL';
+        const noTeamToFill = this.teamSize <= 1;
         const leader = this.isCurrentPartyLeader();
         const fillToggle = document.getElementById('botFillToggle');
         if (fillToggle) {
-            fillToggle.setAttribute('aria-pressed', String(this.botsEnabled && !solo));
-            fillToggle.textContent = solo ? 'Solo' : this.botsEnabled ? 'Activé' : 'Désactivé';
-            fillToggle.classList.toggle('is-disabled-fill', solo || !this.botsEnabled);
-            fillToggle.disabled = solo;
+            fillToggle.setAttribute('aria-pressed', String(this.botsEnabled && !noTeamToFill));
+            fillToggle.textContent = solo ? 'Solo' : duel ? '1v1' : this.botsEnabled ? 'Activé' : 'Désactivé';
+            fillToggle.classList.toggle('is-disabled-fill', noTeamToFill || !this.botsEnabled);
+            fillToggle.disabled = noTeamToFill;
             fillToggle.title = solo
                 ? 'En solo, il n\'y a pas d\'équipe à remplir'
-                : leader ? 'Les places vides de ton équipe sont prises par des bots' : 'Seul le chef du groupe peut changer cette option';
+                : duel
+                    ? 'Le 1v1 oppose un joueur à un seul adversaire'
+                    : leader ? 'Les places vides de ton équipe sont prises par des bots' : 'Seul le chef du groupe peut changer cette option';
         }
 
         const teamSwitch = document.getElementById('modeFillTeamToggle');
         if (teamSwitch) {
             teamSwitch.setAttribute('aria-checked', String(this.botsEnabled));
-            teamSwitch.disabled = solo;
+            teamSwitch.disabled = noTeamToFill;
         }
-        document.getElementById('modeOptFillTeam')?.classList.toggle('is-disabled', solo);
+        document.getElementById('modeOptFillTeam')?.classList.toggle('is-disabled', noTeamToFill);
 
         const matchSwitch = document.getElementById('modeFillMatchToggle');
         if (matchSwitch) matchSwitch.setAttribute('aria-checked', String(this.fillMatch));
@@ -722,7 +727,9 @@ class LobbyManager {
             return;
         }
         if (this.teamSize <= 1) {
-            this.showToast('En solo, il n\'y a pas d\'équipe à remplir.');
+            this.showToast(this.currentGameMode === 'DUEL'
+                ? 'En 1v1, l\'adversaire est toujours unique.'
+                : 'En solo, il n\'y a pas d\'équipe à remplir.');
             return;
         }
 
@@ -789,8 +796,11 @@ class LobbyManager {
 
     saveGameConfig() {
         try {
-            const modeMap = { SOLO: 'solo', DUO: 'duo', TRIO: 'trio', ESCOUADE: 'section' };
+            const modeMap = { DUEL: 'duel', SOLO: 'solo', DUO: 'duo', TRIO: 'trio', ESCOUADE: 'section' };
             const m = modeMap[this.currentGameMode] || 'solo';
+
+            // La carte du duel est un layout indépendant ; les autres modes gardent la carte actuelle.
+            const mapId = m === 'duel' ? 'duel-two-towns' : 'default';
 
             // Préserver la configuration réseau existante si présente
             let existing = {};
@@ -802,6 +812,7 @@ class LobbyManager {
             const cfg = {
                 ...existing,
                 mode: m,
+                mapId,
                 modeName: this.currentGameMode,
                 teamSize: this.teamSize,
                 bots: this.fillMatch,
@@ -837,8 +848,8 @@ class LobbyManager {
     }
 
     confirmMode() {
-        const modeMap = { solo: 'SOLO', duo: 'DUO', trio: 'TRIO', section: 'ESCOUADE' };
-        const teamSizes = { solo: 1, duo: 2, trio: 3, section: 4 };
+        const modeMap = { duel: 'DUEL', solo: 'SOLO', duo: 'DUO', trio: 'TRIO', section: 'ESCOUADE' };
+        const teamSizes = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4 };
         this.currentGameMode = modeMap[this._pendingMode] || 'SOLO';
         this.teamSize = teamSizes[this._pendingMode] || 1;
         window.SFX?.play('mode');
@@ -1235,7 +1246,9 @@ class LobbyManager {
         const countdownWrap = document.getElementById('mmCountdownWrap');
         const countdownNumber = document.getElementById('mmCountdownNumber');
 
-        const modeLabel = (msg.mode || this.currentGameMode || 'DUO').toUpperCase();
+        const modeLabel = (msg.mode || this.currentGameMode || 'DUO').toUpperCase() === 'DUEL'
+            ? '1V1'
+            : (msg.mode || this.currentGameMode || 'DUO').toUpperCase();
         if (modeBadge) modeBadge.textContent = `MODE ${modeLabel}`;
 
         if (msg.state === 'searching') {
@@ -1270,7 +1283,7 @@ class LobbyManager {
         const isLeader = this.isCurrentPartyLeader();
         let targetMode = null;
 
-        if (partyCount >= 2 && this.currentGameMode === 'SOLO') {
+        if (partyCount >= 2 && (this.currentGameMode === 'SOLO' || this.currentGameMode === 'DUEL')) {
             targetMode = 'duo';
         } else if (partyCount >= 3 && (this.currentGameMode === 'SOLO' || this.currentGameMode === 'DUO')) {
             targetMode = 'trio';
@@ -1310,8 +1323,8 @@ class LobbyManager {
         const upper = mode.toUpperCase();
         this.currentGameMode = upper === 'SECTION' ? 'ESCOUADE' : upper;
         const display = document.getElementById('currentModeDisplay') || document.querySelector('.mode-display');
-        if (display) display.textContent = this.currentGameMode === 'ESCOUADE' ? 'SECTION' : this.currentGameMode;
-        const modeSizes = { SOLO: 1, DUO: 2, TRIO: 3, ESCOUADE: 4 };
+        if (display) display.textContent = this.currentGameMode === 'ESCOUADE' ? 'SECTION' : this.currentGameMode === 'DUEL' ? '1V1' : this.currentGameMode;
+        const modeSizes = { DUEL: 1, SOLO: 1, DUO: 2, TRIO: 3, ESCOUADE: 4 };
         this.teamSize = modeSizes[this.currentGameMode] || 2;
         this.saveGameConfig();
         this.updateUI();
@@ -1525,7 +1538,7 @@ class LobbyManager {
 
         // N'afficher que le nombre de places du mode (SOLO = 1 ... ESCOUADE = 4),
         // sans jamais cacher un joueur déjà présent
-        const modeSizes = { SOLO: 1, DUO: 2, TRIO: 3, ESCOUADE: 4 };
+        const modeSizes = { DUEL: 1, SOLO: 1, DUO: 2, TRIO: 3, ESCOUADE: 4 };
         const visibleSlots = Math.max(modeSizes[this.currentGameMode] || 4, this.players.length);
         slots.forEach((slot, index) => {
             slot.classList.toggle('is-hidden', index >= visibleSlots);
@@ -1552,7 +1565,7 @@ class LobbyManager {
         // Mettre à jour le mode de jeu
         const modeDisplay = document.querySelector('.mode-display');
         if (modeDisplay) {
-            const displayName = this.currentGameMode === 'ESCOUADE' ? 'SECTION' : this.currentGameMode;
+            const displayName = this.currentGameMode === 'ESCOUADE' ? 'SECTION' : this.currentGameMode === 'DUEL' ? '1V1' : this.currentGameMode;
             modeDisplay.textContent = displayName;
         }
 
@@ -1577,7 +1590,7 @@ class LobbyManager {
         this.addChatMessage(`${playerData.name} a rejoint la partie.`);
         
         // Mettre à jour le mode de jeu si nécessaire
-        if (this.players.length > 1 && this.currentGameMode === 'SOLO') {
+        if (this.players.length > 1 && (this.currentGameMode === 'SOLO' || this.currentGameMode === 'DUEL')) {
             this.currentGameMode = 'DUO';
         }
         if (this.players.length > 2) {
