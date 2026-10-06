@@ -3,7 +3,7 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=19 : recharge les modules du thème de la carte 1V1 (Île Jumelle)
+// ?v=20 : zoom intérieur des maisons + thème de la carte 1V1
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { Player } from './player.js?v=11';
 import { Renderer } from './renderer.js?v=14';
@@ -593,10 +593,14 @@ function start() {
         const held = equippedItem();
         const sniper = held?.kind === 'weapon' && held.weaponId === 'sniper';
         const rarity = sniper ? Math.max(0, Math.min(RARITIES.length - 1, Number(held.rarity) | 0)) : 0;
-        const mode = sniper ? `sniper:${rarity}` : 'classic';
-        const target = sniper ? sniperZoomForRarity(rarity) : 1;
+        const baseTarget = sniper ? sniperZoomForRarity(rarity) : 1;
+        // À l'intérieur d'une maison, la caméra se rapproche de 35 %.
+        // Le test est limité au sol : passer au-dessus d'un toit ne doit pas zoomer.
+        const insideHouse = player.phase === 'ground' && Boolean(buildingAt(player.x, player.y));
+        const target = insideHouse ? baseTarget * 1.35 : baseTarget;
+        const mode = `${sniper ? `sniper:${rarity}` : 'classic'}:${insideHouse ? 'inside' : 'outside'}`;
         if (mode !== zoomMode) {
-            renderer.setZoomTarget(target, sniper ? target : 1);
+            renderer.setZoomTarget(target, sniper ? baseTarget : 1);
             zoomMode = mode;
         }
     };
