@@ -3,19 +3,19 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=10 : force le navigateur à recharger les modules changés (synchro multijoueur, emotes)
-import { generateWorld, surfaceAt } from './world.js?v=10';
-import { Player } from './player.js?v=9';
-import { Renderer } from './renderer.js?v=12';
-import { Hud } from './hud.js?v=11';
+// ?v=18 : recharge les modules de génération et propagation du monde
+import { generateWorld, surfaceAt } from './world.js?v=11';
+import { Player } from './player.js?v=10';
+import { Renderer } from './renderer.js?v=13';
+import { Hud } from './hud.js?v=12';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT
-} from './drop.js?v=13';
+} from './drop.js?v=14';
 import { Combat } from './combat.js?v=10';
-import { Loot } from './loot.js?v=9';
-import { BotManager, roofAlphaAt } from './bots.js?v=13';
-import { Corruption } from './corruption.js?v=9';
+import { Loot } from './loot.js?v=10';
+import { BotManager, roofAlphaAt } from './bots.js?v=14';
+import { Corruption } from './corruption.js?v=10';
 import { CombatHud } from './combat-hud.js?v=12';
 import { Effects } from './effects.js?v=14';
 import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=11';
@@ -28,7 +28,6 @@ import { itemArt } from '../item-art.js?v=10';
 import { InventoryUI } from './inventory-ui.js?v=9';
 import { EndScreen, Spectator } from './end-screen.js?v=9';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=9';
-import { WORLD_SIZE } from './config.js?v=9';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -153,9 +152,8 @@ function start() {
     const effects = new Effects();
 
     // Départ dans le vaisseau (trajet synchronisé par la graine en multijoueur)
-    const drop = new Drop(gameSeed);
-    drop.world = world; // toits : glissade jusqu'au sol à côté de la maison
-    const player = new Player(drop.ship.x, drop.ship.y);
+    const drop = new Drop(world, gameSeed);
+    const player = new Player(drop.ship.x, drop.ship.y, world);
     player.phase = 'ship';
     player.team = 1;
     player.squadSlot = gameConfig.mySlot || 1; // Joueur principal (slot assigné dans le salon)
@@ -703,8 +701,8 @@ function start() {
 
     function teleportFighter(f, x, y) {
         if (!f || !Number.isFinite(x) || !Number.isFinite(y)) return false;
-        f.x = Math.max(f.r, Math.min(WORLD_SIZE - f.r, x));
-        f.y = Math.max(f.r, Math.min(WORLD_SIZE - f.r, y));
+        f.x = Math.max(f.r, Math.min(world.width - f.r, x));
+        f.y = Math.max(f.r, Math.min(world.height - f.r, y));
         f.vx = 0;
         f.vy = 0;
         f.resolveCollisions(world);
@@ -1337,7 +1335,7 @@ function start() {
     let lastBotSeen = new Map();     // bot -> nombre de b_sync consécutifs sans lui
 
     function makeRemote(rp) {
-        const mate = new Player(drop.ship.x, drop.ship.y);
+        const mate = new Player(drop.ship.x, drop.ship.y, world);
         mate.id = rp.id;
         mate.name = String(rp.name || 'Joueur').slice(0, 16);
         mate.team = rp.team || myTeam;

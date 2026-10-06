@@ -5,8 +5,7 @@
    (le bouclier ne protège pas), et de plus en plus au fil de la partie.
    ================================== */
 
-import { WORLD_SIZE, isWater } from './config.js';
-import { sampleGround } from './world.js';
+import { isWater } from './config.js?v=11';
 
 /* ===================== RÉGLAGES ===================== */
 
@@ -35,8 +34,6 @@ const TICK = 1;               // un tick de dégâts par seconde et par combatta
 
 // Choix du centre de la zone suivante
 const CENTER_TRIES = 16;      // essais pour trouver un centre sur la terre ferme
-const ISLAND_MIN = 900;       // on préfère un centre dans cette bande (pas au large)
-const ISLAND_MAX = WORLD_SIZE - 900;
 
 /* ----- Rendu (tout est en unités monde) ----- */
 // Voile léger : la carte elle-même est déjà recolorée (renderer + corrupt-look.js)
@@ -105,13 +102,19 @@ function visibleArc(cx, cy, r, minX, minY, maxX, maxY) {
 export class Corruption {
     constructor(world, seed = null) {
         this.world = world;
-        this.phaseCount = PHASES.length;
+        this.scale = Math.min(world.width, world.height) / 6000;
+        this.phases = PHASES.map(p => ({ ...p, r: p.r * this.scale }));
+        this.startRadius = START_RADIUS * this.scale;
+        this.islandMin = 900 * this.scale;
+        this.islandMaxX = world.width - this.islandMin;
+        this.islandMaxY = world.height - this.islandMin;
+        this.phaseCount = this.phases.length;
         this.state = 'idle';
         this.phase = 0;
-        this.cur = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, r: START_RADIUS };
+        this.cur = { x: world.width / 2, y: world.height / 2, r: this.startRadius };
         this.next = null;
         this.timeLeft = 0;
-        this.dps = PHASES[0].dps;
+        this.dps = this.phases[0].dps;
         this.elapsed = 0;
         this.onEvent = null;      // callback optionnel (type, data)
 
@@ -153,7 +156,7 @@ export class Corruption {
             // Départ (ou retour en arrière) : on repart de zéro avec la même graine
             this.state = 'idle';
             this.phase = 0;
-            Object.assign(this.cur, { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2, r: START_RADIUS });
+            Object.assign(this.cur, { x: this.world.width / 2, y: this.world.height / 2, r: this.startRadius });
             this.next = null;
             this.timeLeft = 0;
             this._resetRng();
@@ -185,7 +188,7 @@ export class Corruption {
 
     // Début d'une phase : la zone suivante est annoncée
     _announce() {
-        const p = PHASES[this.phase - 1];
+        const p = this.phases[this.phase - 1];
         this.state = 'wait';
         this.next = this._pickNext(p.r);
         this.timeLeft += p.wait; // += : garde le petit reste de l'image précédente
@@ -204,8 +207,8 @@ export class Corruption {
             const x = c.x + Math.cos(a) * d;
             const y = c.y + Math.sin(a) * d;
             if (!fallback) fallback = { x, y, r };
-            const onIsland = x > ISLAND_MIN && x < ISLAND_MAX && y > ISLAND_MIN && y < ISLAND_MAX;
-            if (onIsland && !isWater(sampleGround(x, y).biome)) return { x, y, r };
+            const onIsland = x > this.islandMin && x < this.islandMaxX && y > this.islandMin && y < this.islandMaxY;
+            if (onIsland && !isWater(this.world.sampleGround(x, y).biome)) return { x, y, r };
         }
         return fallback; // quelques essais ratés : on accepte le premier
     }
@@ -213,7 +216,7 @@ export class Corruption {
     _advance() {
         if (this.state === 'wait') {
             // La corruption se met à avancer
-            const p = PHASES[this.phase - 1];
+            const p = this.phases[this.phase - 1];
             this.state = 'shrink';
             this._from.x = this.cur.x;
             this._from.y = this.cur.y;
@@ -251,7 +254,7 @@ export class Corruption {
             // "while" : un gros dt ne saute pas d'étape (au pire plusieurs à la même image)
             while (this.timeLeft <= 0 && this.state !== 'done') this._advance();
             if (this.state === 'shrink') {
-                const total = PHASES[this.phase - 1].shrink;
+                const total = this.phases[this.phase - 1].shrink;
                 const e = easeInOut(Math.min(1, Math.max(0, 1 - this.timeLeft / total)));
                 const f = this._from;
                 const n = this.next;
@@ -261,7 +264,7 @@ export class Corruption {
             }
         }
 
-        const base = this.state === 'done' ? DONE_DPS : PHASES[this.phase - 1].dps;
+        const base = this.state === 'done' ? DONE_DPS : this.phases[this.phase - 1].dps;
         this.dps = base + Math.floor(this.elapsed / DPS_BONUS_EVERY);
 
         if (fighters) this._hurt(dt, fighters, combat);

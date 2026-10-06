@@ -15,9 +15,8 @@
    ================================== */
 
 import {
-    WORLD_SIZE, CHUNK_SIZE, GROUND_RES, GRID_STEP, VIEW, ZOOM, OCEAN_DEEP, RENDER
-} from './config.js';
-import { sampleGround } from './world.js';
+    CHUNK_SIZE, GROUND_RES, GRID_STEP, VIEW, ZOOM, OCEAN_DEEP, RENDER
+} from './config.js?v=11';
 import { clamp, rectsOverlap, frameView } from './utils.js';
 import {
     groundRGB, drawRoads, drawPlaza, drawField, drawBuildingBase, drawRoof,
@@ -27,9 +26,6 @@ import {
     circleClass, rectClass, clipOutside, recolor, drawCorruptDetails, drawCorruptObject, drawCorruptRoof
 } from './corrupt-look.js';
 
-const NCHUNKS = Math.ceil(WORLD_SIZE / CHUNK_SIZE); // chunks par côté
-const ALL_CHUNKS = NCHUNKS * NCHUNKS;
-const GROUND_N = CHUNK_SIZE / GROUND_RES + 2;       // pixels de sol par côté (1 px de marge de chaque côté)
 const OVERVIEW_RES = 30;                            // aperçu de l'île : 1 pixel = 30 unités
 const MAX_JOBS = 4;                                 // chunks à moitié construits gardés en mémoire
 const MAX_SPEED = 3000;                             // vitesse caméra max prise en compte (unités / s)
@@ -96,7 +92,11 @@ export class Renderer {
         // mélanger avec la page derrière, composition plus rapide
         this.ctx = canvas.getContext('2d', { alpha: false });
         this.world = world;
-        this.cam = { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
+        this.nChunksX = Math.ceil(world.width / CHUNK_SIZE);
+        this.nChunksY = Math.ceil(world.height / CHUNK_SIZE);
+        this.allChunks = this.nChunksX * this.nChunksY;
+        this.groundN = CHUNK_SIZE / GROUND_RES + 2;
+        this.cam = { x: world.width / 2, y: world.height / 2 };
         this.zoomMul = 1;
         this.zoomTarget = 1;
         this.baseZoom = 1;
@@ -112,7 +112,7 @@ export class Renderer {
         this.overview = null;           // aperçu basse résolution de l'île (placeholder)
 
         // Surfaces réutilisées pour construire les chunks
-        this.small = makeCanvas(GROUND_N, GROUND_N);
+        this.small = makeCanvas(this.groundN, this.groundN);
         this.smallCtx = this.small.getContext('2d');
         this.composer = makeComposer();
 
@@ -231,10 +231,10 @@ export class Renderer {
     // Plage de chunks couvrant la vue (+ marge), bornée au monde. dx, dy : décalage de la vue
     _chunkRange(v, margin, dx = 0, dy = 0) {
         return {
-            x0: clamp(Math.floor((v.minX + dx) / CHUNK_SIZE) - margin, 0, NCHUNKS - 1),
-            y0: clamp(Math.floor((v.minY + dy) / CHUNK_SIZE) - margin, 0, NCHUNKS - 1),
-            x1: clamp(Math.floor((v.maxX + dx) / CHUNK_SIZE) + margin, 0, NCHUNKS - 1),
-            y1: clamp(Math.floor((v.maxY + dy) / CHUNK_SIZE) + margin, 0, NCHUNKS - 1)
+            x0: clamp(Math.floor((v.minX + dx) / CHUNK_SIZE) - margin, 0, this.nChunksX - 1),
+            y0: clamp(Math.floor((v.minY + dy) / CHUNK_SIZE) - margin, 0, this.nChunksY - 1),
+            x1: clamp(Math.floor((v.maxX + dx) / CHUNK_SIZE) + margin, 0, this.nChunksX - 1),
+            y1: clamp(Math.floor((v.maxY + dy) / CHUNK_SIZE) + margin, 0, this.nChunksY - 1)
         };
     }
 
@@ -254,10 +254,10 @@ export class Renderer {
         if (!this.overview) this._buildOverview();
         const r = this._chunkRange(this._viewBounds(), 1);
         const count = (r.x1 - r.x0 + 1) * (r.y1 - r.y0 + 1);
-        this.limit = Math.min(ALL_CHUNKS, Math.max(this.limit, count + 8));
+        this.limit = Math.min(this.allChunks, Math.max(this.limit, count + 8));
         for (let cy = r.y0; cy <= r.y1; cy++) {
             for (let cx = r.x0; cx <= r.x1; cx++) {
-                const key = cy * NCHUNKS + cx;
+                const key = cy * this.nChunksX + cx;
                 if (this.chunks.has(key)) continue;
                 const job = this.jobs.get(key) || this._newJob(key);
                 this.jobs.delete(key);
@@ -270,7 +270,7 @@ export class Renderer {
     /* ----- Aperçu basse résolution (placeholder) ----- */
 
     _buildOverview() {
-        const n = Math.ceil(WORLD_SIZE / OVERVIEW_RES);
+        const n = Math.ceil(this.world.width / OVERVIEW_RES);
         const c = makeCanvas(n, n);
         const cctx = c.getContext('2d');
         const img = cctx.createImageData(n, n);
@@ -278,7 +278,7 @@ export class Renderer {
         for (let j = 0; j < n; j++) {
             const wy = (j + 0.5) * OVERVIEW_RES;
             for (let i = 0; i < n; i++) {
-                groundRGB(data, (j * n + i) * 4, sampleGround((i + 0.5) * OVERVIEW_RES, wy));
+                groundRGB(data, (j * n + i) * 4, this.world.sampleGround((i + 0.5) * OVERVIEW_RES, wy));
             }
         }
         cctx.putImageData(img, 0, 0);
@@ -297,16 +297,16 @@ export class Renderer {
 
     _newJob(key) {
         return {
-            cx: key % NCHUNKS,
-            cy: Math.floor(key / NCHUNKS),
+            cx: key % this.nChunksX,
+            cy: Math.floor(key / this.nChunksX),
             row: 0,
-            img: new ImageData(GROUND_N, GROUND_N)
+            img: new ImageData(this.groundN, this.groundN)
         };
     }
 
     // Calcule des lignes de sol jusqu'à "deadline" (au moins une). true = terminé
     _stepJob(job, deadline) {
-        const n = GROUND_N;
+        const n = this.groundN;
         const x0 = job.cx * CHUNK_SIZE;
         const y0 = job.cy * CHUNK_SIZE;
         const data = job.img.data;
@@ -315,7 +315,7 @@ export class Renderer {
             const wy = y0 + (j - 0.5) * GROUND_RES;
             let k = j * n * 4;
             for (let i = 0; i < n; i++, k += 4) {
-                groundRGB(data, k, sampleGround(x0 + (i - 0.5) * GROUND_RES, wy));
+                groundRGB(data, k, this.world.sampleGround(x0 + (i - 0.5) * GROUND_RES, wy));
             }
             if (now() >= deadline) break;
         }
@@ -326,7 +326,7 @@ export class Renderer {
     _compose(job) {
         const x0 = job.cx * CHUNK_SIZE;
         const y0 = job.cy * CHUNK_SIZE;
-        const n = GROUND_N;
+        const n = this.groundN;
 
         // 1) Petite image du sol (surface partagée : réécrite en entier à chaque fois)
         this.smallCtx.putImageData(job.img, 0, 0);
@@ -462,7 +462,7 @@ export class Renderer {
         let bestD = Infinity;
         for (let cy = W.y0; cy <= W.y1; cy++) {
             for (let cx = W.x0; cx <= W.x1; cx++) {
-                const key = cy * NCHUNKS + cx;
+                const key = cy * this.nChunksX + cx;
                 if (this.chunks.has(key)) continue;
                 const mx = (cx + 0.5) * CHUNK_SIZE;
                 const my = (cy + 0.5) * CHUNK_SIZE;
@@ -487,12 +487,12 @@ export class Renderer {
         // Tout ce qui est voulu est marqué "utilisé" : jamais jeté puis reconstruit en boucle
         for (let cy = W.y0; cy <= W.y1; cy++) {
             for (let cx = W.x0; cx <= W.x1; cx++) {
-                const c = this.chunks.get(cy * NCHUNKS + cx);
+                const c = this.chunks.get(cy * this.nChunksX + cx);
                 if (c) c.used = f;
             }
         }
         const count = (W.x1 - W.x0 + 1) * (W.y1 - W.y0 + 1);
-        this.limit = Math.min(ALL_CHUNKS, Math.max(RENDER.minChunks, count + 8));
+        this.limit = Math.min(this.allChunks, Math.max(RENDER.minChunks, count + 8));
         // La vue a rétréci (atterrissage) : on libère la mémoire petit à petit
         if (this.chunks.size > this.limit) this._evictOne();
 
@@ -577,7 +577,7 @@ export class Renderer {
         let missing = 0;
         for (let cy = r.y0; cy <= r.y1; cy++) {
             for (let cx = r.x0; cx <= r.x1; cx++) {
-                const key = cy * NCHUNKS + cx;
+                const key = cy * this.nChunksX + cx;
                 const c = this.chunks.get(key);
                 const cls = zc ? rectClass(zc.x, zc.y, zc.r, cx * CHUNK_SIZE, cy * CHUNK_SIZE, CHUNK_SIZE, CHUNK_SIZE) : 0;
                 const cc = cls ? this.cchunks.get(key) : null;
@@ -600,8 +600,8 @@ export class Renderer {
             ctx.save();
             clipOutside(ctx, v, zc);
             for (const key of cross) {
-                const x = (key % NCHUNKS) * CHUNK_SIZE;
-                const y = Math.floor(key / NCHUNKS) * CHUNK_SIZE;
+                const x = (key % this.nChunksX) * CHUNK_SIZE;
+                const y = Math.floor(key / this.nChunksX) * CHUNK_SIZE;
                 const cc = this.cchunks.get(key);
                 if (cc) {
                     ctx.drawImage(cc.img, x, y, CHUNK_SIZE + 0.5, CHUNK_SIZE + 0.5);
@@ -730,8 +730,8 @@ export class Renderer {
     // Chunk corrompu = chunk normal recoloré + fissures, cristaux, bâtiments en ruine
     _buildCorrupt(key, src) {
         const { canvas, ctx } = this._corruptSurface();
-        const x0 = (key % NCHUNKS) * CHUNK_SIZE;
-        const y0 = Math.floor(key / NCHUNKS) * CHUNK_SIZE;
+        const x0 = (key % this.nChunksX) * CHUNK_SIZE;
+        const y0 = Math.floor(key / this.nChunksX) * CHUNK_SIZE;
         ctx.setTransform(1, 0, 0, 1, 0, 0);
         ctx.globalAlpha = 1;
         ctx.clearRect(0, 0, CHUNK_SIZE, CHUNK_SIZE);
@@ -779,11 +779,11 @@ export class Renderer {
             const m = pass === 0 ? 0 : 1;
             const x0 = Math.max(0, r.x0 - m);
             const y0 = Math.max(0, r.y0 - m);
-            const x1 = Math.min(NCHUNKS - 1, r.x1 + m);
-            const y1 = Math.min(NCHUNKS - 1, r.y1 + m);
+            const x1 = Math.min(this.nChunksX - 1, r.x1 + m);
+            const y1 = Math.min(this.nChunksY - 1, r.y1 + m);
             for (let cy = y0; cy <= y1 && built < 2; cy++) {
                 for (let cx = x0; cx <= x1 && built < 2; cx++) {
-                    const key = cy * NCHUNKS + cx;
+                    const key = cy * this.nChunksX + cx;
                     const cc = this.cchunks.get(key);
                     if (cc) { cc.used = this.frame; continue; }
                     const rad = pass === 0 ? c.r : ahead;

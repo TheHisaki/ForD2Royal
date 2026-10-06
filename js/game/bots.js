@@ -6,11 +6,10 @@
    réfléchit que ~4 fois par seconde pour que 24 bots coûtent peu.
    ================================== */
 
-import { WORLD_SIZE, B, PLAYER, isWater } from './config.js';
-import { sampleGround } from './world.js';
+import { B, PLAYER, isWater } from './config.js?v=11';
 import { Player } from './player.js';
 import { clamp, pick, airProject } from './utils.js';
-import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=13';
+import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=14';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
 import { hasBackpackArt } from './backpack-art.js';
@@ -103,14 +102,13 @@ function turnToward(a, b, maxStep) {
     return Math.abs(d) <= maxStep ? b : a + Math.sign(d) * maxStep;
 }
 
-// Eau profonde = océan ou lac (les eaux peu profondes sont tolérées)
-function isDeep(x, y) {
-    const b = sampleGround(x, y).biome;
+function isDeep(world, x, y) {
+    const b = world.sampleGround(x, y).biome;
     return b === B.OCEAN || b === B.LAC;
 }
 
-function isLand(x, y) {
-    return !isWater(sampleGround(x, y).biome);
+function isLand(world, x, y) {
+    return !isWater(world.sampleGround(x, y).biome);
 }
 
 /*
@@ -274,6 +272,8 @@ export class BotManager {
     constructor({ world, drop, loot, combat, fighters, count = 24, corruption, teamSize = 1, player = null, isGuest = false,
         allowBotTeammates = true, teamFill = null, enemyCount = null, firstEnemyTeam = null }) {
         this.world = world;
+        this.mapScale = Math.min(world.width, world.height) / 6000;
+        this.landMargin = Math.min(LAND_MARGIN, Math.min(world.width, world.height) * LAND_MARGIN / 6000);
         this.drop = drop;
         this.loot = loot;
         this.combat = combat;
@@ -325,7 +325,7 @@ export class BotManager {
         ];
 
         for (let i = 0; i < count; i++) {
-            const bot = new Player(drop.ship.x, drop.ship.y);
+            const bot = new Player(drop.ship.x, drop.ship.y, this.world);
             bot.isBot = true;
             bot.id = nextId++;
             const mate = i < teammateCount ? mates[i] : null;
@@ -398,8 +398,8 @@ export class BotManager {
             } else if (teamSize > 1) {
                 if (!currentSquadLand) currentSquadLand = this.chooseLanding(enter, exit);
                 land = {
-                    x: clamp(currentSquadLand.x + rand(-100, 100), LAND_MARGIN, WORLD_SIZE - LAND_MARGIN),
-                    y: clamp(currentSquadLand.y + rand(-100, 100), LAND_MARGIN, WORLD_SIZE - LAND_MARGIN)
+                    x: clamp(currentSquadLand.x + rand(-100, 100), this.landMargin, this.world.width - this.landMargin),
+                    y: clamp(currentSquadLand.y + rand(-100, 100), this.landMargin, this.world.height - this.landMargin)
                 };
             } else {
                 land = this.chooseLanding(enter, exit);
@@ -482,7 +482,7 @@ export class BotManager {
                 const rr = Math.sqrt(Math.random()) * t.radius * 0.85;
                 const x = t.x + Math.cos(a) * rr;
                 const y = t.y + Math.sin(a) * rr;
-                if (isLand(x, y)) return { x, y };
+                if (isLand(this.world, x, y)) return { x, y };
             }
             return { x: t.x, y: t.y };
         }
@@ -490,12 +490,12 @@ export class BotManager {
         // Sinon : un point au hasard sur la terre ferme, pas trop loin du trajet
         for (let k = 0; k < 30; k++) {
             const p = drop.pointAt(rand(enter, exit));
-            const off = rand(-1600, 1600);
-            const x = clamp(p.x - dirY * off, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN);
-            const y = clamp(p.y + dirX * off, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN);
-            if (isLand(x, y)) return { x, y };
+            const off = rand(-1600 * this.mapScale, 1600 * this.mapScale);
+            const x = clamp(p.x - dirY * off, this.landMargin, this.world.width - this.landMargin);
+            const y = clamp(p.y + dirX * off, this.landMargin, this.world.height - this.landMargin);
+            if (isLand(this.world, x, y)) return { x, y };
         }
-        return { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
+        return { x: this.world.width / 2, y: this.world.height / 2 };
     }
 
     // Distance de saut au hasard, autour de l'aplomb de la zone visée
@@ -561,8 +561,8 @@ export class BotManager {
             if (!bot.alive && !bot.dbno) continue;
 
             if (bot.phase === 'ship') {
-                bot.x = clamp(this.drop.ship.x, 0, WORLD_SIZE);
-                bot.y = clamp(this.drop.ship.y, 0, WORLD_SIZE);
+                bot.x = clamp(this.drop.ship.x, 0, this.world.width);
+                bot.y = clamp(this.drop.ship.y, 0, this.world.height);
                 bot.angle = this.drop.angle;
                 continue;
             }
@@ -610,8 +610,8 @@ export class BotManager {
 
     updateShip(bot) {
         const drop = this.drop;
-        bot.x = clamp(drop.ship.x, 0, WORLD_SIZE);
-        bot.y = clamp(drop.ship.y, 0, WORLD_SIZE);
+        bot.x = clamp(drop.ship.x, 0, this.world.width);
+        bot.y = clamp(drop.ship.y, 0, this.world.height);
         bot.angle = drop.angle;
 
         // Saut synchronisé pour les escouades
@@ -625,8 +625,8 @@ export class BotManager {
                 const side = slotIdx % 2 === 1 ? 1 : -1;
                 const offsetAng = (drop.angle || 0) + side * 1.5;
                 bot.brain.land = {
-                    x: clamp(leadPlayer.x + Math.cos(offsetAng) * 60, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN),
-                    y: clamp(leadPlayer.y + Math.sin(offsetAng) * 60, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN)
+                    x: clamp(leadPlayer.x + Math.cos(offsetAng) * 60, this.landMargin, this.world.width - this.landMargin),
+                    y: clamp(leadPlayer.y + Math.sin(offsetAng) * 60, this.landMargin, this.world.height - this.landMargin)
                 };
             }
         } else if (this.squadLeaders[bot.team]) {
@@ -636,8 +636,8 @@ export class BotManager {
                 squadJump = true;
                 if (leader.brain?.land) {
                     bot.brain.land = {
-                        x: clamp(leader.brain.land.x + rand(-90, 90), LAND_MARGIN, WORLD_SIZE - LAND_MARGIN),
-                        y: clamp(leader.brain.land.y + rand(-90, 90), LAND_MARGIN, WORLD_SIZE - LAND_MARGIN)
+                        x: clamp(leader.brain.land.x + rand(-90, 90), this.landMargin, this.world.width - this.landMargin),
+                        y: clamp(leader.brain.land.y + rand(-90, 90), this.landMargin, this.world.height - this.landMargin)
                     };
                 }
             }
@@ -697,8 +697,8 @@ export class BotManager {
         const k = Math.min(1, dt * 6);
         bot.vx += (ux * speed - bot.vx) * k;
         bot.vy += (uy * speed - bot.vy) * k;
-        bot.x = clamp(bot.x + bot.vx * dt, bot.r, WORLD_SIZE - bot.r);
-        bot.y = clamp(bot.y + bot.vy * dt, bot.r, WORLD_SIZE - bot.r);
+        bot.x = clamp(bot.x + bot.vx * dt, bot.r, this.world.width - bot.r);
+        bot.y = clamp(bot.y + bot.vy * dt, bot.r, this.world.height - bot.r);
         if (bot.vx * bot.vx + bot.vy * bot.vy > 900) bot.angle = Math.atan2(bot.vy, bot.vx);
         bot.moving = false;
         bot.altitude -= dt / FALL_TIME;
@@ -1162,9 +1162,9 @@ export class BotManager {
         const s = Math.sin(a);
         let goal = null;
         for (const k of [1, 0.6, 0.3]) {
-            const x = clamp(ref.x + c * rr * k, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN);
-            const y = clamp(ref.y + s * rr * k, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN);
-            if (isLand(x, y)) {
+            const x = clamp(ref.x + c * rr * k, this.landMargin, this.world.width - this.landMargin);
+            const y = clamp(ref.y + s * rr * k, this.landMargin, this.world.height - this.landMargin);
+            if (isLand(this.world, x, y)) {
                 goal = { x, y };
                 break;
             }
@@ -1179,9 +1179,9 @@ export class BotManager {
         for (let k = 0; k < 8; k++) {
             const a = Math.random() * Math.PI * 2;
             const d = Math.sqrt(Math.random()) * r;
-            const x = clamp(ref.x + Math.cos(a) * d, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN);
-            const y = clamp(ref.y + Math.sin(a) * d, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN);
-            if (isLand(x, y) && this.inZone(x, y, ZONE_ROAM_MARGIN)) return { x, y };
+            const x = clamp(ref.x + Math.cos(a) * d, this.landMargin, this.world.width - this.landMargin);
+            const y = clamp(ref.y + Math.sin(a) * d, this.landMargin, this.world.height - this.landMargin);
+            if (isLand(this.world, x, y) && this.inZone(x, y, ZONE_ROAM_MARGIN)) return { x, y };
         }
         return { x: ref.x, y: ref.y };
     }
@@ -1383,12 +1383,12 @@ export class BotManager {
         br.steer = 0;
         if (!br.mx && !br.my) return;
         const a0 = Math.atan2(br.my, br.mx);
-        const inDeep = isDeep(bot.x, bot.y);
+        const inDeep = isDeep(this.world, bot.x, bot.y);
         for (const off of STEER_OFFSETS) {
             const a = a0 + off * br.steerSide;
             const ex = bot.x + Math.cos(a) * FEELER;
             const ey = bot.y + Math.sin(a) * FEELER;
-            if (!inDeep && isDeep(ex, ey)) continue;
+            if (!inDeep && isDeep(this.world, ex, ey)) continue;
             if (!segmentClear(this.world, bot.x, bot.y, ex, ey, bot.r * 0.6)) continue;
             br.steer = off * br.steerSide;
             return;
@@ -1441,7 +1441,7 @@ export class BotManager {
             if (best) {
                 const x = best.x + rand(-300, 300);
                 const y = best.y + rand(-300, 300);
-                if (isLand(x, y)) return { x, y };
+                if (isLand(this.world, x, y)) return { x, y };
             }
         }
         const towns = this.world.towns || [];
@@ -1449,16 +1449,16 @@ export class BotManager {
             const t = rpick(towns);
             const x = t.x + rand(-0.6, 0.6) * t.radius;
             const y = t.y + rand(-0.6, 0.6) * t.radius;
-            if (isLand(x, y)) return { x, y };
+            if (isLand(this.world, x, y)) return { x, y };
         }
         for (let k = 0; k < 12; k++) {
             const a = Math.random() * Math.PI * 2;
             const d = rand(300, 1300);
-            const x = clamp(bot.x + Math.cos(a) * d, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN);
-            const y = clamp(bot.y + Math.sin(a) * d, LAND_MARGIN, WORLD_SIZE - LAND_MARGIN);
-            if (isLand(x, y)) return { x, y };
+            const x = clamp(bot.x + Math.cos(a) * d, this.landMargin, this.world.width - this.landMargin);
+            const y = clamp(bot.y + Math.sin(a) * d, this.landMargin, this.world.height - this.landMargin);
+            if (isLand(this.world, x, y)) return { x, y };
         }
-        return { x: WORLD_SIZE / 2, y: WORLD_SIZE / 2 };
+        return { x: this.world.width / 2, y: this.world.height / 2 };
     }
 
     /* ----- Tir ----- */

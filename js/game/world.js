@@ -5,108 +5,122 @@
 
 import {
     SEED, WORLD_SIZE, B, REGION_SEEDS, SNOW_PEAK, LAKES,
-    ROAD_WIDTH, getMapPreset, isWater
-} from './config.js?v=10';
+    ROAD_WIDTH, getMapProfile, isWater
+} from './config.js?v=11';
 import { fbm, valueNoise, mulberry32 } from './noise.js';
 import { SpatialGrid, shadeHex, pick, rectsOverlap, rectPointDist, segDist } from './utils.js';
 
 /* ===================== SOL ===================== */
 
-// Résultat réutilisé à chaque appel (évite de créer des millions d'objets)
+// Résultat réutilisé par le wrapper standard (évite de créer des millions d'objets).
 export const ground = { biome: B.PLAINE, edge: 0, shade: 0.5 };
 
-// Au-delà de cette distance (en rayons de lac), ni lac ni plage : 1,14 + 0,175 de bruit max (+ marge)
+// Au-delà de cette distance (en rayons de lac), ni lac ni plage.
 const LAKE_REACH = 1.14 + 0.175 + 0.01;
 
-/*
-   Que trouve-t-on au sol en (x, y) ?
-   - ground.biome : le biome
-   - ground.edge  : > 0 = bordure sombre entre deux biomes, < 0 = écume claire au bord de l'eau
-   - ground.shade : petite variation de couleur (texture)
-*/
+function createGroundSampler(profile, result = { biome: B.PLAINE, edge: 0, shade: 0.5 }) {
+    const scale = Math.min(profile.width, profile.height) / WORLD_SIZE;
+    const invScale = 1 / scale;
+    const terrainSeed = profile.terrainSeed;
+    const regions = profile.regionSeeds;
+    const lakes = profile.lakes;
+    const peak = profile.snowPeak;
+
+    return function sampleProfileGround(x, y) {
+        result.edge = 0;
+        const nx = x * invScale;
+        const ny = y * invScale;
+        result.shade = valueNoise(nx * 0.012, ny * 0.012, terrainSeed + 9);
+
+        // Forme de l'île : un carré aux coins arrondis, avec une côte irrégulière.
+        const halfX = profile.width / 2;
+        const halfY = profile.height / 2;
+        const dx = (x - halfX) / halfX;
+        const dy = (y - halfY) / halfY;
+        let d = Math.sqrt(Math.sqrt(dx * dx * dx * dx + dy * dy * dy * dy));
+        d += (fbm(nx * 0.0011, ny * 0.0011, terrainSeed + 1, 3) - 0.5) * 0.14;
+
+        if (d > 0.93) { result.biome = B.OCEAN; return result; }
+        if (d > 0.895) {
+            result.biome = B.SHALLOW;
+            if (d < 0.902) result.edge = -1;
+            return result;
+        }
+        if (d > 0.86) { result.biome = B.BEACH; return result; }
+
+        let lakeNoise = NaN;
+        for (const lake of lakes) {
+            const lx = x - lake.x;
+            const ly = y - lake.y;
+            const reach = lake.r * LAKE_REACH;
+            if (lx * lx + ly * ly >= reach * reach) continue;
+            if (lakeNoise !== lakeNoise) lakeNoise = (fbm(nx * 0.004, ny * 0.004, terrainSeed + 4, 2) - 0.5) * 0.35;
+            const ld = Math.hypot(lx, ly) / lake.r + lakeNoise;
+            if (ld < 1) {
+                result.biome = B.LAC;
+                if (ld > 0.95) result.edge = -1;
+                return result;
+            }
+            if (ld < 1.14) { result.biome = B.BEACH; return result; }
+        }
+
+        // Régions déformées : les amplitudes suivent la taille de la carte.
+        const deformation = 900 * scale;
+        const wx = x + (fbm(nx * 0.0008, ny * 0.0008, terrainSeed + 2, 3) - 0.5) * deformation;
+        const wy = y + (fbm(nx * 0.0008, ny * 0.0008, terrainSeed + 3, 3) - 0.5) * deformation;
+
+        let q1 = Infinity;
+        let s1 = null;
+        for (const s of regions) {
+            const ex = wx - s.x;
+            const ey = wy - s.y;
+            const q = ex * ex + ey * ey;
+            if (q < q1) { q1 = q; s1 = s; }
+        }
+        const b1 = s1 ? s1.b : B.PLAINE;
+        let q2 = Infinity;
+        let s2 = null;
+        for (const s of regions) {
+            if (s.b === b1) continue;
+            const ex = wx - s.x;
+            const ey = wy - s.y;
+            const q = ex * ex + ey * ey;
+            if (q < q2) { q2 = q; s2 = s; }
+        }
+        const d1 = s1 ? Math.hypot(wx - s1.x, wy - s1.y) : Infinity;
+        const d2 = s2 ? Math.hypot(wx - s2.x, wy - s2.y) : Infinity;
+        const gap = d2 - d1;
+        if (gap < 22 * scale) result.edge = 1 - gap / (22 * scale);
+        result.biome = b1;
+
+        if (b1 === B.MONTAGNE) {
+            const sd = Math.hypot(x - peak.x, y - peak.y) / peak.radius +
+                (fbm(nx * 0.003, ny * 0.003, terrainSeed + 5, 2) - 0.5) * 0.5;
+            if (sd < 1) {
+                result.biome = B.NEIGE;
+                if (sd > 0.96) result.edge = Math.max(result.edge, 0.6);
+            }
+        } else if (b1 === B.DESERT) {
+            result.shade = 0.5 + 0.5 * Math.sin(nx * 0.011 + ny * 0.005 +
+                fbm(nx * 0.002, ny * 0.002, terrainSeed + 7, 2) * 9);
+        }
+        return result;
+    };
+}
+
+const STANDARD_PROFILE = {
+    width: WORLD_SIZE,
+    height: WORLD_SIZE,
+    terrainSeed: SEED,
+    regionSeeds: REGION_SEEDS,
+    snowPeak: SNOW_PEAK,
+    lakes: LAKES
+};
+const standardSampler = createGroundSampler(STANDARD_PROFILE, ground);
+
+// Compatibilité : ce wrapper conserve exactement la carte standard.
 export function sampleGround(x, y) {
-    ground.edge = 0;
-    ground.shade = valueNoise(x * 0.012, y * 0.012, SEED + 9);
-
-    // Forme de l'île : un carré aux coins arrondis, avec une côte irrégulière
-    const half = WORLD_SIZE / 2;
-    const dx = (x - half) / half;
-    const dy = (y - half) / half;
-    let d = Math.sqrt(Math.sqrt(dx * dx * dx * dx + dy * dy * dy * dy));
-    d += (fbm(x * 0.0011, y * 0.0011, SEED + 1, 3) - 0.5) * 0.14;
-
-    if (d > 0.93) { ground.biome = B.OCEAN; return ground; }
-    if (d > 0.895) {
-        ground.biome = B.SHALLOW;
-        if (d < 0.902) ground.edge = -1;
-        return ground;
-    }
-    if (d > 0.86) { ground.biome = B.BEACH; return ground; }
-
-    // Lacs (avec une petite plage autour)
-    // Optimisation (résultat identique) : le bruit ne décale "ld" que de ±0,175 au plus,
-    // donc au-delà de LAKE_REACH × rayon on n'est ni dans le lac ni sur sa plage :
-    // on évite alors de calculer le bruit. Il ne dépend pas du lac : calculé une seule fois.
-    let lakeNoise = NaN;
-    for (const lake of LAKES) {
-        const lx = x - lake.x;
-        const ly = y - lake.y;
-        const reach = lake.r * LAKE_REACH;
-        if (lx * lx + ly * ly >= reach * reach) continue;
-        if (lakeNoise !== lakeNoise) lakeNoise = (fbm(x * 0.004, y * 0.004, SEED + 4, 2) - 0.5) * 0.35;
-        const ld = Math.hypot(lx, ly) / lake.r + lakeNoise;
-        if (ld < 1) {
-            ground.biome = B.LAC;
-            if (ld > 0.95) ground.edge = -1;
-            return ground;
-        }
-        if (ld < 1.14) { ground.biome = B.BEACH; return ground; }
-    }
-
-    // Régions : on déforme les coordonnées pour des frontières ondulées
-    const wx = x + (fbm(x * 0.0008, y * 0.0008, SEED + 2, 3) - 0.5) * 900;
-    const wy = y + (fbm(x * 0.0008, y * 0.0008, SEED + 3, 3) - 0.5) * 900;
-
-    // Graine la plus proche, puis la plus proche d'un AUTRE biome.
-    // On compare les distances au carré (même ordre, sans racine) et on ne calcule
-    // la vraie distance que pour les 2 graines retenues.
-    let q1 = Infinity;
-    let s1 = null;
-    for (const s of REGION_SEEDS) {
-        const ex = wx - s.x;
-        const ey = wy - s.y;
-        const q = ex * ex + ey * ey;
-        if (q < q1) { q1 = q; s1 = s; }
-    }
-    const b1 = s1 ? s1.b : B.PLAINE;
-    let q2 = Infinity;
-    let s2 = null;
-    for (const s of REGION_SEEDS) {
-        if (s.b === b1) continue;
-        const ex = wx - s.x;
-        const ey = wy - s.y;
-        const q = ex * ex + ey * ey;
-        if (q < q2) { q2 = q; s2 = s; }
-    }
-    const d1 = s1 ? Math.hypot(wx - s1.x, wy - s1.y) : Infinity;
-    const d2 = s2 ? Math.hypot(wx - s2.x, wy - s2.y) : Infinity;
-    const gap = d2 - d1; // 0 pile sur la frontière
-    if (gap < 22) ground.edge = 1 - gap / 22;
-    ground.biome = b1;
-
-    if (b1 === B.MONTAGNE) {
-        const sd = Math.hypot(x - SNOW_PEAK.x, y - SNOW_PEAK.y) / SNOW_PEAK.radius +
-                   (fbm(x * 0.003, y * 0.003, SEED + 5, 2) - 0.5) * 0.5;
-        if (sd < 1) {
-            ground.biome = B.NEIGE;
-            if (sd > 0.96) ground.edge = Math.max(ground.edge, 0.6);
-        }
-    } else if (b1 === B.DESERT) {
-        // Dunes : bandes ondulées
-        ground.shade = 0.5 + 0.5 * Math.sin(x * 0.011 + y * 0.005 +
-                       fbm(x * 0.002, y * 0.002, SEED + 7, 2) * 9);
-    }
-    return ground;
+    return standardSampler(x, y);
 }
 
 /*
@@ -131,7 +145,7 @@ export function surfaceAt(world, x, y) {
         }
         if (world.roadGrid && distToRoads(world, x, y, ROAD_WIDTH) < ROAD_WIDTH / 2) return 'dirt';
     }
-    const b = sampleGround(x, y).biome;
+    const b = (world?.sampleGround || sampleGround)(x, y).biome;
     if (isWater(b)) return 'water';
     if (b === B.BEACH || b === B.DESERT) return 'sand';
     if (b === B.FORET) return 'forest';
@@ -147,14 +161,21 @@ export function townAt(world, x, y, margin = 0) {
     return null;
 }
 
-export function nearestLake(x, y) {
-    let best = LAKES[0];
+function nearestLakeAt(lakes, x, y) {
+    let best = lakes[0] || null;
     let bestD = Infinity;
-    for (const l of LAKES) {
+    for (const l of lakes) {
         const d = Math.hypot(x - l.x, y - l.y);
         if (d < bestD) { bestD = d; best = l; }
     }
     return best;
+}
+
+export function nearestLake(worldOrX, xOrY, yMaybe) {
+    const world = worldOrX && typeof worldOrX === 'object' ? worldOrX : null;
+    const x = world ? xOrY : worldOrX;
+    const y = world ? yMaybe : xOrY;
+    return nearestLakeAt(world?.lakes || LAKES, x, y);
 }
 
 export function distToRoads(world, x, y, range) {
@@ -170,12 +191,25 @@ export function distToRoads(world, x, y, range) {
 /* ===================== GÉNÉRATION ===================== */
 
 export function generateWorld({ mapId = 'default' } = {}) {
-    const rng = mulberry32(SEED);
-    const preset = getMapPreset(mapId);
-    const resolvedMapId = preset === getMapPreset('default') ? 'default' : mapId;
+    const profile = getMapProfile(mapId);
+    const resolvedMapId = profile === getMapProfile('default') ? 'default' : mapId;
+    const rng = mulberry32(profile.terrainSeed);
+    const groundSampler = createGroundSampler(profile);
     const world = {
         mapId: resolvedMapId,
-        towns: preset.towns.map(t => ({ ...t })),
+        map: {
+            ...profile,
+            regionSeeds: profile.regionSeeds.map(s => ({ ...s })),
+            snowPeak: { ...profile.snowPeak },
+            lakes: profile.lakes.map(l => ({ ...l })),
+            towns: profile.towns.map(t => ({ ...t })),
+            roadLinks: profile.roadLinks.map(link => [...link])
+        },
+        width: profile.width,
+        height: profile.height,
+        sampleGround: groundSampler,
+        lakes: profile.lakes.map(l => ({ ...l })),
+        towns: profile.towns.map(t => ({ ...t })),
         roads: [],
         buildings: [],
         fields: [],
@@ -186,9 +220,10 @@ export function generateWorld({ mapId = 'default' } = {}) {
         _segTmp: []
     };
 
-    buildRoads(world, rng, preset.roadLinks);
+    // Les routes, villes et la nature consultent tous le même sampler de profil.
+    buildRoads(world, rng, profile.roadLinks);
     for (const town of world.towns) buildTown(world, town, rng);
-    scatterNature(world, rng);
+    scatterNature(world, rng, profile.natureAttempts);
     return world;
 }
 
@@ -334,7 +369,7 @@ function placeRect(world, town, w, h, taken, rng, canRotate) {
         if (rectPointDist(rect, town.x, town.y) < town.plazaR + 40) continue;
         if (taken.some(t => rectsOverlap(t, rect, 70))) continue;
         if (rectNearRoad(world, rect, ROAD_WIDTH / 2 + 45)) continue;
-        if (rectTouchesWater(rect)) continue;
+        if (rectTouchesWater(world, rect)) continue;
 
         taken.push(rect);
         return rect;
@@ -353,10 +388,10 @@ function rectNearRoad(world, r, dist) {
     return false;
 }
 
-function rectTouchesWater(r) {
+function rectTouchesWater(world, r) {
     const pts = [[r.x, r.y], [r.x + r.w, r.y], [r.x, r.y + r.h], [r.x + r.w, r.y + r.h], [r.x + r.w / 2, r.y + r.h / 2]];
     return pts.some(([x, y]) => {
-        const b = sampleGround(x, y).biome;
+        const b = world.sampleGround(x, y).biome;
         return isWater(b) || b === B.BEACH;
     });
 }
@@ -573,7 +608,7 @@ function canPlace(world, o, biome) {
     }
     // Pas les pieds dans l'eau (sauf les palmiers, sur la plage)
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-        if (isWater(sampleGround(o.x + dx * foot, o.y + dy * foot).biome)) return false;
+        if (isWater(world.sampleGround(o.x + dx * foot, o.y + dy * foot).biome)) return false;
     }
 
     const near = world.render.query(o.x - o.r - 110, o.y - o.r - 110, o.x + o.r + 110, o.y + o.r + 110, world._segTmp);
@@ -587,12 +622,12 @@ function canPlace(world, o, biome) {
     return true;
 }
 
-function scatterNature(world, rng) {
-    const attempts = 30000;
+function scatterNature(world, rng, attempts = 30000) {
+    const margin = Math.min(150, world.width * 0.05);
     for (let i = 0; i < attempts; i++) {
-        const x = 150 + rng() * (WORLD_SIZE - 300);
-        const y = 150 + rng() * (WORLD_SIZE - 300);
-        const biome = sampleGround(x, y).biome;
+        const x = margin + rng() * (world.width - margin * 2);
+        const y = margin + rng() * (world.height - margin * 2);
+        const biome = world.sampleGround(x, y).biome;
         const rule = NATURE[biome];
         if (!rule || rng() > rule.rate) continue;
 

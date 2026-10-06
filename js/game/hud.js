@@ -3,8 +3,8 @@
    Minimap, carte plein écran, nom du lieu, barres de vie, inventaire.
    ================================== */
 
-import { WORLD_SIZE, B, BIOME_NAMES, LAKES, OCEAN_DEEP, SEED, isWater } from './config.js';
-import { sampleGround, nearestLake, distToRoads } from './world.js';
+import { B, BIOME_NAMES, OCEAN_DEEP, SEED, isWater } from './config.js?v=11';
+import { nearestLake, distToRoads } from './world.js?v=11';
 import { groundRGB, drawPlaza, drawField } from './draw.js';
 import { fbm, valueNoise } from './noise.js';
 import { SFX } from '../sfx.js';
@@ -37,28 +37,30 @@ function zoneActive(z) {
 /* ===================== IMAGE DE LA CARTE ===================== */
 
 // Sol de la carte : couleurs des biomes + relief des montagnes + trait de côte net
-function mapGround(RES) {
+function mapGround(world, RES) {
     const small = document.createElement('canvas');
     small.width = RES;
     small.height = RES;
     const sctx = small.getContext('2d');
     const img = sctx.createImageData(RES, RES);
     const data = img.data;
-    const step = WORLD_SIZE / RES;
+    const stepX = world.width / RES;
+    const stepY = world.height / RES;
     const N = RES * RES;
     const biomes = new Uint8Array(N);
     const height = new Float32Array(N);
+    const terrainSeed = world.map?.terrainSeed ?? SEED;
 
     for (let py = 0; py < RES; py++) {
-        const y = (py + 0.5) * step;
+        const y = (py + 0.5) * stepY;
         for (let px = 0; px < RES; px++) {
-            const x = (px + 0.5) * step;
+            const x = (px + 0.5) * stepX;
             const i = py * RES + px;
-            const s = sampleGround(x, y);
+            const s = world.sampleGround(x, y);
             biomes[i] = s.biome;
             groundRGB(data, i * 4, s);
             // Altitude (bruit) : seulement là où l'on dessine du relief
-            if (s.biome === B.MONTAGNE || s.biome === B.NEIGE) height[i] = fbm(x * 0.0022, y * 0.0022, SEED + 11, 4);
+            if (s.biome === B.MONTAGNE || s.biome === B.NEIGE) height[i] = fbm(x * 0.0022, y * 0.0022, terrainSeed + 11, 4);
         }
     }
 
@@ -145,6 +147,7 @@ function drawPeaks(ctx, x, y, s, snowy) {
 // Construit une fois pour toutes l'image de l'île entière (vue du dessus).
 // Sert aussi de fond à la minimap.
 export function buildMapImage(world, size = 1024) {
+    const terrainSeed = world.map?.terrainSeed ?? SEED;
     // 1) Sol calculé en basse résolution, agrandi avec lissage
     const canvas = document.createElement('canvas');
     canvas.width = size;
@@ -152,7 +155,7 @@ export function buildMapImage(world, size = 1024) {
     const ctx = canvas.getContext('2d');
     ctx.imageSmoothingEnabled = true;
     ctx.imageSmoothingQuality = 'high';
-    ctx.drawImage(mapGround(512), 0, 0, size, size);
+    ctx.drawImage(mapGround(world, 512), 0, 0, size, size);
 
     // Océan plus profond vers les bords
     const deep = ctx.createRadialGradient(size / 2, size / 2, size * 0.5, size / 2, size / 2, size * 0.74);
@@ -162,7 +165,7 @@ export function buildMapImage(world, size = 1024) {
     ctx.fillRect(0, 0, size, size);
 
     // 2) Détails dessinés en coordonnées monde
-    const k = size / WORLD_SIZE;
+    const k = size / world.width;
     const px = 1 / k; // un pixel de la carte, en unités monde
     ctx.save();
     ctx.scale(k, k);
@@ -301,12 +304,12 @@ export function buildMapImage(world, size = 1024) {
 
     // Massifs dessinés dans les montagnes (grille régulière, loin des villes et chemins)
     const cell = 420;
-    for (let gy = cell / 2; gy < WORLD_SIZE; gy += cell) {
-        for (let gx = cell / 2; gx < WORLD_SIZE; gx += cell) {
-            const j = valueNoise(gx * 0.01, gy * 0.01, SEED + 21);
+    for (let gy = cell / 2; gy < world.height; gy += cell) {
+        for (let gx = cell / 2; gx < world.width; gx += cell) {
+            const j = valueNoise(gx * 0.01, gy * 0.01, terrainSeed + 21);
             const x = gx + (j - 0.5) * cell * 0.6;
-            const y = gy + (valueNoise(gx * 0.01, gy * 0.01, SEED + 22) - 0.5) * cell * 0.6;
-            const bio = sampleGround(x, y).biome;
+            const y = gy + (valueNoise(gx * 0.01, gy * 0.01, terrainSeed + 22) - 0.5) * cell * 0.6;
+            const bio = world.sampleGround(x, y).biome;
             if (bio !== B.MONTAGNE && bio !== B.NEIGE) continue;
             if (world.towns.some(t => Math.hypot(x - t.x, y - t.y) < t.radius + 60)) continue;
             if (world.roadGrid && distToRoads(world, x, y, 160) < 130) continue;
@@ -735,7 +738,7 @@ export class Hud {
     updateLocation() {
         const p = this.player;
         // En vol, le joueur ne met pas son biome à jour : on regarde ce qu'on survole
-        if (p.phase !== 'ground') p.biome = sampleGround(p.x, p.y).biome;
+        if (p.phase !== 'ground') p.biome = this.world.sampleGround(p.x, p.y).biome;
         let name;
         let sub;
         const town = this.world.towns.find(t => Math.hypot(p.x - t.x, p.y - t.y) < t.radius);
@@ -743,7 +746,7 @@ export class Hud {
             name = town.name;
             sub = BIOME_NAMES[town.biome] || '';
         } else if (p.biome === B.LAC) {
-            name = nearestLake(p.x, p.y).name;
+            name = nearestLake(this.world, p.x, p.y).name;
             sub = BIOME_NAMES[B.LAC];
         } else {
             name = BIOME_NAMES[p.biome] || '';
@@ -778,7 +781,7 @@ export class Hud {
     // Ensuite, chaque dessin n'est qu'une copie 1:1 d'un rectangle (aucune mise à l'échelle).
     buildMinimapBase() {
         const k = this.minimap.width / MINIMAP_VIEW;
-        const size = Math.max(1, Math.round(WORLD_SIZE * k));
+        const size = Math.max(1, Math.round(this.world.width * k));
         const c = this._mmBase || document.createElement('canvas');
         c.width = size;
         c.height = size;
@@ -786,7 +789,7 @@ export class Hud {
         ctx.imageSmoothingEnabled = true;
         ctx.imageSmoothingQuality = 'high';
         ctx.drawImage(this.mapImage, 0, 0, size, size);
-        const ks = size / WORLD_SIZE;
+        const ks = size / this.world.width;
         for (const t of this.world.towns) {
             outlinedText(ctx, t.name.toUpperCase(), t.x * ks, t.y * ks, 13 * this.dpr);
         }
@@ -878,7 +881,7 @@ export class Hud {
         c.width = size;
         c.height = size;
         const ctx = c.getContext('2d');
-        const k = size / WORLD_SIZE;
+        const k = size / this.world.width;
         const dpr = this.dpr;
 
         ctx.fillStyle = OCEAN_DEEP;
@@ -921,7 +924,7 @@ export class Hud {
 
         // Lacs : nom en italique, dans l'eau
         const lakePx = Math.max(10, size * 0.019);
-        for (const l of LAKES) {
+        for (const l of this.world.lakes) {
             ctx.font = `italic 600 ${Math.round(lakePx)}px "Rubik", "Segoe UI", sans-serif`;
             ctx.textAlign = 'center';
             ctx.textBaseline = 'middle';
@@ -1025,7 +1028,7 @@ export class Hud {
         if (!base) return;
         const ctx = this.fctx;
         const size = this.fullCanvas.width;
-        const k = size / WORLD_SIZE;
+        const k = size / this.world.width;
         const dpr = this.dpr;
         const p = this.player;
 
@@ -1040,7 +1043,7 @@ export class Hud {
             ctx.save();
             ctx.scale(k, k);
             if (zoneOn) {
-                this.drawZone(ctx, k, 0, 0, WORLD_SIZE, WORLD_SIZE);
+                this.drawZone(ctx, k, 0, 0, this.world.width, this.world.height);
                 this.drawSafeGuide(ctx, k, Infinity);
             }
             if (shipOn) this.drawFlightPath(ctx, k);

@@ -103,22 +103,59 @@ export const ROAD_LINKS = [
     ['pic', 'bois'], ['dune', 'ferme'], ['pic', 'dune']
 ];
 
-// Carte dédiée au duel : même terrain, rendu et règles que la carte principale,
-// mais deux villes opposées pour donner à chaque combattant un point d'intérêt.
+// Carte dédiée au duel : profil autonome, plus compact et géographiquement distinct.
 export const DUEL_MAP_ID = 'duel-two-towns';
 export const TOWNS_DUEL = [
-    { id: 'aube',      name: 'Bastion-Aube',    x: 1450, y: 2900, radius: 520, style: 'city',   biome: B.PLAINE },
-    { id: 'crepuscule', name: 'Port-Crépuscule', x: 4550, y: 3100, radius: 520, style: 'forest', biome: B.PLAINE }
+    { id: 'forge-aube', name: 'Forge de l’Aube', x: 720, y: 720, radius: 360, style: 'mountain', biome: B.MONTAGNE },
+    { id: 'port-ambre', name: 'Port d’Ambre', x: 2280, y: 2240, radius: 390, style: 'desert', biome: B.DESERT }
 ];
-export const ROAD_LINKS_DUEL = [['aube', 'crepuscule']];
+export const ROAD_LINKS_DUEL = [['forge-aube', 'port-ambre']];
 
+// Les profils sont immuables côté configuration : generateWorld clone les données
+// géographiques avant de construire les grilles et les objets de la partie.
 export const MAP_PRESETS = {
-    default: { towns: TOWNS, roadLinks: ROAD_LINKS },
-    [DUEL_MAP_ID]: { towns: TOWNS_DUEL, roadLinks: ROAD_LINKS_DUEL }
+    default: {
+        width: WORLD_SIZE,
+        height: WORLD_SIZE,
+        terrainSeed: SEED,
+        regionSeeds: REGION_SEEDS,
+        snowPeak: SNOW_PEAK,
+        lakes: LAKES,
+        towns: TOWNS,
+        roadLinks: ROAD_LINKS,
+        natureAttempts: 30000
+    },
+    [DUEL_MAP_ID]: {
+        width: 3000,
+        height: 3000,
+        terrainSeed: 773421,
+        regionSeeds: [
+            { b: B.MONTAGNE, x: 620, y: 600 },
+            { b: B.FORET, x: 2310, y: 620 },
+            { b: B.DESERT, x: 620, y: 2350 },
+            { b: B.PLAINE, x: 1500, y: 1450 },
+            { b: B.PLAINE, x: 2320, y: 2250 }
+        ],
+        snowPeak: { x: 600, y: 590, radius: 280 },
+        lakes: [
+            { x: 1450, y: 610, r: 145, name: 'Lac des Brumes' },
+            { x: 1980, y: 1460, r: 185, name: 'Lac Miroir' },
+            { x: 1010, y: 1700, r: 125, name: 'Étang Cuivré' }
+        ],
+        towns: TOWNS_DUEL,
+        roadLinks: ROAD_LINKS_DUEL,
+        natureAttempts: 12000
+    }
 };
 
-export function getMapPreset(mapId = 'default') {
+export function getMapProfile(mapId = 'default') {
     return MAP_PRESETS[mapId] || MAP_PRESETS.default;
+}
+
+// Compatibilité avec les appelants qui ne demandent que villes et routes.
+export function getMapPreset(mapId = 'default') {
+    const profile = getMapProfile(mapId);
+    return { towns: profile.towns, roadLinks: profile.roadLinks };
 }
 
 export const ROAD_WIDTH = 72;

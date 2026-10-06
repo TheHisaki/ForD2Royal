@@ -4,7 +4,6 @@
    ESPACE pour sauter, puis on plane jusqu'au sol en se dirigeant.
    ================================== */
 
-import { WORLD_SIZE } from './config.js';
 import { clamp, inFrameView, fighterSeed, airProject, frameView, rectPointDist } from './utils.js';
 import { drawPlayer, drawStyledHead } from './draw.js';
 import { GLIDER_ART } from '../glider-art.js';
@@ -82,7 +81,7 @@ export function roofAt(world, x, y) {
 
 // Endroit libre pour atterrir : hors des maisons, des murs, des arbres et des rochers
 function spotFree(world, x, y, r) {
-    if (x < r || y < r || x > WORLD_SIZE - r || y > WORLD_SIZE - r) return false;
+    if (x < r || y < r || x > world.width - r || y > world.height - r) return false;
     for (const b of world.buildings) if (rectPointDist(b, x, y) < r + 4) return false;
     const near = world.collide ? world.collide.query(x - r, y - r, x + r, y + r, _near) : [];
     for (let i = 0; i < near.length; i++) {
@@ -199,7 +198,6 @@ export function drawSkyHaze(ctx, v) {
     ctx.fillRect(v.minX, v.minY, v.maxX - v.minX, v.maxY - v.minY);
     ctx.restore();
 }
-const ISLAND_MARGIN = 450;   // on ne peut sauter qu'au-dessus de l'île
 const AUTO_JUMP_GRACE = 0.16; // laisse le compteur afficher « 0 s » avant l'éjection
 const OUTLINE = '#0a1030';
 
@@ -212,14 +210,19 @@ function seededRandom(seed) {
 }
 
 export class Drop {
-    constructor(seed = null) {
+    constructor(world, seed = null) {
+        this.world = world;
+        const width = world?.width || 6000;
+        const height = world?.height || 6000;
+        const scale = Math.min(width, height) / 6000;
+        const margin = 450 * scale;
         // Trajet : une droite qui passe près du centre, avec un angle au hasard
         // (utilise la graine si en multijoueur pour synchroniser tous les joueurs)
         const rng = seed ? seededRandom(seed) : Math.random;
         const angle = rng() * Math.PI * 2;
-        const cx = WORLD_SIZE / 2 + (rng() - 0.5) * 2400;
-        const cy = WORLD_SIZE / 2 + (rng() - 0.5) * 2400;
-        const L = 4600;
+        const cx = width / 2 + (rng() - 0.5) * 2400 * scale;
+        const cy = height / 2 + (rng() - 0.5) * 2400 * scale;
+        const L = 4600 * scale;
         const dx = Math.cos(angle);
         const dy = Math.sin(angle);
         this.path = { ax: cx - dx * L, ay: cy - dy * L, bx: cx + dx * L, by: cy + dy * L };
@@ -231,8 +234,8 @@ export class Drop {
         this.exitAt = null;
         for (let d = 0; d <= this.length; d += 50) {
             const p = this.pointAt(d);
-            const inside = p.x > ISLAND_MARGIN && p.x < WORLD_SIZE - ISLAND_MARGIN &&
-                           p.y > ISLAND_MARGIN && p.y < WORLD_SIZE - ISLAND_MARGIN;
+            const inside = p.x > margin && p.x < width - margin &&
+                           p.y > margin && p.y < height - margin;
             if (inside) {
                 if (this.enterAt === null) this.enterAt = d;
                 this.exitAt = d;
@@ -323,8 +326,8 @@ export class Drop {
 
         // ----- Joueur -----
         if (player.phase === 'ship') {
-            player.x = clamp(this.ship.x, 0, WORLD_SIZE);
-            player.y = clamp(this.ship.y, 0, WORLD_SIZE);
+            player.x = clamp(this.ship.x, 0, this.world.width);
+            player.y = clamp(this.ship.y, 0, this.world.height);
             player.angle = this.angle;
             // Saut automatique après 0 s (ou si le vaisseau a disparu) : éjection forcée
             if (this.dist >= this.autoJumpAt || !this.ship.active) this.jump(player, true);
@@ -337,8 +340,8 @@ export class Drop {
             const k = Math.min(1, dt * 4);
             player.vx += ((len ? a.x / len : 0) * AIR_SPEED - player.vx) * k;
             player.vy += ((len ? a.y / len : 0) * AIR_SPEED - player.vy) * k;
-            player.x = clamp(player.x + player.vx * dt, player.r, WORLD_SIZE - player.r);
-            player.y = clamp(player.y + player.vy * dt, player.r, WORLD_SIZE - player.r);
+            player.x = clamp(player.x + player.vx * dt, player.r, this.world.width - player.r);
+            player.y = clamp(player.y + player.vy * dt, player.r, this.world.height - player.r);
             player.angle = Math.atan2(aimY - player.y, aimX - player.x);
             player.moving = false;
             player.altitude -= dt / FALL_TIME;

@@ -3,13 +3,14 @@
    Déplacement, visée et collisions.
    ================================== */
 
-import { PLAYER, WORLD_SIZE, isWater } from './config.js';
+import { PLAYER, isWater } from './config.js?v=11';
 import { INVENTORY_SLOTS } from './weapons.js';
-import { sampleGround } from './world.js';
+import { sampleGround } from './world.js?v=11';
 import { clamp } from './utils.js';
 
 export class Player {
-    constructor(x, y) {
+    constructor(x, y, world = null) {
+        this.world = world;
         this.x = x;
         this.y = y;
         this.vx = 0;
@@ -19,7 +20,7 @@ export class Player {
         this.moving = false;
         this.walkTime = 0;
         this.inWater = false;
-        this.biome = sampleGround(x, y).biome;
+        this.biome = (world?.sampleGround || sampleGround)(x, y).biome;
         this.name = PLAYER.name;
         this.health = 100;
         this.shield = 0;
@@ -53,12 +54,14 @@ export class Player {
     }
 
     update(dt, input, world, aimX, aimY) {
+        const activeWorld = world || this.world;
+        if (activeWorld) this.world = activeWorld;
         const a = input.axis();
         const len = Math.hypot(a.x, a.y);
         const ix = len ? a.x / len : 0; // diagonale pas plus rapide
         const iy = len ? a.y / len : 0;
 
-        this.biome = sampleGround(this.x, this.y).biome;
+        this.biome = (this.world?.sampleGround || sampleGround)(this.x, this.y).biome;
         this.inWater = isWater(this.biome);
         const speed = PLAYER.speed * (this.inWater ? PLAYER.waterFactor : 1) * (this.dbno ? 0.35 : this.speedMul) * (this.adminSpeedMul || 1);
 
@@ -76,8 +79,8 @@ export class Player {
         this.resolveCollisions(world);
         this.resolveCollisions(world);
 
-        this.x = clamp(this.x, this.r, WORLD_SIZE - this.r);
-        this.y = clamp(this.y, this.r, WORLD_SIZE - this.r);
+        this.x = clamp(this.x, this.r, (this.world?.width || 6000) - this.r);
+        this.y = clamp(this.y, this.r, (this.world?.height || 6000) - this.r);
 
         this.moving = this.vx * this.vx + this.vy * this.vy > (this.dbno ? 150 : 900);
         if (this.moving) this.walkTime += dt * (speed / PLAYER.speed);

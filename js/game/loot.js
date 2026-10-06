@@ -4,8 +4,8 @@
    Le contenu change à chaque partie (Math.random).
    ================================== */
 
-import { WORLD_SIZE, isWater } from './config.js';
-import { sampleGround, townAt } from './world.js';
+import { isWater } from './config.js?v=11';
+import { townAt } from './world.js?v=11';
 import { rectPointDist } from './utils.js';
 import { RARITIES, AMMO_TYPES, WEAPONS, LOOT_WEAPONS, HEALS, THROWABLES, INVENTORY_SLOTS, drawWeapon } from './weapons.js';
 import { iconCanvas } from './icons.js';
@@ -126,25 +126,24 @@ const isPickaxe = (s) => s && s.kind === 'weapon' &&
     (s.weaponId === 'pickaxe' || WEAPONS[s.weaponId]?.type === 'melee');
 
 /*
-   Grille de points : chaque coffre / objet est rangé dans UNE case (sa position).
-   Permet de trouver le butin proche sans parcourir toute la carte
-   (joueur, HUD et 24 bots le demandent très souvent).
+   Grille dimensionnée par monde : une partie duel ne doit jamais utiliser une
+   grille 20x20 ni des cases conçues pour 6000 unités.
 */
-const GRID_N = Math.ceil(WORLD_SIZE / GRID_CELL);
-
-function cellOf(v) {
-    const c = Math.floor(v / GRID_CELL);
-    return c < 0 ? 0 : c >= GRID_N ? GRID_N - 1 : c;
-}
-
 class PointGrid {
-    constructor() {
-        this.cells = new Array(GRID_N * GRID_N);
+    constructor(width, height) {
+        this.nx = Math.max(1, Math.ceil(width / GRID_CELL));
+        this.ny = Math.max(1, Math.ceil(height / GRID_CELL));
+        this.cells = new Array(this.nx * this.ny);
         for (let i = 0; i < this.cells.length; i++) this.cells[i] = [];
     }
 
+    cellOf(v, n) {
+        const c = Math.floor(v / GRID_CELL);
+        return c < 0 ? 0 : c >= n ? n - 1 : c;
+    }
+
     add(o) {
-        o._cell = cellOf(o.y) * GRID_N + cellOf(o.x);
+        o._cell = this.cellOf(o.y, this.ny) * this.nx + this.cellOf(o.x, this.nx);
         this.cells[o._cell].push(o);
     }
 
@@ -153,18 +152,18 @@ class PointGrid {
         if (!list) return;
         const i = list.indexOf(o);
         if (i < 0) return;
-        list[i] = list[list.length - 1]; // retrait sans décaler le tableau
+        list[i] = list[list.length - 1];
         list.pop();
     }
 
-    // Remplit "out" avec les objets des cases qui touchent le rectangle
     query(minX, minY, maxX, maxY, out) {
         out.length = 0;
-        const x0 = cellOf(minX);
-        const x1 = cellOf(maxX);
-        const y1 = cellOf(maxY);
-        for (let cy = cellOf(minY); cy <= y1; cy++) {
-            const row = cy * GRID_N;
+        const x0 = this.cellOf(minX, this.nx);
+        const x1 = this.cellOf(maxX, this.nx);
+        const y0 = this.cellOf(minY, this.ny);
+        const y1 = this.cellOf(maxY, this.ny);
+        for (let cy = y0; cy <= y1; cy++) {
+            const row = cy * this.nx;
             for (let cx = x0; cx <= x1; cx++) {
                 const list = this.cells[row + cx];
                 for (let k = 0; k < list.length; k++) out.push(list[k]);
@@ -198,8 +197,8 @@ export class Loot {
         this._byId = new Map();
         this._tmp = [];
         this._q = [];                    // tableau temporaire des recherches
-        this._chestGrid = new PointGrid();
-        this._itemGrid = new PointGrid();
+        this._chestGrid = new PointGrid(world.width, world.height);
+        this._itemGrid = new PointGrid(world.width, world.height);
         this._opening = [];              // coffres en cours d'ouverture (animation)
         this._popping = [];              // objets en cours d'apparition (animation)
         this._styleCtx = null;           // dégradés mis en cache pour ce contexte
@@ -278,7 +277,7 @@ export class Loot {
 
     // Vrai si un cercle (x, y, r) touche un obstacle ou sort du monde
     _blocked(x, y, r) {
-        if (x < r || y < r || x > WORLD_SIZE - r || y > WORLD_SIZE - r) return true;
+        if (x < r || y < r || x > this.world.width - r || y > this.world.height - r) return true;
         const list = this.world.collide.query(x - r, y - r, x + r, y + r, this._tmp);
         for (const o of list) {
             if (o.kind === 'circle') {
@@ -291,9 +290,9 @@ export class Loot {
     }
 
     _onLand(x, y, r) {
-        if (isWater(sampleGround(x, y).biome)) return false;
+        if (isWater(this.world.sampleGround(x, y).biome)) return false;
         for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-            if (isWater(sampleGround(x + dx * r, y + dy * r).biome)) return false;
+            if (isWater(this.world.sampleGround(x + dx * r, y + dy * r).biome)) return false;
         }
         return true;
     }
@@ -338,8 +337,8 @@ export class Loot {
         let placed = 0;
         for (const spacing of [450, 280]) {
             for (let i = 0; i < 4000 && placed < count; i++) {
-                const x = 250 + Math.random() * (WORLD_SIZE - 500);
-                const y = 250 + Math.random() * (WORLD_SIZE - 500);
+                const x = 250 + Math.random() * (this.world.width - 500);
+                const y = 250 + Math.random() * (this.world.height - 500);
                 if (this.chests.some(c => Math.hypot(c.x - x, c.y - y) < spacing)) continue;
                 if (townAt(this.world, x, y, 80)) continue;
                 if (this.world.buildings.some(b => rectPointDist(b, x, y) < CHEST_R + 80)) continue;
