@@ -590,6 +590,9 @@ function start() {
         firstEnemyTeam: Math.max(...teams.map(t => t.team || 1)) + 1
     });
 
+    // Le HUD duel dépend de BotManager (nom de l'adversaire bot) : l'initialiser après sa création.
+    if (isDuel) updateDuelScoreHud();
+
     // ----- Fin de l'initialisation déterministe -----
     // Restaurer Math.random pour que l'IA, les effets visuels et les sons
     // restent naturels (non prédictibles) pendant la partie.
@@ -630,7 +633,6 @@ function start() {
     if (isDuel) {
         combatHud.setAltitudeProfile(DUEL_DROP); // altimètre duel : repère à 100 m
         document.body.classList.add('is-duel'); // le lieu / les alertes descendent sous le tableau des scores
-        updateDuelScoreHud();
     }
     hud.setZone?.(corruption);
     renderer.setZone(corruption); // la carte elle-même devient violet / noir dans la corruption
@@ -2605,8 +2607,8 @@ function start() {
     }
 
     /* ----- Best of 3 : on se voit toujours en BLEU (à gauche), l'adversaire en ROUGE (à droite) ----- */
-    const duelOppTeam = () => (player.team === 1 ? 2 : 1);
-    const duelScoreOf = (team) => (team === 1 ? duelScore1 : duelScore2);
+    function duelOppTeam() { return player.team === 1 ? 2 : 1; }
+    function duelScoreOf(team) { return team === 1 ? duelScore1 : duelScore2; }
 
     function duelNode(tag, className, text) {
         const el = document.createElement(tag);
