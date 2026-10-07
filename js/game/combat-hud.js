@@ -423,6 +423,13 @@ export class CombatHud {
         while (this.feed.length > FEED_MAX) this.feed.shift().el.remove();
     }
 
+    // Carte/vaisseau : l'altimètre duel utilise une échelle 200 m -> 100 m au planeur.
+    setFlight(drop) {
+        this.drop = drop;
+        this.altMeters = drop?.duelMode ? 200 : ALT_METERS;
+        this.gliderAltMeters = drop?.duelMode ? 100 : Math.round(GLIDER_ALT * ALT_METERS);
+    }
+
     // Altimètre sous le personnage (centre de l'écran) pendant la chute.
     // Le DOM n'est touché que quand la valeur affichée (pas de 10 m) ou l'état change.
     updateAltimeter() {
@@ -435,19 +442,23 @@ export class CombatHud {
             return;
         }
         const alt = Math.max(0, Math.min(1, p.altitude ?? 0));
-        const m = Math.round((alt * ALT_METERS) / ALT_STEP) * ALT_STEP;
+        const altMeters = this.altMeters || ALT_METERS;
+        const m = Math.round((alt * altMeters) / ALT_STEP) * ALT_STEP;
         if (m === this._altM) return;
         this._altM = m;
         a.value.textContent = String(m);
-        a.fill.style.transform = `scaleX(${(m / ALT_METERS).toFixed(3)})`;
+        a.fill.style.transform = `scaleX(${(m / altMeters).toFixed(3)})`;
 
         // État : chute libre → planeur ouvert → atterrissage (couleurs gérées par le CSS)
-        const state = alt > GLIDER_ALT ? 'fall' : alt > LAND_ALT ? 'glide' : 'land';
+        const gliderAlt = this.drop?.duelMode ? 0.5 : GLIDER_ALT;
+        const state = alt > gliderAlt ? 'fall' : alt > LAND_ALT ? 'glide' : 'land';
         if (state === this._altState) return;
         if (this._altState) a.box.classList.remove(this._altState);
         a.box.classList.add(state);
         this._altState = state;
-        a.hint.textContent = ALT_HINTS[state];
+        a.hint.textContent = state === 'fall'
+            ? `Chute libre · planeur à ${this.gliderAltMeters || Math.round(GLIDER_ALT * ALT_METERS)} m`
+            : ALT_HINTS[state];
     }
 
     // Grande confirmation "ÉLIMINATION" au centre.

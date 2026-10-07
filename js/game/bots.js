@@ -9,7 +9,7 @@
 import { B, PLAYER, isWater } from './config.js?v=12';
 import { Player } from './player.js?v=11';
 import { clamp, pick, airProject } from './utils.js';
-import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=17';
+import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=18';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
 import { hasBackpackArt } from './backpack-art.js';
@@ -363,8 +363,9 @@ export class BotManager {
             bot.gliderColors = gl.colors;
             bot.gliderStyle = gl.style || null;
             bot.phase = 'ship';
+            bot.duelDrop = drop.duelMode;
             bot.altitude = 1;
-            bot.angle = drop.angle;
+            bot.angle = drop.duelMode ? drop.shipFor(bot).angle : drop.angle;
             // Propriétés d'interpolation pour le réseau
             bot._targetX = bot.x;
             bot._targetY = bot.y;
@@ -692,9 +693,10 @@ export class BotManager {
 
         if (shouldJump) {
             bot.phase = 'air';
+            bot.duelDrop = drop.duelMode;
             bot.altitude = 1;
-            bot.vx = Math.cos(drop.angle) * 200; // garde un peu l'élan du vaisseau
-            bot.vy = Math.sin(drop.angle) * 200;
+            bot.vx = drop.duelMode ? 0 : Math.cos(drop.angle) * 200;
+            bot.vy = drop.duelMode ? 0 : Math.sin(drop.angle) * 200;
         }
     }
 

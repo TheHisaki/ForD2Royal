@@ -397,7 +397,8 @@ export class Drop {
             player.x = this.ship.dropX ?? this.ship.x;
             player.y = this.ship.dropY ?? this.ship.y;
         }
-        player.phase = 'air';
+        player.duelDrop = this.duelMode;
+    player.phase = 'air';
         player.altitude = 1;
         player.vx = this.duelMode ? 0 : Math.cos(this.angle) * 200;
         player.vy = this.duelMode ? 0 : Math.sin(this.angle) * 200;
@@ -540,7 +541,8 @@ export class Drop {
 // contours d'aile précalculés, et rien n'est dessiné hors écran.
 
 const TAU = Math.PI * 2;
-const OPEN_ALT = 2 / 3;   // ouverture après 1/3 de la chute : 2/3 du vol sous planeur
+export const OPEN_ALT = 2 / 3;   // carte classique : bus 2000 m, planeur vers 1333 m
+export const DUEL_OPEN_ALT = 0.5; // duel : bus 200 m, planeur exactement vers 100 m
 const DEPLOY_ALT = 0.07;  // "durée" du déploiement, mesurée en altitude
 const FOLD_ALT = 0.035;   // il se replie juste avant de toucher le sol
 const PANELS = 3;         // panneaux colorés par demi-aile
@@ -651,8 +653,9 @@ export function drawFalling(ctx, p, time) {
     ctx.save();
     ctx.globalAlpha *= pr.alpha;
     ctx.lineJoin = 'round';
+    const openAlt = p.duelDrop ? DUEL_OPEN_ALT : OPEN_ALT;
     if (p.roofSlide) drawRoofSlide(ctx, p, f);
-    else if (alt > OPEN_ALT) drawSkydiver(ctx, p, f);
+    else if (alt > openAlt) drawSkydiver(ctx, p, f);
     else drawGliding(ctx, p, f);
     ctx.restore();
 }
@@ -944,7 +947,8 @@ function drawGliding(ctx, p, f) {
     const seed = fighterSeed(p) * 1.37;
 
     // Déploiement avec rebond, puis repli juste avant le sol
-    const dp = clamp((OPEN_ALT - alt) / DEPLOY_ALT, 0, 1);
+    const openAlt = p.duelDrop ? DUEL_OPEN_ALT : OPEN_ALT;
+    const dp = clamp((openAlt - alt) / DEPLOY_ALT, 0, 1);
     const gs = Math.max(0, easeOutBack(dp)) * smoothstep(0, FOLD_ALT, alt);
 
     // Inclinaison : vitesse latérale par rapport à la visée (+ = vers la droite)
