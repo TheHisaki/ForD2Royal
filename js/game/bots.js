@@ -7,9 +7,9 @@
    ================================== */
 
 import { B, PLAYER, isWater } from './config.js?v=12';
-import { Player } from './player.js?v=11';
+import { Player } from './player.js?v=13';
 import { clamp, pick, airProject } from './utils.js';
-import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=18';
+import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=19';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
 import { hasBackpackArt } from './backpack-art.js';
@@ -134,6 +134,14 @@ function segDist2(px, py, ax, ay, dx, dy, l2) {
 }
 
 function segmentClear(world, ax, ay, bx, by, pad = 0) {
+    // 1V1 : la frontière temporaire coupe la vue et le chemin (pas de tir inutile au travers)
+    const bd = world.duelBarrier;
+    if (bd && bd.active) {
+        const sa = (ax - bd.cx) * bd.tx + (ay - bd.cy) * bd.ty;
+        const sb = (bx - bd.cx) * bd.tx + (by - bd.cy) * bd.ty;
+        const m = bd.half + pad;
+        if (sa * sb < 0 || Math.abs(sa) < m || Math.abs(sb) < m) return false;
+    }
     const inflate = Math.max(pad, LOS_STEP / 2);
     const minX = Math.min(ax, bx);
     const maxX = Math.max(ax, bx);

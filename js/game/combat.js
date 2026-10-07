@@ -733,9 +733,21 @@ export class Combat {
             targets.push(t);
         }
 
+        // 1V1 : la frontière temporaire arrête les balles (demi-plan, aucune grille)
+        const bd = this.world.duelBarrier;
+        const barrier = bd && bd.active ? bd : null;
+        const side0 = barrier ? Math.sign((b.x - barrier.cx) * barrier.tx + (b.y - barrier.cy) * barrier.ty) : 0;
+
         for (let k = 0; k < steps; k++) {
             b.x += ux * s;
             b.y += uy * s;
+            if (barrier) {
+                const sd = (b.x - barrier.cx) * barrier.tx + (b.y - barrier.cy) * barrier.ty;
+                if (Math.abs(sd) < barrier.half || Math.sign(sd) !== side0) {
+                    this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), 'wall', null, b.owner);
+                    return false;
+                }
+            }
             if (walls.length && this._wallAt(walls, b.x, b.y)) {
                 if (b.bounces > 0) {
                     const oldUx = b.ux;

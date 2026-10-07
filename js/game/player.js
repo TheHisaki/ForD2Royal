@@ -98,6 +98,25 @@ export class Player {
         const r = this.r;
         const near = world.collide.query(this.x - r - 4, this.y - r - 4, this.x + r + 4, this.y + r + 4, this._near);
 
+        // 1V1 : frontière temporaire = demi-plan sur toute la carte (terre et eau).
+        // On mémorise son camp : même un gros déplacement (grenade de propulsion)
+        // ne peut pas faire passer de l'autre côté.
+        const bd = world.duelBarrier;
+        if (bd && bd.active) {
+            const s = (this.x - bd.cx) * bd.tx + (this.y - bd.cy) * bd.ty;
+            const min = bd.half + r;
+            const side = this._barrierSide || (s < 0 ? -1 : 1);
+            if (s * side < min) {
+                const push = side * min - s;
+                this.x += bd.tx * push;
+                this.y += bd.ty * push;
+            } else {
+                this._barrierSide = side;
+            }
+        } else if (this._barrierSide) {
+            this._barrierSide = 0;
+        }
+
         for (let i = 0; i < near.length; i++) {
             const c = near[i];
             if (c.kind === 'circle') {

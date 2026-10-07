@@ -3,18 +3,18 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=30 : 1V1 — frontière pleine largeur sans collisions circulaires
+// ?v=30 : 1V1 — frontière sur toute la carte (demi-plan) + rendu sans shadowBlur
 import { generateWorld, surfaceAt } from './world.js?v=12';
-import { Player } from './player.js?v=12';
+import { Player } from './player.js?v=13';
 import { Renderer } from './renderer.js?v=14';
 import { Hud } from './hud.js?v=14';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
 } from './drop.js?v=19';
-import { Combat } from './combat.js?v=12';
+import { Combat } from './combat.js?v=13';
 import { Loot } from './loot.js?v=12';
-import { BotManager, roofAlphaAt } from './bots.js?v=19';
+import { BotManager, roofAlphaAt } from './bots.js?v=20';
 import { Corruption } from './corruption.js?v=11';
 import { CombatHud } from './combat-hud.js?v=13';
 import { Effects } from './effects.js?v=14';
@@ -61,7 +61,7 @@ const BLAST_FX = {
 };
 
 const DUEL_BOUNDARY_SECONDS = 10;
-const DUEL_BOUNDARY_GAP = 64;
+const DUEL_BOUNDARY_HALF_WIDTH = 30; // demi-épaisseur du mur (en plus du rayon du combattant)
 
 function duelRoundSeed(baseSeed, round, isDuel) {
     const base = (Number(baseSeed) >>> 0) || 1;
@@ -72,96 +72,123 @@ function duelRoundSeed(baseSeed, round, isDuel) {
     return ((x ^ (x >>> 16)) >>> 0) || 1;
 }
 
+/*
+   Frontière 1V1 : une droite perpendiculaire à l'axe ville A -> ville B, passant par
+   leur milieu, qui traverse TOUTE la carte (terre ET eau : on nage, il ne faut pas
+   pouvoir la contourner par la mer). La collision est un demi-plan exact
+   (voir Player.resolveCollisions) : aucun trou, et quasiment aucun coût.
+*/
 function createDuelBoundary(world) {
     const [a, b] = world.towns || [];
     if (!a || !b) return null;
     const dx = b.x - a.x;
     const dy = b.y - a.y;
     const length = Math.hypot(dx, dy) || 1;
-    const tangent = { x: dx / length, y: dy / length };
-    const normal = { x: -tangent.y, y: tangent.x };
-    const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-    // La ligne dépasse les quatre coins : elle couvre toute la largeur de la carte,
-    // sans extrémité contournable en haut, en bas ou sur les côtés.
-    const halfLength = Math.hypot(world.width, world.height);
-    return { center, normal, tangent, halfLength };
+    const tx = dx / length;           // normale du mur (côté ville A < 0 < côté ville B)
+    const ty = dy / length;
+    const nx = -ty;                   // direction le long du mur
+    const ny = tx;
+    const cx = (a.x + b.x) / 2;
+    const cy = (a.y + b.y) / 2;
+    // Extrémités : intersection de la droite avec les bords du monde (+ marge)
+    let tMin = -Infinity;
+    let tMax = Infinity;
+    const clip = (p, d, lo, hi) => {
+        if (Math.abs(d) < 1e-9) return;
+        let t0 = (lo - p) / d;
+        let t1 = (hi - p) / d;
+        if (t0 > t1) [t0, t1] = [t1, t0];
+        tMin = Math.max(tMin, t0);
+        tMax = Math.min(tMax, t1);
+    };
+    clip(cx, nx, -200, world.width + 200);
+    clip(cy, ny, -200, world.height + 200);
+    return {
+        cx, cy, tx, ty, nx, ny,
+        half: DUEL_BOUNDARY_HALF_WIDTH,
+        ax: cx + nx * tMin, ay: cy + ny * tMin,
+        bx: cx + nx * tMax, by: cy + ny * tMax,
+        active: false
+    };
 }
 
-function constrainDuelFighter(f, boundary) {
-    if (!f || !f.alive || f.phase !== 'ground') return;
-    // Équipe 1 = ville A / côté négatif ; équipe 2 = ville B / côté positif.
-    const side = Number(f.team) === 2 ? 1 : -1;
-    const along = (f.x - boundary.center.x) * boundary.tangent.x +
-        (f.y - boundary.center.y) * boundary.tangent.y;
-    const allowed = side * along;
-    if (allowed >= DUEL_BOUNDARY_GAP) return;
+/*
+   Rendu SANS shadowBlur : un flou d'ombre sur un trait de plusieurs milliers d'unités,
+   recalculé à chaque image, faisait chuter les FPS près du mur. Le halo est fait de
+   quelques traits semi-transparents superposés, et les décorations ne sont dessinées
+   que sur la partie visible du mur.
+*/
+function drawDuelBoundary(ctx, bd, age, time, v) {
+    if (!bd || age <= 0 || age >= DUEL_BOUNDARY_SECONDS) return;
+    // Mur hors de l'écran : rien à dessiner (distance du centre de la vue à la droite)
+    const vcx = (v.minX + v.maxX) / 2;
+    const vcy = (v.minY + v.maxY) / 2;
+    const reach = Math.hypot(v.maxX - v.minX, v.maxY - v.minY) / 2 + 120;
+    if (Math.abs((vcx - bd.cx) * bd.tx + (vcy - bd.cy) * bd.ty) > reach) return;
 
-    const correction = side * DUEL_BOUNDARY_GAP - along;
-    f.x += boundary.tangent.x * correction;
-    f.y += boundary.tangent.y * correction;
-
-    // Supprimer uniquement la vitesse qui pousse vers la frontière ; les déplacements
-    // parallèles restent inchangés et il n'y a donc plus de ping-pong de collisions.
-    const toward = side * (f.vx * boundary.tangent.x + f.vy * boundary.tangent.y);
-    if (toward < 0) {
-        const normalVelocity = f.vx * boundary.tangent.x + f.vy * boundary.tangent.y;
-        f.vx -= boundary.tangent.x * normalVelocity;
-        f.vy -= boundary.tangent.y * normalVelocity;
-    }
-}
-
-function drawDuelBoundary(ctx, boundary, age, time) {
-    if (!boundary || age <= 0 || age >= DUEL_BOUNDARY_SECONDS) return;
     const fade = Math.min(1, (DUEL_BOUNDARY_SECONDS - age) / 1.8);
-    const { center, normal, tangent, halfLength } = boundary;
-    const ax = center.x - normal.x * halfLength;
-    const ay = center.y - normal.y * halfLength;
-    const bx = center.x + normal.x * halfLength;
-    const by = center.y + normal.y * halfLength;
+    const pulse = 0.5 + 0.5 * Math.sin(time * 6);
+    // Portion visible du mur (paramètre le long de la droite)
+    const along = (vcx - bd.cx) * bd.nx + (vcy - bd.cy) * bd.ny;
+    const t0 = along - reach;
+    const t1 = along + reach;
+    const ax = bd.cx + bd.nx * t0;
+    const ay = bd.cy + bd.ny * t0;
+    const bx = bd.cx + bd.nx * t1;
+    const by = bd.cy + bd.ny * t1;
+    const line = () => { ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); };
+
     ctx.save();
-    ctx.globalAlpha = fade;
-    ctx.lineCap = 'round';
-    ctx.setLineDash([44, 18]);
-    ctx.lineDashOffset = -time * 110;
+    ctx.lineCap = 'butt';
+    // Halo (3 couches transparentes au lieu d'un flou)
     ctx.strokeStyle = '#ff1838';
-    ctx.shadowColor = '#ff1838';
-    ctx.shadowBlur = 34;
-    ctx.lineWidth = 62;
-    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
-    ctx.shadowBlur = 10;
-    ctx.lineWidth = 34;
+    for (const [w, a] of [[150, 0.08], [104, 0.14], [74, 0.24 + 0.08 * pulse]]) {
+        ctx.globalAlpha = fade * a;
+        ctx.lineWidth = w;
+        line(); ctx.stroke();
+    }
+    // Cœur du mur
+    ctx.globalAlpha = fade * 0.92;
+    ctx.lineWidth = bd.half * 2;
     ctx.strokeStyle = '#5d071c';
-    ctx.stroke();
-    ctx.setLineDash([18, 14]);
-    ctx.lineDashOffset = time * 150;
-    ctx.lineWidth = 7;
-    ctx.strokeStyle = '#ff5266';
-    ctx.stroke();
+    line(); ctx.stroke();
+    // Bandes de danger qui défilent
+    ctx.globalAlpha = fade;
+    ctx.lineWidth = bd.half * 2 - 10;
+    ctx.strokeStyle = '#ff2a44';
+    ctx.setLineDash([46, 30]);
+    ctx.lineDashOffset = -time * 120;
+    line(); ctx.stroke();
     ctx.setLineDash([]);
-    // Chevrons lumineux : la frontière ressemble à une zone interdite, pas à un simple trait.
+    // Liserés lumineux des deux bords
+    ctx.lineWidth = 4;
     ctx.strokeStyle = '#ffd0d6';
-    ctx.shadowColor = '#ff1838';
-    ctx.shadowBlur = 14;
-    ctx.lineWidth = 5;
-    for (let i = -5; i <= 5; i++) {
-        const t = (i + 5.5) / 11;
-        const x = ax + (bx - ax) * t;
-        const y = ay + (by - ay) * t;
-        const s = 20 + 4 * Math.sin(time * 4 + i);
-        ctx.beginPath();
-        ctx.moveTo(x - tangent.x * s - normal.x * 13, y - tangent.y * s - normal.y * 13);
-        ctx.lineTo(x + tangent.x * s, y + tangent.y * s);
-        ctx.lineTo(x - tangent.x * s + normal.x * 13, y - tangent.y * s + normal.y * 13);
-        ctx.stroke();
+    for (const side of [-1, 1]) {
+        const ox = bd.tx * bd.half * side;
+        const oy = bd.ty * bd.half * side;
+        ctx.beginPath(); ctx.moveTo(ax + ox, ay + oy); ctx.lineTo(bx + ox, by + oy); ctx.stroke();
     }
-    ctx.fillStyle = '#ff1838';
-    ctx.shadowBlur = 24;
-    for (const p of [{ x: ax, y: ay }, { x: bx, y: by }]) {
-        ctx.beginPath(); ctx.arc(p.x, p.y, 16 + Math.sin(time * 5) * 3, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#ffd0d6';
-        ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = '#ff1838';
+    // Chevrons « interdit » pointant vers chaque camp, seulement sur la partie visible
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = '#ffe3e7';
+    ctx.globalAlpha = fade * (0.55 + 0.45 * pulse);
+    const step = 160;
+    const first = Math.ceil(t0 / step) * step;
+    ctx.beginPath();
+    for (let t = first; t <= t1; t += step) {
+        const px = bd.cx + bd.nx * t;
+        const py = bd.cy + bd.ny * t;
+        for (const side of [-1, 1]) {
+            const tipX = px + bd.tx * (bd.half + 46) * side;
+            const tipY = py + bd.ty * (bd.half + 46) * side;
+            const baseX = px + bd.tx * (bd.half + 18) * side;
+            const baseY = py + bd.ty * (bd.half + 18) * side;
+            ctx.moveTo(baseX - bd.nx * 22, baseY - bd.ny * 22);
+            ctx.lineTo(tipX, tipY);
+            ctx.lineTo(baseX + bd.nx * 22, baseY + bd.ny * 22);
+        }
     }
+    ctx.stroke();
     ctx.restore();
 }
 
@@ -265,7 +292,7 @@ function start() {
     const loot = new Loot(world, gameSeed); // coffres (ajoutés aux obstacles) + butin au sol
     const duelBoundary = isDuel ? createDuelBoundary(world) : null;
     let duelBoundaryAge = 0;
-    if (duelBoundary) world.duelBoundaryActive = false;
+    world.duelBarrier = duelBoundary; // lu par Player, Combat et les bots (null hors 1V1)
     const effects = new Effects();
 
     // 1V1 : un bus en panne au-dessus de chaque ville ; équipe 1 -> 1re ville, équipe 2 -> 2e
@@ -2581,7 +2608,7 @@ function start() {
     const hooks = {
         under: (ctx, v) => {
             loot.draw(ctx, time, v);
-            if (duelBoundary) drawDuelBoundary(ctx, duelBoundary, duelBoundaryAge, time);
+            if (duelBoundary) drawDuelBoundary(ctx, duelBoundary, duelBoundaryAge, time, v);
             effects.drawGround(ctx, v);
         },
         entities: (ctx, v) => {
@@ -2919,16 +2946,10 @@ function start() {
         const aim = aimPoint();
         drop.update(dt, player, input, aim.x, aim.y);
 
-        // Après l'expulsion, le passage central est verrouillé pendant 10 s.
-        // La contrainte géométrique reste légère : aucune chaîne de colliders n'est
-        // ajoutée à la grille, ce qui évite les poussées répétées et les chutes de FPS.
+        // Après l'expulsion, le passage entre les deux camps est fermé pendant 10 s.
         if (duelBoundary) {
-            if (drop.duelExpelled) {
-                duelBoundaryAge = Math.min(DUEL_BOUNDARY_SECONDS, duelBoundaryAge + dt);
-                world.duelBoundaryActive = duelBoundaryAge < DUEL_BOUNDARY_SECONDS;
-            } else {
-                world.duelBoundaryActive = false;
-            }
+            if (drop.duelExpelled) duelBoundaryAge = Math.min(DUEL_BOUNDARY_SECONDS, duelBoundaryAge + dt);
+            duelBoundary.active = drop.duelExpelled && duelBoundaryAge < DUEL_BOUNDARY_SECONDS;
         }
 
         // Éjection automatique (forcée) après l'affichage de 0 s, ou si le vaisseau a disparu
@@ -2983,11 +3004,6 @@ function start() {
             if (withInput) playerActions();
         }
         bots.update(dt, time);
-        if (duelBoundary && world.duelBoundaryActive) {
-            // Une seule projection par combattant : pas de grille surchargée ni de
-            // répétition de poussées entre cercles qui faisait chuter les FPS.
-            for (const fighter of fighters) constrainDuelFighter(fighter, duelBoundary);
-        }
         combat.update(dt);
         corruption.update(dt, fighters, combat);
         loot.update(dt);
