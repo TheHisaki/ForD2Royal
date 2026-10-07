@@ -130,6 +130,9 @@ function start() {
     let duelRound = Math.max(1, Math.min(3, Number(urlParams.get('duelRound')) || 1));
     let duelScore1 = Math.max(0, Math.min(2, Number(urlParams.get('duelScore1')) || 0));
     let duelScore2 = Math.max(0, Math.min(2, Number(urlParams.get('duelScore2')) || 0));
+    // Équipe gagnante de chaque manche jouée, dans l'ordre (ex. « 121 ») : colore les pastilles
+    let duelHist = (urlParams.get('duelHist') || '').replace(/[^12]/g, '').slice(0, 3);
+    if (duelHist.length !== duelScore1 + duelScore2) duelHist = '1'.repeat(duelScore1) + '2'.repeat(duelScore2);
     let duelRoundHandled = false;
 
     /* ----- Aléatoire synchronisé en multijoueur -----
@@ -626,6 +629,7 @@ function start() {
     combatHud = new CombatHud(player, fighters, loot);
     if (isDuel) {
         combatHud.setAltitudeProfile(DUEL_DROP); // altimètre duel : repère à 100 m
+        document.body.classList.add('is-duel'); // le lieu / les alertes descendent sous le tableau des scores
         updateDuelScoreHud();
     }
     hud.setZone?.(corruption);
@@ -2600,47 +2604,92 @@ function start() {
         return enemyBot?.name || (team === 1 ? 'JOUEUR 1' : 'JOUEUR 2');
     }
 
+    /* ----- Best of 3 : on se voit toujours en BLEU (à gauche), l'adversaire en ROUGE (à droite) ----- */
+    const duelOppTeam = () => (player.team === 1 ? 2 : 1);
+    const duelScoreOf = (team) => (team === 1 ? duelScore1 : duelScore2);
+
+    function duelNode(tag, className, text) {
+        const el = document.createElement(tag);
+        el.className = className;
+        if (text !== undefined) el.textContent = text;
+        return el;
+    }
+
+    // 3 pastilles, une par manche : bleue = gagnée, rouge = perdue, contour = manche en cours
+    function fillDuelPips(box) {
+        box.replaceChildren();
+        for (let i = 0; i < 3; i++) {
+            const pip = duelNode('i', 'duel-pip');
+            const winner = Number(duelHist[i]) || 0;
+            if (winner) pip.classList.add(winner === player.team ? 'is-win' : 'is-loss');
+            else if (i === duelRound - 1 && !duelRoundHandled) pip.classList.add('is-current');
+            box.appendChild(pip);
+        }
+    }
+
     function updateDuelScoreHud() {
         if (!isDuel) return;
         let el = document.getElementById('duelScoreHud');
         if (!el) {
-            el = document.createElement('div');
+            el = duelNode('div', '');
             el.id = 'duelScoreHud';
-            el.setAttribute('aria-live', 'polite');
-            const round = document.createElement('span');
-            round.className = 'ds-round';
-            const left = document.createElement('span');
-            left.className = 'ds-player ds-left';
-            const score = document.createElement('strong');
-            score.className = 'ds-score';
-            const right = document.createElement('span');
-            right.className = 'ds-player ds-right';
-            el.append(round, left, score, right);
+            const me = duelNode('div', 'ds-side ds-me');
+            me.append(duelNode('span', 'ds-dot'), duelNode('span', 'ds-name'), duelNode('strong', 'ds-num'));
+            const mid = duelNode('div', 'ds-mid');
+            mid.append(duelNode('div', 'ds-pips'), duelNode('span', 'ds-round'));
+            const opp = duelNode('div', 'ds-side ds-opp');
+            opp.append(duelNode('strong', 'ds-num'), duelNode('span', 'ds-name'), duelNode('span', 'ds-dot'));
+            el.append(me, mid, opp);
             document.body.appendChild(el);
         }
-        el.querySelector('.ds-round').textContent = `MANCHE ${duelRound} / 3`;
-        el.querySelector('.ds-left').textContent = duelNameForTeam(1);
-        el.querySelector('.ds-score').textContent = `${duelScore1}  —  ${duelScore2}`;
-        el.querySelector('.ds-right').textContent = duelNameForTeam(2);
+        const myName = duelNameForTeam(player.team);
+        const oppName = duelNameForTeam(duelOppTeam());
+        const myScore = duelScoreOf(player.team);
+        const oppScore = duelScoreOf(duelOppTeam());
+        el.querySelector('.ds-me .ds-name').textContent = myName;
+        el.querySelector('.ds-me .ds-num').textContent = String(myScore);
+        el.querySelector('.ds-opp .ds-name').textContent = oppName;
+        el.querySelector('.ds-opp .ds-num').textContent = String(oppScore);
+        el.querySelector('.ds-round').textContent = `MANCHE ${duelRound}/3`;
+        fillDuelPips(el.querySelector('.ds-pips'));
+        el.setAttribute('aria-label', `Manche ${duelRound} sur 3. ${myName} ${myScore}, ${oppName} ${oppScore}.`);
     }
 
     function showDuelRoundResult(winnerTeam, final) {
+        const won = winnerTeam === player.team;
         let el = document.getElementById('duelRoundResult');
         if (!el) {
-            el = document.createElement('div');
+            el = duelNode('div', '');
             el.id = 'duelRoundResult';
             el.setAttribute('role', 'status');
-            const kicker = document.createElement('span'); kicker.className = 'drr-kicker';
-            const title = document.createElement('strong'); title.className = 'drr-title';
-            const score = document.createElement('span'); score.className = 'drr-score';
-            const next = document.createElement('span'); next.className = 'drr-next';
-            el.append(kicker, title, score, next);
+            const board = duelNode('div', 'drr-board');
+            const me = duelNode('span', 'drr-side drr-me');
+            me.append(duelNode('span', 'ds-dot'), duelNode('span', 'drr-name'), duelNode('strong', 'drr-num'));
+            const opp = duelNode('span', 'drr-side drr-opp');
+            opp.append(duelNode('strong', 'drr-num'), duelNode('span', 'drr-name'), duelNode('span', 'ds-dot'));
+            board.append(me, duelNode('span', 'drr-dash', '—'), opp);
+            el.append(
+                duelNode('span', 'drr-kicker'), duelNode('strong', 'drr-title'), duelNode('span', 'drr-sub'),
+                board, duelNode('div', 'ds-pips drr-pips'), duelNode('span', 'drr-next')
+            );
             document.body.appendChild(el);
         }
-        el.querySelector('.drr-kicker').textContent = final ? 'DUEL TERMINÉ' : `MANCHE ${duelRound} GAGNÉE`;
-        el.querySelector('.drr-title').textContent = `${duelNameForTeam(winnerTeam)} remporte la manche`;
-        el.querySelector('.drr-score').textContent = `${duelScore1}  —  ${duelScore2}`;
-        el.querySelector('.drr-next').textContent = final ? 'Victoire au meilleur des 3' : `Manche ${duelRound + 1} dans 3 secondes…`;
+        const oppName = duelNameForTeam(duelOppTeam());
+        el.classList.toggle('is-win', won);
+        el.classList.toggle('is-loss', !won);
+        el.querySelector('.drr-kicker').textContent = final ? 'DUEL TERMINÉ' : `MANCHE ${duelRound} / 3`;
+        el.querySelector('.drr-title').textContent = final
+            ? (won ? 'VICTOIRE' : 'DÉFAITE')
+            : (won ? 'MANCHE GAGNÉE' : 'MANCHE PERDUE');
+        el.querySelector('.drr-sub').textContent = final
+            ? (won ? 'Tu remportes le duel au meilleur des 3' : `${oppName} remporte le duel`)
+            : (won ? 'Tu remportes la manche' : `${oppName} remporte la manche`);
+        el.querySelector('.drr-me .drr-name').textContent = duelNameForTeam(player.team);
+        el.querySelector('.drr-me .drr-num').textContent = String(duelScoreOf(player.team));
+        el.querySelector('.drr-opp .drr-name').textContent = oppName;
+        el.querySelector('.drr-opp .drr-num').textContent = String(duelScoreOf(duelOppTeam()));
+        fillDuelPips(el.querySelector('.drr-pips'));
+        el.querySelector('.drr-next').textContent = final ? 'Résultats dans un instant…' : `Manche ${duelRound + 1} dans 3 secondes…`;
         el.hidden = false;
         el.classList.remove('is-visible');
         void el.offsetWidth;
@@ -2652,6 +2701,7 @@ function start() {
         url.searchParams.set('duelRound', String(duelRound + 1));
         url.searchParams.set('duelScore1', String(duelScore1));
         url.searchParams.set('duelScore2', String(duelScore2));
+        url.searchParams.set('duelHist', duelHist);
         // Le serveur conserve la salle ; la manche suivante recale son horloge localement.
         window.location.href = url.href;
     }
@@ -2662,6 +2712,7 @@ function start() {
         gameOver = true;
         if (winner.team === 1) duelScore1 = Math.min(2, duelScore1 + 1);
         else duelScore2 = Math.min(2, duelScore2 + 1);
+        duelHist = (duelHist + (winner.team === 1 ? '1' : '2')).slice(0, 3);
         const final = duelScore1 >= 2 || duelScore2 >= 2 || duelRound >= 3;
         stats.place = winner.team === player.team ? 1 : 2;
         stats.endT = time;
