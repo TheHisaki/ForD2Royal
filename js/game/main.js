@@ -2840,7 +2840,7 @@ function start() {
         el.querySelector('.drr-opp .drr-name').textContent = oppName;
         el.querySelector('.drr-opp .drr-num').textContent = String(duelScoreOf(duelOppTeam()));
         fillDuelPips(el.querySelector('.drr-pips'));
-        el.querySelector('.drr-next').textContent = final ? 'Résultats dans 7 secondes…' : `Manche ${duelRound + 1} dans 7 secondes…`;
+        el.querySelector('.drr-next').textContent = final ? 'Résultats dans 5 secondes…' : `Manche ${duelRound + 1} dans 5 secondes…`;
         el.hidden = false;
         el.classList.remove('is-visible');
         void el.offsetWidth;
@@ -2865,19 +2865,21 @@ function start() {
         else duelScore2 = Math.min(2, duelScore2 + 1);
         duelHist = (duelHist + (winner.team === 1 ? '1' : '2')).slice(0, 3);
         const final = duelRound >= 3;
-        stats.place = winner.team === player.team ? 1 : 2;
+        const matchWinnerTeam = duelScore1 > duelScore2 ? 1 : 2;
+        const resultTeam = final ? matchWinnerTeam : winner.team;
+        stats.place = resultTeam === player.team ? 1 : 2;
         stats.endT = time;
         updateDuelScoreHud();
-        showDuelRoundResult(winner.team, final);
-        SFX.play(winner.team === player.team ? 'victory' : 'defeat');
+        showDuelRoundResult(resultTeam, final);
+        SFX.play((final ? resultTeam : winner.team) === player.team ? 'victory' : 'defeat');
 
         if (final) {
             setTimeout(() => {
                 document.getElementById('duelRoundResult')?.remove();
-                endScreen.show(endResult(winner.team === player.team));
-            }, 7000);
+                endScreen.show(endResult(resultTeam === player.team));
+            }, 5000);
         } else {
-            setTimeout(restartDuelRound, 7000);
+            setTimeout(restartDuelRound, 5000);
         }
     }
 
