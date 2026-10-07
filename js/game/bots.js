@@ -363,9 +363,8 @@ export class BotManager {
             bot.gliderColors = gl.colors;
             bot.gliderStyle = gl.style || null;
             bot.phase = 'ship';
-            bot.duelDrop = drop.duelMode;
             bot.altitude = 1;
-            bot.angle = drop.duelMode ? drop.shipFor(bot).angle : drop.angle;
+            bot.angle = drop.angle;
             // Propriétés d'interpolation pour le réseau
             bot._targetX = bot.x;
             bot._targetY = bot.y;
@@ -693,10 +692,9 @@ export class BotManager {
 
         if (shouldJump) {
             bot.phase = 'air';
-            bot.duelDrop = drop.duelMode;
             bot.altitude = 1;
-            bot.vx = drop.duelMode ? 0 : Math.cos(drop.angle) * 200;
-            bot.vy = drop.duelMode ? 0 : Math.sin(drop.angle) * 200;
+            bot.vx = Math.cos(drop.angle) * 200; // garde un peu l'élan du vaisseau
+            bot.vy = Math.sin(drop.angle) * 200;
         }
     }
 
@@ -744,7 +742,7 @@ export class BotManager {
         bot.y = clamp(bot.y + bot.vy * dt, bot.r, this.world.height - bot.r);
         if (bot.vx * bot.vx + bot.vy * bot.vy > 900) bot.angle = Math.atan2(bot.vy, bot.vx);
         bot.moving = false;
-        bot.altitude -= dt / FALL_TIME;
+        bot.altitude -= dt / (this.drop.fallTime || FALL_TIME); // 1V1 : chute plus courte
 
         if (tryRoofLanding(bot, this.world)) return;
         if (bot.altitude <= 0) {

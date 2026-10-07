@@ -3,21 +3,20 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=26 : altitude 1V1 200 m, planeur 100 m
+// ?v=26 : 1V1 — saut à 200 m, planeur à 100 m, chute de 4,5 s
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { Player } from './player.js?v=11';
 import { Renderer } from './renderer.js?v=14';
 import { Hud } from './hud.js?v=14';
 import { Input } from './input.js?v=12';
 import {
-    Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT,
-    OPEN_ALT, DUEL_OPEN_ALT
+    Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
 } from './drop.js?v=18';
 import { Combat } from './combat.js?v=11';
 import { Loot } from './loot.js?v=11';
-import { BotManager, roofAlphaAt } from './bots.js?v=17';
+import { BotManager, roofAlphaAt } from './bots.js?v=18';
 import { Corruption } from './corruption.js?v=11';
-import { CombatHud } from './combat-hud.js?v=12';
+import { CombatHud } from './combat-hud.js?v=13';
 import { Effects } from './effects.js?v=14';
 import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=11';
 import { drawPlayer, drawDying } from './draw.js?v=11';
@@ -127,7 +126,6 @@ function start() {
     const teamSize = gameConfig.teamSize;
     const teamMode = teamSize > 1;
     const mapId = gameConfig.mapId || (isDuel ? 'duel-two-towns' : 'default');
-    const gliderAlt = isDuel ? DUEL_OPEN_ALT : OPEN_ALT;
 
     /* ----- Aléatoire synchronisé en multijoueur -----
        En mode multijoueur, la graine (seed) envoyée par le serveur est partagée
@@ -621,7 +619,7 @@ function start() {
     const hud = new Hud(world, player, fighters);
     hud.setFlight(drop);
     combatHud = new CombatHud(player, fighters, loot);
-    combatHud.setFlight?.(drop);
+    if (isDuel) combatHud.setAltitudeProfile(DUEL_DROP); // altimètre : 200 m, planeur à 100 m
     hud.setZone?.(corruption);
     renderer.setZone(corruption); // la carte elle-même devient violet / noir dans la corruption
     combatHud.setZone?.(corruption);
@@ -1360,7 +1358,6 @@ function start() {
         mate.team = rp.team || myTeam;
         mate.squadSlot = rp.slot || 2;
         mate.isRemote = true;
-        mate.duelDrop = isDuel;
         mate.phase = 'ship';
         const skinId = (typeof rp.skin === 'string' ? rp.skin : rp.skin?.id) || 'recrue';
         const s = getSkin?.(skinId);
@@ -1977,7 +1974,7 @@ function start() {
             // Ouverture du planeur : l'altitude passe sous le seuil
             if (f.phase === 'air') {
                 const alt = f.altitude ?? 1;
-                if ((f._prevAlt ?? 1) >= gliderAlt && alt < gliderAlt) SFX.play('glider', { x: f.x, y: f.y });
+                if ((f._prevAlt ?? 1) >= GLIDER_ALT && alt < GLIDER_ALT) SFX.play('glider', { x: f.x, y: f.y });
                 f._prevAlt = alt;
             }
 
@@ -2191,7 +2188,7 @@ function start() {
         SFX.setLoop('ship', ship);
 
         // Vent : fort en chute libre, plus doux sous le planeur
-        const wind = player.alive && player.phase === 'air' ? (player.altitude > gliderAlt ? 1 : 0.45) : 0;
+        const wind = player.alive && player.phase === 'air' ? (player.altitude > GLIDER_ALT ? 1 : 0.45) : 0;
         SFX.setLoop('wind', wind);
 
         // Grondement de la corruption : plus fort quand on s'y enfonce

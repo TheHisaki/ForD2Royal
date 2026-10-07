@@ -37,6 +37,7 @@ const FEED_TIME = 6; // secondes d'affichage d'une élimination
 // Altimètre : le bus démarre à 2000 m (2x l'altitude précédente)
 const ALT_METERS = 2000;
 const ALT_STEP = 10;       // pas d'affichage en mètres
+const ALT_STEP_SMALL = 5;  // 1V1 (chute de 200 m) : pas plus fin
 const GLIDER_ALT = 2 / 3;  // ouverture après le premier tiers de la chute (voir drop.js)
 const LAND_ALT = 0.1;      // en dessous : "Atterrissage"
 const ALT_HINTS = {
@@ -423,13 +424,6 @@ export class CombatHud {
         while (this.feed.length > FEED_MAX) this.feed.shift().el.remove();
     }
 
-    // Carte/vaisseau : l'altimètre duel utilise une échelle 200 m -> 100 m au planeur.
-    setFlight(drop) {
-        this.drop = drop;
-        this.altMeters = drop?.duelMode ? 200 : ALT_METERS;
-        this.gliderAltMeters = drop?.duelMode ? 100 : Math.round(GLIDER_ALT * ALT_METERS);
-    }
-
     // Altimètre sous le personnage (centre de l'écran) pendant la chute.
     // Le DOM n'est touché que quand la valeur affichée (pas de 10 m) ou l'état change.
     updateAltimeter() {
@@ -442,23 +436,46 @@ export class CombatHud {
             return;
         }
         const alt = Math.max(0, Math.min(1, p.altitude ?? 0));
-        const altMeters = this.altMeters || ALT_METERS;
-        const m = Math.round((alt * altMeters) / ALT_STEP) * ALT_STEP;
+        const prof = this._altProfile;
+        const top = prof ? prof.topMeters : ALT_METERS;
+        const step = prof ? ALT_STEP_SMALL : ALT_STEP;
+        const m = Math.round(this._altToMeters(alt) / step) * step;
         if (m === this._altM) return;
         this._altM = m;
         a.value.textContent = String(m);
-        a.fill.style.transform = `scaleX(${(m / altMeters).toFixed(3)})`;
+        a.fill.style.transform = `scaleX(${(m / top).toFixed(3)})`;
 
         // État : chute libre → planeur ouvert → atterrissage (couleurs gérées par le CSS)
-        const gliderAlt = this.drop?.duelMode ? 0.5 : GLIDER_ALT;
-        const state = alt > gliderAlt ? 'fall' : alt > LAND_ALT ? 'glide' : 'land';
+        const state = alt > GLIDER_ALT ? 'fall' : alt > LAND_ALT ? 'glide' : 'land';
         if (state === this._altState) return;
         if (this._altState) a.box.classList.remove(this._altState);
         a.box.classList.add(state);
         this._altState = state;
-        a.hint.textContent = state === 'fall'
-            ? `Chute libre · planeur à ${this.gliderAltMeters || Math.round(GLIDER_ALT * ALT_METERS)} m`
+        a.hint.textContent = state === 'fall' && prof
+            ? `Chute libre · planeur à ${prof.gliderMeters} m`
             : ALT_HINTS[state];
+    }
+
+    /*
+       Profil d'altitude de la partie (1V1 : saut à 200 m, planeur à 100 m).
+       Sans profil : carte classique, altimètre linéaire de 0 à 2000 m.
+    */
+    setAltitudeProfile(profile) {
+        this._altProfile = profile && profile.topMeters > 0 ? profile : null;
+        this._altM = -1;
+        this._altState = '';
+    }
+
+    // Altitude interne (1 = bus, 2/3 = ouverture du planeur) -> mètres affichés
+    _altToMeters(alt) {
+        const prof = this._altProfile;
+        if (!prof) return alt * ALT_METERS;
+        // Deux segments : chute libre (bus -> planeur) puis vol plané (planeur -> sol)
+        if (alt >= GLIDER_ALT) {
+            const t = (alt - GLIDER_ALT) / (1 - GLIDER_ALT);
+            return prof.gliderMeters + t * (prof.topMeters - prof.gliderMeters);
+        }
+        return (alt / GLIDER_ALT) * prof.gliderMeters;
     }
 
     // Grande confirmation "ÉLIMINATION" au centre.
