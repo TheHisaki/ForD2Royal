@@ -1691,6 +1691,28 @@ class RoomManager {
             data.s = ws.playerId;
         }
 
+        // Ravitaillements : identifiant court, position finie, contenu limité à quelques objets.
+        if (data.type === 'supply_spawn' || data.type === 'supply_open_request' || data.type === 'supply_open') {
+            if (typeof data.dropId !== 'string' || !data.dropId || data.dropId.length > 48) return;
+            if (data.type === 'supply_spawn') {
+                if (!Number.isFinite(Number(data.x)) || !Number.isFinite(Number(data.y)) || !Number.isFinite(Number(data.at))) return;
+                if (!Array.isArray(data.contents) || data.contents.length > 4) return;
+                data.x = Math.max(0, Math.min(100000, Number(data.x)));
+                data.y = Math.max(0, Math.min(100000, Number(data.y)));
+                data.at = Math.max(0, Number(data.at));
+                data.contents = data.contents
+                    .filter(c => c && typeof c === 'object')
+                    .map(c => ({
+                        kind: String(c.kind || '').slice(0, 16),
+                        ...(c.weaponId !== undefined ? { weaponId: String(c.weaponId).slice(0, 32) } : {}),
+                        ...(c.itemId !== undefined ? { itemId: String(c.itemId).slice(0, 32) } : {}),
+                        ...(c.rarity !== undefined ? { rarity: Math.max(0, Math.min(ADMIN_MAX_RARITY, Number(c.rarity) | 0)) } : {}),
+                        ...(c.mag !== undefined ? { mag: Math.max(0, Math.min(999, Number(c.mag) | 0)) } : {}),
+                        ...(c.count !== undefined ? { count: Math.max(1, Math.min(10, Number(c.count) | 0)) } : {})
+                    }));
+            }
+        }
+
         // Anti-spam des emotes : une toutes les 2,5 s au plus par joueur (le jeu en autorise une / 3 s)
         if (data.type === 'emote') {
             const now = Date.now();
