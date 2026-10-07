@@ -3,18 +3,18 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=24 : largage duel au-dessus des villes avec bus en panne et expulsion à 5 s
+// ?v=25 : 1V1 — un bus en panne par ville, expulsion commune à 5 s
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { Player } from './player.js?v=11';
 import { Renderer } from './renderer.js?v=14';
-import { Hud } from './hud.js?v=13';
+import { Hud } from './hud.js?v=14';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT
-} from './drop.js?v=16';
+} from './drop.js?v=17';
 import { Combat } from './combat.js?v=11';
 import { Loot } from './loot.js?v=11';
-import { BotManager, roofAlphaAt } from './bots.js?v=16';
+import { BotManager, roofAlphaAt } from './bots.js?v=17';
 import { Corruption } from './corruption.js?v=11';
 import { CombatHud } from './combat-hud.js?v=12';
 import { Effects } from './effects.js?v=14';
@@ -151,11 +151,13 @@ function start() {
     const loot = new Loot(world, gameSeed); // coffres (ajoutés aux obstacles) + butin au sol
     const effects = new Effects();
 
-    const duelTownIndex = Math.max(0, Math.min(1, (Number(gameConfig.myTeam) || 1) - 1));
-    const duelTargetTown = isDuel ? world.towns[duelTownIndex] : null;
+    // 1V1 : un bus en panne au-dessus de chaque ville ; équipe 1 -> 1re ville, équipe 2 -> 2e
+    const duelTeam = Number(gameConfig.myTeam) || 1;
     const drop = new Drop(world, gameSeed, {
         duel: isDuel,
-        targetTown: duelTargetTown
+        towns: isDuel ? world.towns : null,
+        localIndex: Math.max(0, Math.min(1, duelTeam - 1)),
+        localTeam: duelTeam
     });
     const player = new Player(drop.ship.x, drop.ship.y, world);
     player.phase = 'ship';
@@ -1347,7 +1349,9 @@ function start() {
     let lastBotSeen = new Map();     // bot -> nombre de b_sync consécutifs sans lui
 
     function makeRemote(rp) {
-        const mate = new Player(drop.ship.x, drop.ship.y, world);
+        // 1V1 : l'adversaire attend dans le bus de sa propre ville
+        const startShip = drop.shipFor({ team: rp.team || myTeam });
+        const mate = new Player(startShip.x, startShip.y, world);
         mate.id = rp.id;
         mate.name = String(rp.name || 'Joueur').slice(0, 16);
         mate.team = rp.team || myTeam;
@@ -2195,7 +2199,14 @@ function start() {
 
         // Compte à rebours avant le saut automatique
         const canJump = drop.canJump;
-        if (player.phase === 'ship' && canJump) {
+        if (drop.duelMode) {
+            // 1V1 : un bip par seconde pendant l'avarie (5, 4, 3, 2, 1), dès que le temps tourne
+            if (player.phase === 'ship' && drop.duelTime > 0) {
+                const s = Math.ceil(drop.timeLeft);
+                if (s >= 1 && s !== lastTick) SFX.play('tick', { final: s <= 1 });
+                lastTick = s;
+            }
+        } else if (player.phase === 'ship' && canJump) {
             if (!prevCanJump) SFX.play('jumpReady');
             const s = Math.ceil(drop.timeLeft);
             if (s <= 5 && s !== lastTick) SFX.play('tick', { final: s <= 1 });
@@ -2514,24 +2525,49 @@ function start() {
         if (waitEl.textContent !== txt) waitEl.textContent = txt;
     }
 
-    function showDuelExpulsion(sec) {
+    /*
+       1V1 : panneau central « bus en panne » + compte à rebours d'expulsion.
+       Élément à part (pas celui de l'attente multijoueur) : il n'est jamais recréé
+       à chaque image, seul le texte change quand la seconde affichée change.
+       waiting : en ligne, l'heure commune n'est pas encore arrivée.
+    */
+    let duelEl = null;
+    let duelShown = '';
+    let duelPop = '';
+    function showDuelExpulsion(sec, waiting = false) {
         if (sec === null) {
-            waitEl?.remove();
-            waitEl = null;
+            duelEl?.remove();
+            duelEl = null;
+            duelShown = '';
             return;
         }
-        if (!waitEl) {
-            waitEl = document.createElement('div');
-            waitEl.setAttribute('role', 'status');
-            waitEl.style.cssText = 'position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:30;' +
-                'min-width:290px;padding:18px 30px;border-radius:12px;background:rgba(8,12,32,.9);' +
-                'border:2px solid #ffcc45;box-shadow:0 0 30px rgba(255,80,40,.45);' +
-                'color:#fff;font:400 32px "Bebas Neue",Impact,sans-serif;letter-spacing:3px;text-align:center;pointer-events:none';
-            document.body.appendChild(waitEl);
+        if (!duelEl) {
+            duelEl = document.createElement('div');
+            duelEl.id = 'duelExpel';
+            duelEl.setAttribute('role', 'status');
+            const alert = document.createElement('span');
+            alert.className = 'de-alert';
+            alert.textContent = '⚠ Avarie moteur · bus en panne';
+            const title = document.createElement('span');
+            title.className = 'de-title';
+            const count = document.createElement('span');
+            count.className = 'de-count';
+            duelEl.append(alert, title, count);
+            document.body.appendChild(duelEl);
         }
         const n = Math.max(0, Math.ceil(Number(sec) || 0));
-        const txt = `EXPULSION DES JOUEURS · ${n}`;
-        if (waitEl.textContent !== txt) waitEl.textContent = txt;
+        const key = waiting ? 'wait' : String(n);
+        if (key === duelShown) return;
+        duelShown = key;
+        const title = duelEl.querySelector('.de-title');
+        const count = duelEl.querySelector('.de-count');
+        title.textContent = waiting ? 'EN ATTENTE DE L’ADVERSAIRE' : 'EXPULSION DES JOUEURS';
+        count.textContent = waiting ? '…' : String(n);
+        // Petit « pop » du chiffre : 2 classes identiques en alternance (pas de reflow forcé)
+        const next = duelPop === 'pop-a' ? 'pop-b' : 'pop-a';
+        if (duelPop) count.classList.remove(duelPop);
+        count.classList.add(next);
+        duelPop = next;
     }
 
     /* ----- Envois réseau périodiques ----- */
@@ -2627,9 +2663,10 @@ function start() {
             for (const mate of remotePlayersMap.values()) {
                 if (!mate.alive) continue;
                 if (mate.phase === 'ship') {
-                    mate.x = drop.ship.x;
-                    mate.y = drop.ship.y;
-                    mate.angle = drop.angle;
+                    const ship = drop.shipFor(mate);
+                    mate.x = ship.x;
+                    mate.y = ship.y;
+                    mate.angle = ship.angle;
                     continue;
                 }
                 if (Number.isFinite(mate._targetX)) {
@@ -2706,8 +2743,7 @@ function start() {
         } else if (clockBase === null || now < clockBase) {
             // Le vaisseau n'est pas encore parti (ou l'heure n'est pas encore connue)
             waitOnBoard(dt);
-            if (isDuel) showDuelExpulsion(5);
-            else showFlightWait(clockBase === null ? 0 : Math.ceil((clockBase - now) / 1000));
+            if (!isDuel) showFlightWait(clockBase === null ? 0 : Math.ceil((clockBase - now) / 1000));
         } else {
             if (waitEl) showFlightWait(null);
             let behind = (now - clockBase) / 1000 - simClock;
@@ -2724,8 +2760,9 @@ function start() {
             }
         }
         if (isDuel) {
-            if (player.phase === 'ship') showDuelExpulsion(drop.timeLeft);
-            else showDuelExpulsion(null);
+            if (player.phase !== 'ship') showDuelExpulsion(null);
+            else if (isMultiplayer && (clockBase === null || now < clockBase)) showDuelExpulsion(drop.timeLeft, true);
+            else showDuelExpulsion(drop.timeLeft);
         }
         flushLootSpawns();
         netTick(now);

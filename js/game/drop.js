@@ -199,6 +199,11 @@ export function drawSkyHaze(ctx, v, color = '#cfe4ff') {
     ctx.restore();
 }
 const AUTO_JUMP_GRACE = 0.16; // laisse le compteur afficher « 0 s » avant l'éjection
+// 1V1 : bus en panne au-dessus de chaque ville
+const DUEL_COUNTDOWN = 5;      // secondes avant l'expulsion des joueurs
+const BROKEN_LEAVE_TIME = 3;   // durée (s) pendant laquelle le bus abandonné part en vrille
+const BROKEN_SPIN = 0.55;      // rotation du bus abandonné (rad / s)
+const BROKEN_DRIFT = 150;      // vitesse de dérive du bus abandonné (unités / s)
 const OUTLINE = '#0a1030';
 
 function seededRandom(seed) {
@@ -212,34 +217,43 @@ function seededRandom(seed) {
 export class Drop {
     constructor(world, seed = null, options = {}) {
         this.world = world;
-        this.duelMode = Boolean(options.duel && options.targetTown);
-        this.targetTown = options.targetTown || null;
-        this.duelCountdown = 5;
+        const duelTowns = options.duel && Array.isArray(options.towns) ? options.towns.filter(Boolean) : [];
+        this.duelMode = duelTowns.length > 0;
+        this.duelCountdown = DUEL_COUNTDOWN;
         this.duelTime = 0;
+        this.localTeam = options.localTeam ?? 1;
         const width = world?.width || 6000;
         const height = world?.height || 6000;
         const scale = Math.min(width, height) / 6000;
         const margin = 450 * scale;
 
         if (this.duelMode) {
-            // En 1V1, le bus est immobilisé à environ 200 m au-dessus de la ville.
-            // L'altitude 1 correspond au bus et le planeur s'ouvre à 2/3 : environ 100 m.
-            this.angle = 0;
-            this.path = {
-                ax: this.targetTown.x, ay: this.targetTown.y,
-                bx: this.targetTown.x, by: this.targetTown.y
-            };
+            /*
+               1V1 : un bus en panne immobilisé au-dessus de CHAQUE ville (~200 m).
+               Chaque combattant est placé dans le bus de son camp (voir shipFor) et tout
+               le monde est expulsé en même temps à la fin du compte à rebours.
+               L'altitude 1 = le bus ; le planeur s'ouvre à 2/3 de la chute, soit ~100 m.
+            */
+            const cx = width / 2;
+            const cy = height / 2;
+            this.ships = duelTowns.map((town, i) => ({
+                x: town.x,
+                y: town.y,
+                angle: Math.atan2(cy - town.y, cx - town.x), // nez tourné vers le centre de l'île
+                active: true,
+                broken: true,
+                leave: 0,
+                town,
+                seed: i * 7.31 + 1.7 // décale les animations des deux bus
+            }));
+            const localIndex = clamp(Number(options.localIndex) || 0, 0, this.ships.length - 1);
+            this.ship = this.ships[localIndex];
+            this.angle = this.ship.angle;
+            this.path = { ax: this.ship.x, ay: this.ship.y, bx: this.ship.x, by: this.ship.y };
             this.length = 1;
             this.enterAt = 0;
             this.exitAt = 0;
             this.dist = 0;
-            this.ship = {
-                x: this.targetTown.x,
-                y: this.targetTown.y,
-                angle: this.angle,
-                active: true,
-                broken: true
-            };
             this.trail = [];
             this.trailTimer = 0;
             return;
@@ -273,8 +287,58 @@ export class Drop {
 
         this.dist = 0;
         this.ship = { ...this.pointAt(0), angle, active: true, broken: false };
+        this.ships = [this.ship];
         this.trail = [];
         this.trailTimer = 0;
+    }
+
+    // Bus d'un combattant : le sien en 1V1 (son camp), le vaisseau unique sinon
+    shipFor(f) {
+        if (!this.duelMode || this.ships.length < 2) return this.ship;
+        if (!f || f.team === this.localTeam) return this.ship;
+        return this.ships.find(s => s !== this.ship) || this.ship;
+    }
+
+    // 1V1 : le compte à rebours est terminé, tout le monde quitte son bus
+    get duelExpelled() {
+        return this.duelMode && this.duelTime >= this.duelCountdown;
+    }
+
+    // 1V1 : avance (ou recale) le compte à rebours ; à 0, les bus sont abandonnés
+    _setDuelTime(t) {
+        let v = Math.max(0, Math.min(this.duelCountdown, t));
+        if (v >= this.duelCountdown - 0.001) v = this.duelCountdown; // pas d'attente d'une image en plus
+        this.duelTime = v;
+        this.dist = v;
+        if (v < this.duelCountdown) return;
+        for (const s of this.ships) {
+            if (!s.active) continue;
+            s.active = false;
+            s.leave = BROKEN_LEAVE_TIME;
+            s.dropX = s.x; // point d'expulsion exact (le bus dérive ensuite)
+            s.dropY = s.y;
+        }
+    }
+
+    // Panache de fumée noire des réacteurs (gauche en feu : épais ; droit : par à-coups)
+    _emitBrokenSmoke(s) {
+        const c = Math.cos(s.angle);
+        const n = Math.sin(s.angle);
+        for (const side of SIDES) {
+            if (side > 0 && Math.random() < 0.5) continue;
+            const lx = -158;
+            const ly = side * 36;
+            this.trail.push({
+                x: s.x + lx * c - ly * n,
+                y: s.y + lx * n + ly * c,
+                life: 1,
+                span: side < 0 ? 2.6 : 1.8,
+                dark: true,
+                r0: side < 0 ? 18 : 12,
+                vx: -c * 40 + (Math.random() - 0.5) * 30,
+                vy: -n * 40 + (Math.random() - 0.5) * 30
+            });
+        }
     }
 
     pointAt(d) {
@@ -305,10 +369,10 @@ export class Drop {
     // Multijoueur : recale le vaisseau sur la distance/horloge de l'hôte
     syncTo(dist, tolerance = 40) {
         if (this.duelMode) {
-            if (!Number.isFinite(dist) || Math.abs(dist - this.duelTime) <= 0.15) return;
-            this.duelTime = Math.max(0, Math.min(this.duelCountdown, dist));
-            this.dist = this.duelTime;
-            this.ship.active = this.duelTime < this.duelCountdown;
+            // Après l'expulsion, on ne revient jamais en arrière (personne ne remonte dans un bus)
+            if (!Number.isFinite(dist) || this.duelExpelled) return;
+            if (Math.abs(dist - this.duelTime) <= 0.15) return;
+            this._setDuelTime(dist);
             return;
         }
         if (!Number.isFinite(dist) || Math.abs(dist - this.dist) <= tolerance) return;
@@ -329,9 +393,9 @@ export class Drop {
             Object.assign(player, this.pointAt(this.autoJumpAt));
         }
         if (this.duelMode) {
-            player.x = this.targetTown.x;
-            player.y = this.targetTown.y;
-            this.ship.active = false;
+            // Expulsé juste sous son bus, au-dessus de sa ville
+            player.x = this.ship.dropX ?? this.ship.x;
+            player.y = this.ship.dropY ?? this.ship.y;
         }
         player.phase = 'air';
         player.altitude = 1;
@@ -343,18 +407,20 @@ export class Drop {
     update(dt, player, input, aimX, aimY) {
         // ----- Vaisseau -----
         if (this.duelMode) {
-            // Bus en panne : il reste immobile au-dessus de la ville pendant 5 s.
-            if (player.phase === 'ship') {
-                this.duelTime = Math.min(this.duelCountdown, this.duelTime + dt);
-                if (this.duelTime >= this.duelCountdown - 0.001) this.duelTime = this.duelCountdown;
-                this.dist = this.duelTime;
-                this.ship.active = this.duelTime < this.duelCountdown;
-            }
+            // Bus en panne : immobiles au-dessus des villes pendant le compte à rebours,
+            // puis abandonnés : ils partent en vrille en fumant et disparaissent.
+            if (!this.duelExpelled) this._setDuelTime(this.duelTime + dt);
             this.trailTimer += dt;
-            if (this.trailTimer > 0.08 && this.ship.active) {
-                this.trailTimer = 0;
-                this.trail.push({ x: this.ship.x - 110, y: this.ship.y - 34, life: 1 },
-                    { x: this.ship.x - 110, y: this.ship.y + 34, life: 1 });
+            const emit = this.trailTimer >= 0.06;
+            if (emit) this.trailTimer = 0;
+            for (const s of this.ships) {
+                if (s.leave > 0) {
+                    s.leave = Math.max(0, s.leave - dt);
+                    s.angle += BROKEN_SPIN * dt;
+                    s.x += Math.cos(s.angle) * BROKEN_DRIFT * dt;
+                    s.y += Math.sin(s.angle) * BROKEN_DRIFT * dt;
+                }
+                if (emit && (s.active || s.leave > 0)) this._emitBrokenSmoke(s);
             }
         } else if (this.ship.active) {
             // Trajet classique : le vaisseau continue sa route même après le saut.
@@ -379,7 +445,12 @@ export class Drop {
         let n = 0;
         for (let i = 0; i < trail.length; i++) {
             const t = trail[i];
-            t.life -= dt / 1.4;
+            t.life -= dt / (t.span || 1.4);
+            if (t.vx) {
+                // Fumée du bus en panne : elle s'échappe et se disperse
+                t.x += t.vx * dt;
+                t.y += t.vy * dt;
+            }
             if (t.life > 0) trail[n++] = t;
         }
         trail.length = n;
@@ -422,19 +493,28 @@ export class Drop {
 
     // Au-dessus de tout le reste
     draw(ctx, player, time) {
-        // Ombre du vaisseau au sol : dessinée sous tout ce qui vole
-        if (this.ship.active) drawShipShadow(ctx, this.ship);
+        // Ombres des vaisseaux au sol : dessinées sous tout ce qui vole
+        for (const s of this.ships) {
+            const a = shipFade(s);
+            if (a > 0) drawShipShadow(ctx, s, a);
+        }
 
         // Fumée : à la hauteur du vaisseau (même perspective que lui)
         const pr = _shipProj;
         airProject(0, 0, SHIP_HEIGHT, pr);
         if (pr.alpha > 0) {
-            ctx.fillStyle = this.ship.broken ? '#4a4550' : '#ffffff';
+            ctx.fillStyle = '#ffffff';
             for (const t of this.trail) {
                 airProject(t.x, t.y, SHIP_HEIGHT, pr);
-                const rad = (14 + (1 - t.life) * 26) * pr.k;
+                const rad = ((t.r0 || 14) + (1 - t.life) * (t.dark ? 46 : 26)) * pr.k;
                 if (!inFrameView(pr.x, pr.y, rad)) continue;
-                ctx.globalAlpha = t.life * 0.55 * pr.alpha;
+                if (t.dark) {
+                    // Fumée noire qui s'éclaircit en se dispersant
+                    ctx.fillStyle = t.life > 0.6 ? '#2e2934' : t.life > 0.3 ? '#47414d' : '#655f69';
+                    ctx.globalAlpha = t.life * 0.72 * pr.alpha;
+                } else {
+                    ctx.globalAlpha = t.life * 0.55 * pr.alpha;
+                }
                 ctx.beginPath();
                 ctx.arc(pr.x, pr.y, rad, 0, Math.PI * 2);
                 ctx.fill();
@@ -443,7 +523,12 @@ export class Drop {
         }
 
         if (player.phase === 'air') drawFalling(ctx, player, time);
-        if (this.ship.active) drawShip(ctx, this.ship, time);
+        for (const s of this.ships) {
+            const a = shipFade(s);
+            if (a <= 0) continue;
+            if (s.broken) drawBrokenShip(ctx, s, time, a);
+            else drawShip(ctx, s, time);
+        }
     }
 }
 
@@ -1121,11 +1206,12 @@ function drawWing(ctx, r, bank, colors, spanR, spanL) {
 
 // Ombre du vaisseau sur le sol : taille réelle, au niveau de la carte (donc bien plus
 // petite que le vaisseau, qui est proche de la caméra) et décalée par le soleil
-function drawShipShadow(ctx, ship) {
+function drawShipShadow(ctx, ship, alpha = 1) {
     const x = ship.x + SHIP_HEIGHT * SUN_X;
     const y = ship.y + SHIP_HEIGHT * SUN_Y;
     if (!inFrameView(x, y, 160)) return;
     ctx.save();
+    ctx.globalAlpha *= alpha;
     ctx.translate(x, y);
     ctx.rotate(ship.angle);
     ctx.fillStyle = 'rgba(12, 24, 40, 0.22)';
@@ -1158,38 +1244,17 @@ function drawShip(ctx, ship, time) {
     ctx.lineWidth = 6;
     ctx.strokeStyle = OUTLINE;
 
-    // Réacteurs : le bus duel est en panne (fumée sombre, étincelles, voyant rouge)
+    // Flammes des réacteurs
     const flick = 1 + Math.sin(time * 40) * 0.12;
-    if (ship.broken) {
-        for (const side of SIDES) {
-            ctx.fillStyle = 'rgba(55, 62, 78, 0.75)';
-            ctx.beginPath();
-            ctx.ellipse(-165 - Math.sin(time * 3 + side) * 12, side * 36, 28 + flick * 8, 18 + flick * 5, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#ff334b';
-            ctx.beginPath();
-            ctx.arc(-122, side * 36, 7 + Math.sin(time * 10 + side) * 2, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.strokeStyle = '#ffb627';
-            ctx.lineWidth = 3;
-            ctx.beginPath();
-            ctx.moveTo(-178, side * 36 - 18);
-            ctx.lineTo(-195, side * 36 - 31);
-            ctx.moveTo(-177, side * 36 + 12);
-            ctx.lineTo(-194, side * 36 + 25);
-            ctx.stroke();
-        }
-    } else {
-        for (const side of SIDES) {
-            ctx.fillStyle = '#ff9d00';
-            ctx.beginPath();
-            ctx.ellipse(-150 - 22 * flick, side * 36, 34 * flick, 15, 0, 0, Math.PI * 2);
-            ctx.fill();
-            ctx.fillStyle = '#ffe03d';
-            ctx.beginPath();
-            ctx.ellipse(-140 - 12 * flick, side * 36, 20 * flick, 9, 0, 0, Math.PI * 2);
-            ctx.fill();
-        }
+    for (const side of SIDES) {
+        ctx.fillStyle = '#ff9d00';
+        ctx.beginPath();
+        ctx.ellipse(-150 - 22 * flick, side * 36, 34 * flick, 15, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.fillStyle = '#ffe03d';
+        ctx.beginPath();
+        ctx.ellipse(-140 - 12 * flick, side * 36, 20 * flick, 9, 0, 0, Math.PI * 2);
+        ctx.fill();
     }
 
     // Ailes
@@ -1242,6 +1307,281 @@ function drawShip(ctx, ship, time) {
     ctx.beginPath();
     ctx.ellipse(88, -8, 14, 7, -0.3, 0, Math.PI * 2);
     ctx.fill();
+
+    ctx.restore();
+}
+
+/* ===================== BUS EN PANNE (1V1) ===================== */
+
+// Opacité d'un vaisseau : 1 en service, fondu pendant qu'un bus abandonné s'éloigne
+function shipFade(s) {
+    if (s.active) return 1;
+    return s.leave > 0 ? s.leave / BROKEN_LEAVE_TIME : 0;
+}
+
+// Petit hachage déterministe dans [0, 1) : flammes et étincelles sans Math.random au dessin
+function hash01(n) {
+    const x = Math.sin(n * 127.1 + 311.7) * 43758.5453;
+    return x - Math.floor(x);
+}
+
+// Taches de suie sur la coque [x, y, rx, ry, rotation]
+const SOOT_SPOTS = [
+    [-104, -18, 44, 22, 0.15], [-58, 28, 32, 15, -0.2], [22, -30, 28, 11, 0.1],
+    [-18, 8, 18, 9, 0.4], [98, 24, 20, 9, -0.3]
+];
+// Trou dans la coque (polygone, centre approximatif -39, -19)
+const HULL_HOLE = [-53, -25, -41, -32, -30, -26, -25, -15, -35, -8, -48, -11];
+// Fissures en étoile sur la vitre du cockpit (depuis le point d'impact)
+const COCKPIT_CRACKS = [[14, -8], [18, 6], [4, 16], [-12, 10], [-16, -4], [-4, -14]];
+
+function polyFill(ctx, pts, cx = 0, cy = 0, scale = 1) {
+    ctx.beginPath();
+    ctx.moveTo(cx + (pts[0] - cx) * scale, cy + (pts[1] - cy) * scale);
+    for (let i = 2; i < pts.length; i += 2) ctx.lineTo(cx + (pts[i] - cx) * scale, cy + (pts[i + 1] - cy) * scale);
+    ctx.closePath();
+    ctx.fill();
+}
+
+function ellipseFill(ctx, x, y, rx, ry, rot = 0) {
+    ctx.beginPath();
+    ctx.ellipse(x, y, rx, ry, rot, 0, TAU);
+    ctx.fill();
+}
+
+/*
+   Bus du 1V1 en panne, vu de dessus (même gabarit que le vaisseau classique) :
+   - il tangue et tremble : il lutte pour rester en l'air ;
+   - réacteur gauche en feu (flammes animées + lueur), réacteur droit mort qui tousse ;
+   - aile droite arrachée (bord déchiqueté, câble qui pend, étincelles) ;
+   - coque salie de suie, fissurée et trouée, bande de danger jaune / noir ;
+   - cockpit fissuré avec alarme rouge, gyrophare qui balaie.
+   alpha : fondu quand le bus abandonné s'éloigne après l'expulsion.
+*/
+function drawBrokenShip(ctx, ship, time, alpha = 1) {
+    const pr = airProject(ship.x, ship.y, SHIP_HEIGHT, _shipProj);
+    if (pr.alpha <= 0 || alpha <= 0 || !inFrameView(pr.x, pr.y, SHIP_EXTENT * pr.k)) return;
+    const t = time + (ship.seed || 0);
+    const wobble = Math.sin(t * 1.7) * 0.05 + Math.sin(t * 4.3) * 0.015;
+    const step = Math.floor(t * 18); // les flammes et étincelles changent ~18 fois / s
+    const alarm = Math.sin(t * 7) > 0;
+
+    ctx.save();
+    ctx.globalAlpha *= pr.alpha * alpha;
+    const A = ctx.globalAlpha;
+    ctx.translate(pr.x, pr.y);
+    ctx.scale(pr.k, pr.k);
+    ctx.rotate(ship.angle + wobble);
+    ctx.translate(Math.sin(t * 23) * 1.6, Math.cos(t * 19) * 1.3); // secousses
+    ctx.lineJoin = 'round';
+    ctx.lineCap = 'round';
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 6;
+
+    // ----- 1) Réacteur gauche en feu : 3 langues de flamme qui vacillent -----
+    for (let i = 0; i < 3; i++) {
+        const len = 48 + hash01(step * 3 + i) * 40 - i * 10;
+        const wid = 15 - i * 4;
+        const off = (hash01(step * 5 + i) - 0.5) * 12;
+        ctx.fillStyle = i === 0 ? '#ff3b1f' : i === 1 ? '#ff9d00' : '#ffe03d';
+        ctx.beginPath();
+        ctx.moveTo(-146, -36 - wid);
+        ctx.quadraticCurveTo(-150 - len * 0.6, -36 - wid * 0.8 + off, -150 - len, -36 + off * 0.5);
+        ctx.quadraticCurveTo(-150 - len * 0.6, -36 + wid * 0.8 + off, -146, -36 + wid);
+        ctx.closePath();
+        ctx.fill();
+    }
+    // Réacteur droit : il tousse de temps en temps (petite gerbe orange)
+    if (Math.sin(t * 13) > 0.72) {
+        ctx.fillStyle = '#ff9d00';
+        ellipseFill(ctx, -162, 36, 15, 7);
+        ctx.fillStyle = '#ffe03d';
+        ellipseFill(ctx, -156, 36, 7, 4);
+    }
+
+    // ----- 2) Ailes : gauche roussie, droite arrachée -----
+    ctx.fillStyle = '#2d5aa3';
+    ctx.beginPath();
+    ctx.moveTo(30, -30);
+    ctx.lineTo(-70, -125);
+    ctx.lineTo(-115, -125);
+    ctx.lineTo(-95, -30);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.moveTo(30, 30);
+    ctx.lineTo(-22, 78);
+    ctx.lineTo(-37, 69);
+    ctx.lineTo(-46, 93);
+    ctx.lineTo(-62, 83);
+    ctx.lineTo(-74, 102);
+    ctx.lineTo(-86, 88);
+    ctx.lineTo(-95, 30);
+    ctx.closePath();
+    ctx.fill();
+    ctx.stroke();
+    // Brûlures
+    ctx.globalAlpha = A * 0.5;
+    ctx.fillStyle = '#140e16';
+    ellipseFill(ctx, -64, -80, 30, 15, -0.75);
+    ellipseFill(ctx, -52, 62, 19, 10, 0.6);
+    ctx.globalAlpha = A;
+    // Feu de bout d'aile gauche : rouge seulement (l'autre est arraché)
+    ctx.fillStyle = alarm ? '#ff334b' : '#5a1620';
+    ctx.beginPath();
+    ctx.arc(-92, -120, 8, 0, TAU);
+    ctx.fill();
+    // Câble arraché qui pend au bout de l'aile droite
+    ctx.strokeStyle = '#1b1620';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(-74, 101);
+    ctx.quadraticCurveTo(-78 + Math.sin(t * 5) * 4, 114, -90 + Math.sin(t * 4) * 6, 121);
+    ctx.stroke();
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 6;
+
+    // ----- 3) Réacteurs : carcasses fissurées, le gauche rougeoie -----
+    for (const side of SIDES) {
+        ctx.fillStyle = side < 0 ? '#4b3a3b' : '#3b4150';
+        ctx.beginPath();
+        ctx.roundRect(-150, side * 36 - 17, 70, 34, 10);
+        ctx.fill();
+        ctx.stroke();
+    }
+    ctx.strokeStyle = 'rgba(0, 0, 0, 0.6)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (const side of SIDES) {
+        ctx.moveTo(-138, side * 36 - 8);
+        ctx.lineTo(-125, side * 36 + 2);
+        ctx.lineTo(-112, side * 36 - 6);
+        ctx.lineTo(-100, side * 36 + 4);
+    }
+    ctx.stroke();
+    ctx.globalAlpha = A * (0.55 + Math.sin(t * 11) * 0.2);
+    ctx.fillStyle = '#ff5a2a';
+    ellipseFill(ctx, -146, -36, 8, 13);
+    ctx.globalAlpha = A;
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 6;
+
+    // ----- 4) Coque salie, bande de danger, suie, trou et fissures -----
+    ctx.fillStyle = '#c1c7d1';
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 140, 46, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(-10, 0, 112, 13, 0, 0, TAU);
+    ctx.clip();
+    ctx.fillStyle = '#ffd21e';
+    ctx.fillRect(-125, -14, 232, 28);
+    ctx.fillStyle = '#16121c';
+    ctx.beginPath();
+    for (let x = -132; x < 110; x += 24) {
+        ctx.moveTo(x, -14);
+        ctx.lineTo(x + 12, -14);
+        ctx.lineTo(x + 2, 14);
+        ctx.lineTo(x - 10, 14);
+        ctx.closePath();
+    }
+    ctx.fill();
+    ctx.restore();
+
+    ctx.save();
+    ctx.beginPath();
+    ctx.ellipse(0, 0, 137, 43, 0, 0, TAU);
+    ctx.clip();
+    ctx.globalAlpha = A * 0.42;
+    ctx.fillStyle = '#1b1620';
+    for (const [x, y, rx, ry, rot] of SOOT_SPOTS) ellipseFill(ctx, x, y, rx, ry, rot);
+    ctx.restore();
+
+    // Trou : bord rougeoyant puis intérieur noir
+    ctx.globalAlpha = A * (0.75 + Math.sin(t * 9) * 0.2);
+    ctx.fillStyle = '#ff7a1a';
+    polyFill(ctx, HULL_HOLE, -39, -19, 1.3);
+    ctx.globalAlpha = A;
+    ctx.fillStyle = '#0b0710';
+    polyFill(ctx, HULL_HOLE);
+
+    ctx.strokeStyle = 'rgba(20, 14, 24, 0.8)';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(60, -40);
+    ctx.lineTo(48, -24);
+    ctx.lineTo(56, -12);
+    ctx.lineTo(40, 2);
+    ctx.lineTo(47, 15);
+    ctx.moveTo(-70, 42);
+    ctx.lineTo(-80, 28);
+    ctx.lineTo(-71, 19);
+    ctx.lineTo(-84, 8);
+    ctx.stroke();
+
+    // ----- 5) Cockpit : vitre fissurée, alarme rouge à l'intérieur -----
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 6;
+    ctx.fillStyle = '#2a8cad';
+    ctx.beginPath();
+    ctx.ellipse(78, 0, 38, 24, 0, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    if (alarm) {
+        ctx.globalAlpha = A * 0.5;
+        ctx.fillStyle = '#ff2a3c';
+        ellipseFill(ctx, 78, 0, 34, 20);
+        ctx.globalAlpha = A;
+    }
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (const [dx, dy] of COCKPIT_CRACKS) {
+        ctx.moveTo(90, -6);
+        ctx.lineTo(90 + dx, -6 + dy);
+    }
+    ctx.stroke();
+
+    // ----- 6) Gyrophare : faisceau rouge qui tourne -----
+    const beam = t * 6;
+    ctx.globalAlpha = A * 0.26;
+    ctx.fillStyle = '#ff334b';
+    ctx.beginPath();
+    ctx.moveTo(40, 0);
+    ctx.arc(40, 0, 130, beam - 0.32, beam + 0.32);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = A;
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 3;
+    ctx.fillStyle = alarm ? '#ff334b' : '#8a1626';
+    ctx.beginPath();
+    ctx.arc(40, 0, 10, 0, TAU);
+    ctx.fill();
+    ctx.stroke();
+    ctx.fillStyle = 'rgba(255, 255, 255, 0.75)';
+    ellipseFill(ctx, 37, -3, 3.5, 3.5);
+
+    // ----- 7) Étincelles : aile arrachée et réacteur mort -----
+    ctx.strokeStyle = '#ffe58a';
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    for (let i = 0; i < 8; i++) {
+        const s = step * 7 + i * 13;
+        if (hash01(s) > 0.6) continue;
+        const fromWing = i < 4;
+        const ox = fromWing ? -74 : -112;
+        const oy = fromWing ? 101 : 52;
+        const a = hash01(s + 1) * TAU;
+        const l = 8 + hash01(s + 2) * 18;
+        ctx.moveTo(ox, oy);
+        ctx.lineTo(ox + Math.cos(a) * l, oy + Math.sin(a) * l);
+    }
+    ctx.stroke();
 
     ctx.restore();
 }

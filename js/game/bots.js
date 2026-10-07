@@ -9,7 +9,7 @@
 import { B, PLAYER, isWater } from './config.js?v=12';
 import { Player } from './player.js?v=11';
 import { clamp, pick, airProject } from './utils.js';
-import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=15';
+import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=17';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
 import { hasBackpackArt } from './backpack-art.js';
@@ -391,7 +391,17 @@ export class BotManager {
 
             // Atterrissage groupé en escouade
             let land;
-            if (bot.humanSquad) {
+            if (drop.duelMode) {
+                // 1V1 : chaque bot attend dans le bus de sa ville et atterrit dans sa ville
+                const ship = drop.shipFor(bot);
+                bot.x = ship.x;
+                bot.y = ship.y;
+                bot.angle = ship.angle;
+                bot._targetX = bot.x;
+                bot._targetY = bot.y;
+                bot._targetAngle = bot.angle;
+                land = this.duelLanding(ship.town);
+            } else if (bot.humanSquad) {
                 land = this.chooseLanding(enter, exit); // il suivra ses joueurs pendant la chute
             } else if (bot.team === myTeam) {
                 land = this.chooseLanding(enter, exit);
@@ -405,7 +415,7 @@ export class BotManager {
                 land = this.chooseLanding(enter, exit);
             }
 
-            bot.brain = this.makeBrain(bot, land, this.chooseJump(land, enter, exit));
+            bot.brain = this.makeBrain(bot, land, drop.duelMode ? 0 : this.chooseJump(land, enter, exit));
             fighters.push(bot);
             this.bots.push(bot);
         }
@@ -498,6 +508,19 @@ export class BotManager {
         return { x: this.world.width / 2, y: this.world.height / 2 };
     }
 
+    // 1V1 : point d'atterrissage sur la terre ferme dans la ville de son bus
+    duelLanding(town) {
+        if (!town) return { x: this.world.width / 2, y: this.world.height / 2 };
+        for (let k = 0; k < 12; k++) {
+            const a = Math.random() * Math.PI * 2;
+            const rr = Math.sqrt(Math.random()) * town.radius * 0.7;
+            const x = town.x + Math.cos(a) * rr;
+            const y = town.y + Math.sin(a) * rr;
+            if (isLand(this.world, x, y)) return { x, y };
+        }
+        return { x: town.x, y: town.y };
+    }
+
     // Distance de saut au hasard, autour de l'aplomb de la zone visée
     chooseJump(land, enter, exit) {
         const drop = this.drop;
@@ -561,9 +584,10 @@ export class BotManager {
             if (!bot.alive && !bot.dbno) continue;
 
             if (bot.phase === 'ship') {
-                bot.x = clamp(this.drop.ship.x, 0, this.world.width);
-                bot.y = clamp(this.drop.ship.y, 0, this.world.height);
-                bot.angle = this.drop.angle;
+                const ship = this.drop.shipFor(bot);
+                bot.x = clamp(ship.x, 0, this.world.width);
+                bot.y = clamp(ship.y, 0, this.world.height);
+                bot.angle = ship.angle;
                 continue;
             }
 
@@ -610,6 +634,23 @@ export class BotManager {
 
     updateShip(bot) {
         const drop = this.drop;
+        if (drop.duelMode) {
+            // 1V1 : le bot reste dans SON bus jusqu'à l'expulsion commune (fin des 5 s)
+            const ship = drop.shipFor(bot);
+            bot.angle = ship.angle;
+            if (!drop.duelExpelled) {
+                bot.x = clamp(ship.x, 0, this.world.width);
+                bot.y = clamp(ship.y, 0, this.world.height);
+                return;
+            }
+            bot.x = clamp(ship.dropX ?? ship.x, 0, this.world.width);
+            bot.y = clamp(ship.dropY ?? ship.y, 0, this.world.height);
+            bot.phase = 'air';
+            bot.altitude = 1;
+            bot.vx = 0;
+            bot.vy = 0;
+            return;
+        }
         bot.x = clamp(drop.ship.x, 0, this.world.width);
         bot.y = clamp(drop.ship.y, 0, this.world.height);
         bot.angle = drop.angle;

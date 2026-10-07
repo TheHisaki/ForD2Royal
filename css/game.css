@@ -730,6 +730,78 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
     #dropPrompt { font-size: 20px; bottom: 30%; }
 }
 
+/* ----- 1V1 : bus en panne, compte à rebours d'expulsion (centre de l'écran) ----- */
+#duelExpel {
+    position: fixed;
+    left: 50%;
+    top: 50%;
+    z-index: 30;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    min-width: 320px;
+    padding: 14px 36px 16px;
+    text-align: center;
+    color: #fff;
+    background:
+        repeating-linear-gradient(-45deg, rgba(255, 210, 30, 0.14) 0 14px, rgba(0, 0, 0, 0) 14px 28px),
+        rgba(12, 6, 18, 0.9);
+    border: 3px solid #ff334b;
+    border-radius: 12px;
+    box-shadow: 0 0 0 4px rgba(255, 51, 75, 0.2), 0 0 42px rgba(255, 70, 30, 0.4);
+    pointer-events: none;
+    animation: duelAlarm 0.9s steps(2, jump-none) infinite;
+}
+
+#duelExpel .de-alert {
+    font-family: var(--font-body, 'Rubik', sans-serif);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: #ffcc45;
+}
+
+#duelExpel .de-title {
+    font-family: var(--font-display, 'Bebas Neue', Impact, sans-serif);
+    font-size: 32px;
+    letter-spacing: 3px;
+    text-shadow: 0 2px 0 #0a1030;
+}
+
+#duelExpel .de-count {
+    font-family: var(--font-display, 'Bebas Neue', Impact, sans-serif);
+    font-size: 78px;
+    line-height: 0.95;
+    color: #ffe03d;
+    text-shadow: 0 4px 0 #0a1030, 0 0 18px rgba(255, 120, 30, 0.7);
+}
+
+/* Le chiffre « pop » à chaque seconde (2 classes identiques posées en alternance) */
+#duelExpel .de-count.pop-a { animation: duelPopA 0.4s ease-out; }
+#duelExpel .de-count.pop-b { animation: duelPopB 0.4s ease-out; }
+
+@keyframes duelAlarm {
+    0% { border-color: #ff334b; }
+    100% { border-color: #ffcc45; }
+}
+@keyframes duelPopA { from { transform: scale(1.4); } to { transform: scale(1); } }
+@keyframes duelPopB { from { transform: scale(1.4); } to { transform: scale(1); } }
+
+@media (max-width: 760px) {
+    #duelExpel { min-width: 0; width: min(88vw, 320px); padding: 12px 20px 14px; }
+    #duelExpel .de-title { font-size: 24px; }
+    #duelExpel .de-count { font-size: 60px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #duelExpel,
+    #duelExpel .de-count.pop-a,
+    #duelExpel .de-count.pop-b { animation: none; }
+}
+
 /* ================= COMBAT ================= */
 
 /* Fil des éliminations (en bas à gauche, au-dessus de la barre de vie) */

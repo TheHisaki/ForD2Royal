@@ -635,7 +635,8 @@ export class Hud {
     updateDropPrompt() {
         const d = this.drop;
         if (!d) return;
-        const inShip = this.player.phase === 'ship';
+        // 1V1 : pas de saut libre, le compte à rebours central remplace ce message
+        const inShip = this.player.phase === 'ship' && !d.duelMode;
         if (inShip !== this._inShip) {
             this._inShip = inShip;
             this.el.dropPrompt.hidden = !inShip;
@@ -661,6 +662,20 @@ export class Hud {
     drawFlightPath(ctx, k) {
         const d = this.drop;
         if (!d || !d.ship.active) return;
+        if (d.duelMode) {
+            // 1V1 : pas de trajet, un repère rouge sur chaque bus en panne
+            for (const s of d.ships) {
+                if (!s.active) continue;
+                ctx.beginPath();
+                ctx.arc(s.x, s.y, 13 / k, 0, TAU);
+                ctx.fillStyle = '#ff334b';
+                ctx.fill();
+                ctx.lineWidth = 3 / k;
+                ctx.strokeStyle = '#ffffff';
+                ctx.stroke();
+            }
+            return;
+        }
         const { ax, ay, bx, by } = d.path;
         ctx.save();
         ctx.lineCap = 'round';
