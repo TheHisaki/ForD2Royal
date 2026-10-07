@@ -2608,7 +2608,6 @@ function start() {
     const hooks = {
         under: (ctx, v) => {
             loot.draw(ctx, time, v);
-            if (duelBoundary) drawDuelBoundary(ctx, duelBoundary, duelBoundaryAge, time, v);
             effects.drawGround(ctx, v);
         },
         entities: (ctx, v) => {
@@ -2626,6 +2625,8 @@ function start() {
         },
         overlay: (ctx, v) => {
             corruption.drawWorld(ctx, v, time); // au-dessus du sol et des toits, sous le vaisseau et les chutes
+            // La frontière est un obstacle aérien : au-dessus des arbres, bâtiments et joueurs.
+            if (duelBoundary) drawDuelBoundary(ctx, duelBoundary, duelBoundaryAge, time, v);
             if (player.throwState && player.phase === 'ground' && player.alive) combat.drawThrowPreview(ctx, player, player.angle);
             drawSkyHaze(ctx, v, world.theme?.haze); // voile d'altitude : le sol paraît lointain depuis le ciel
             bots.drawAir(ctx, time, v, canSeeFromHouse);   // culling fait dans drawFalling (position en perspective)
