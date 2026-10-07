@@ -126,6 +126,7 @@ function start() {
 
     const teamSize = gameConfig.teamSize;
     const teamMode = teamSize > 1;
+    const mapId = gameConfig.mapId || (isDuel ? 'duel-two-towns' : 'default');
     const gliderAlt = isDuel ? DUEL_OPEN_ALT : OPEN_ALT;
 
     /* ----- Aléatoire synchronisé en multijoueur -----
