@@ -3,9 +3,9 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=31 : 1V1 — frontière infranchissable aussi en chute / planeur
+// ?v=34 : pseudo local correct + spawn 1V1 haut/bas aléatoire par partie
 import { generateWorld, surfaceAt } from './world.js?v=12';
-import { Player } from './player.js?v=14';
+import { Player } from './player.js?v=15';
 import { Renderer } from './renderer.js?v=14';
 import { Hud } from './hud.js?v=14';
 import { Input } from './input.js?v=12';
@@ -255,9 +255,11 @@ function start() {
     else if (m.includes('section') || m.includes('escouade')) gameConfig.teamSize = 4;
     else if (!gameConfig.teamSize) gameConfig.teamSize = 1;
 
-    const teamSize = gameConfig.teamSize;
-    const teamMode = teamSize > 1;
-    const mapId = gameConfig.mapId || (isDuel ? 'duel-two-towns' : 'default');
+    const storedPlayerName = gameConfig.name
+        || window.networkManager?.getPlayerName?.()
+        || window.FOR2D_PROGRESS?.name
+        || localStorage.getItem('for2d-player-name')
+        || 'Joueur 1';
     // État du Best of 3 (uniquement en 1V1, conservé dans l'URL entre les manches)
     let duelRound = Math.max(1, Math.min(3, Number(urlParams.get('duelRound')) || 1));
     let duelScore1 = Math.max(0, Math.min(2, Number(urlParams.get('duelScore1')) || 0));
@@ -297,13 +299,19 @@ function start() {
 
     // 1V1 : un bus en panne au-dessus de chaque ville ; équipe 1 -> 1re ville, équipe 2 -> 2e
     const duelTeam = Number(gameConfig.myTeam) || 1;
+    // Chaque partie tire un côté de départ différent, mais le seed garantit que tous
+    // les clients associent la même équipe à la même ville (haut ou bas).
+    const duelTownFlip = isDuel ? (((gameSeed ^ (gameSeed >>> 16)) >>> 0) & 1) : 0;
+    const duelTeamIndex = Math.max(0, Math.min(1, duelTeam - 1));
+    const localDuelIndex = duelTeamIndex ^ duelTownFlip;
     const drop = new Drop(world, gameSeed, {
         duel: isDuel,
         towns: isDuel ? world.towns : null,
-        localIndex: Math.max(0, Math.min(1, duelTeam - 1)),
+        localIndex: isDuel ? localDuelIndex : 0,
         localTeam: duelTeam
     });
     const player = new Player(drop.ship.x, drop.ship.y, world);
+    player.name = String(storedPlayerName).slice(0, 16) || 'Joueur 1';
     player.phase = 'ship';
     player.team = 1;
     player.squadSlot = gameConfig.mySlot || 1; // Joueur principal (slot assigné dans le salon)

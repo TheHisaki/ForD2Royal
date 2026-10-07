@@ -809,8 +809,13 @@ class LobbyManager {
                 if (s) existing = JSON.parse(s);
             } catch { /* parse error */ }
 
+            const playerName = window.networkManager?.getPlayerName?.()
+                || window.FOR2D_PROGRESS?.name
+                || localStorage.getItem('for2d-player-name')
+                || 'Joueur 1';
             const cfg = {
                 ...existing,
+                name: String(playerName).slice(0, 16),
                 mode: m,
                 mapId,
                 modeName: this.currentGameMode,
