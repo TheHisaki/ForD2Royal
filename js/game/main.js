@@ -260,6 +260,9 @@ function start() {
         || window.FOR2D_PROGRESS?.name
         || localStorage.getItem('for2d-player-name')
         || 'Joueur 1';
+    const teamSize = gameConfig.teamSize;
+    const teamMode = teamSize > 1;
+    const mapId = gameConfig.mapId || (isDuel ? 'duel-two-towns' : 'default');
     // État du Best of 3 (uniquement en 1V1, conservé dans l'URL entre les manches)
     let duelRound = Math.max(1, Math.min(3, Number(urlParams.get('duelRound')) || 1));
     let duelScore1 = Math.max(0, Math.min(2, Number(urlParams.get('duelScore1')) || 0));
