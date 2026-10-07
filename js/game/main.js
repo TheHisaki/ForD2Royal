@@ -3,18 +3,18 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=26 : 1V1 — saut à 200 m, planeur à 100 m, chute de 4,5 s
+// ?v=29 : 1V1 — loot différent par manche + frontière temporaire entre villes
 import { generateWorld, surfaceAt } from './world.js?v=12';
-import { Player } from './player.js?v=11';
+import { Player } from './player.js?v=12';
 import { Renderer } from './renderer.js?v=14';
 import { Hud } from './hud.js?v=14';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
-} from './drop.js?v=18';
-import { Combat } from './combat.js?v=11';
-import { Loot } from './loot.js?v=11';
-import { BotManager, roofAlphaAt } from './bots.js?v=18';
+} from './drop.js?v=19';
+import { Combat } from './combat.js?v=12';
+import { Loot } from './loot.js?v=12';
+import { BotManager, roofAlphaAt } from './bots.js?v=19';
 import { Corruption } from './corruption.js?v=11';
 import { CombatHud } from './combat-hud.js?v=13';
 import { Effects } from './effects.js?v=14';
@@ -59,6 +59,97 @@ const BLAST_FX = {
     smoke: 'smokeBurst',
     propulsion: 'propulsionBlast'
 };
+
+const DUEL_BOUNDARY_SECONDS = 10;
+const DUEL_BOUNDARY_HALF_LENGTH = 680;
+const DUEL_BOUNDARY_RADIUS = 58;
+
+function duelRoundSeed(baseSeed, round, isDuel) {
+    const base = (Number(baseSeed) >>> 0) || 1;
+    if (!isDuel || round <= 1) return base;
+    let x = (base ^ Math.imul(round >>> 0, 0x9e3779b9)) >>> 0;
+    x = Math.imul(x ^ (x >>> 16), 0x85ebca6b) >>> 0;
+    x = Math.imul(x ^ (x >>> 13), 0xc2b2ae35) >>> 0;
+    return ((x ^ (x >>> 16)) >>> 0) || 1;
+}
+
+function createDuelBoundary(world) {
+    const [a, b] = world.towns || [];
+    if (!a || !b) return null;
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const length = Math.hypot(dx, dy) || 1;
+    const tangent = { x: dx / length, y: dy / length };
+    const normal = { x: -tangent.y, y: tangent.x };
+    const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+    const count = Math.ceil((DUEL_BOUNDARY_HALF_LENGTH * 2) / (DUEL_BOUNDARY_RADIUS * 1.35)) + 1;
+    const colliders = [];
+    for (let i = 0; i < count; i++) {
+        const offset = -DUEL_BOUNDARY_HALF_LENGTH + (i / (count - 1)) * DUEL_BOUNDARY_HALF_LENGTH * 2;
+        colliders.push({
+            kind: 'circle', duelBoundary: true,
+            x: center.x + normal.x * offset,
+            y: center.y + normal.y * offset,
+            r: DUEL_BOUNDARY_RADIUS
+        });
+    }
+    return { center, normal, tangent, halfLength: DUEL_BOUNDARY_HALF_LENGTH, colliders, inserted: false };
+}
+
+function drawDuelBoundary(ctx, boundary, age, time) {
+    if (!boundary || age <= 0 || age >= DUEL_BOUNDARY_SECONDS) return;
+    const fade = Math.min(1, (DUEL_BOUNDARY_SECONDS - age) / 1.8);
+    const { center, normal, tangent, halfLength } = boundary;
+    const ax = center.x - normal.x * halfLength;
+    const ay = center.y - normal.y * halfLength;
+    const bx = center.x + normal.x * halfLength;
+    const by = center.y + normal.y * halfLength;
+    ctx.save();
+    ctx.globalAlpha = fade;
+    ctx.lineCap = 'round';
+    ctx.setLineDash([44, 18]);
+    ctx.lineDashOffset = -time * 110;
+    ctx.strokeStyle = '#ff1838';
+    ctx.shadowColor = '#ff1838';
+    ctx.shadowBlur = 34;
+    ctx.lineWidth = 62;
+    ctx.beginPath(); ctx.moveTo(ax, ay); ctx.lineTo(bx, by); ctx.stroke();
+    ctx.shadowBlur = 10;
+    ctx.lineWidth = 34;
+    ctx.strokeStyle = '#5d071c';
+    ctx.stroke();
+    ctx.setLineDash([18, 14]);
+    ctx.lineDashOffset = time * 150;
+    ctx.lineWidth = 7;
+    ctx.strokeStyle = '#ff5266';
+    ctx.stroke();
+    ctx.setLineDash([]);
+    // Chevrons lumineux : la frontière ressemble à une zone interdite, pas à un simple trait.
+    ctx.strokeStyle = '#ffd0d6';
+    ctx.shadowColor = '#ff1838';
+    ctx.shadowBlur = 14;
+    ctx.lineWidth = 5;
+    for (let i = -5; i <= 5; i++) {
+        const t = (i + 5.5) / 11;
+        const x = ax + (bx - ax) * t;
+        const y = ay + (by - ay) * t;
+        const s = 20 + 4 * Math.sin(time * 4 + i);
+        ctx.beginPath();
+        ctx.moveTo(x - tangent.x * s - normal.x * 13, y - tangent.y * s - normal.y * 13);
+        ctx.lineTo(x + tangent.x * s, y + tangent.y * s);
+        ctx.lineTo(x - tangent.x * s + normal.x * 13, y - tangent.y * s + normal.y * 13);
+        ctx.stroke();
+    }
+    ctx.fillStyle = '#ff1838';
+    ctx.shadowBlur = 24;
+    for (const p of [{ x: ax, y: ay }, { x: bx, y: by }]) {
+        ctx.beginPath(); ctx.arc(p.x, p.y, 16 + Math.sin(time * 5) * 3, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ffd0d6';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 5, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = '#ff1838';
+    }
+    ctx.restore();
+}
 
 function start() {
     let gameConfig = { mode: 'solo', modeName: 'SOLO', teamSize: 1, bots: true };
@@ -143,7 +234,8 @@ function start() {
        mêmes équipes, mêmes points d'atterrissage sur TOUS les clients.
        Après l'initialisation, Math.random redevient normal (effets visuels, IA runtime). */
     const _realRandom = Math.random;
-    const gameSeed = gameConfig.seed || Date.now();
+    const baseSeed = gameConfig.seed || Date.now();
+    const gameSeed = duelRoundSeed(baseSeed, duelRound, isDuel);
     {
         // Générateur Mulberry32 (rapide, bon cycle, identique à noise.js)
         let _a = (gameSeed >>> 0) || 1;
@@ -157,6 +249,9 @@ function start() {
 
     const world = generateWorld({ mapId });
     const loot = new Loot(world, gameSeed); // coffres (ajoutés aux obstacles) + butin au sol
+    const duelBoundary = isDuel ? createDuelBoundary(world) : null;
+    let duelBoundaryAge = 0;
+    if (duelBoundary) world.duelBoundaryActive = false;
     const effects = new Effects();
 
     // 1V1 : un bus en panne au-dessus de chaque ville ; équipe 1 -> 1re ville, équipe 2 -> 2e
@@ -2472,6 +2567,7 @@ function start() {
     const hooks = {
         under: (ctx, v) => {
             loot.draw(ctx, time, v);
+            if (duelBoundary) drawDuelBoundary(ctx, duelBoundary, duelBoundaryAge, time);
             effects.drawGround(ctx, v);
         },
         entities: (ctx, v) => {
@@ -2808,6 +2904,26 @@ function start() {
         renderer.updateZoom(dt);
         const aim = aimPoint();
         drop.update(dt, player, input, aim.x, aim.y);
+
+        // Après l'expulsion, le passage central est verrouillé pendant 10 s.
+        // Les colliders sont ajoutés à ce moment seulement : ils ne gênent ni le loot
+        // initial ni la chute, puis le flag les rend inoffensifs après expiration.
+        if (duelBoundary) {
+            if (drop.duelExpelled) {
+                if (!duelBoundary.inserted) {
+                    for (const collider of duelBoundary.colliders) {
+                        world.collide.insert(collider,
+                            collider.x - collider.r, collider.y - collider.r,
+                            collider.x + collider.r, collider.y + collider.r);
+                    }
+                    duelBoundary.inserted = true;
+                }
+                duelBoundaryAge = Math.min(DUEL_BOUNDARY_SECONDS, duelBoundaryAge + dt);
+                world.duelBoundaryActive = duelBoundaryAge < DUEL_BOUNDARY_SECONDS;
+            } else {
+                world.duelBoundaryActive = false;
+            }
+        }
 
         // Éjection automatique (forcée) après l'affichage de 0 s, ou si le vaisseau a disparu
         if (player.phase === 'ship' && (drop.dist >= drop.autoJumpAt || !drop.ship.active)) drop.jump(player, true);
