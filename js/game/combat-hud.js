@@ -34,7 +34,7 @@ function fmtDps(dps) {
 const FEED_MAX = 5;
 const FEED_TIME = 6; // secondes d'affichage d'une élimination
 
-// Altimètre : le bus démarre à 2000 m (2x l'altitude précédente)
+// Altimètre : le vaisseau démarre à 2000 m (2x l'altitude précédente)
 const ALT_METERS = 2000;
 const ALT_STEP = 10;       // pas d'affichage en mètres
 const ALT_STEP_SMALL = 5;  // 1V1 (chute de 200 m) : pas plus fin
@@ -467,11 +467,11 @@ export class CombatHud {
         this._altState = '';
     }
 
-    // Altitude interne (1 = bus, 2/3 = ouverture du planeur) -> mètres affichés
+    // Altitude interne (1 = vaisseau, 2/3 = ouverture du planeur) -> mètres affichés
     _altToMeters(alt) {
         const prof = this._altProfile;
         if (!prof) return alt * ALT_METERS;
-        // Deux segments : chute libre (bus -> planeur) puis vol plané (planeur -> sol)
+        // Deux segments : chute libre (vaisseau -> planeur) puis vol plané -> sol
         if (alt >= GLIDER_ALT) {
             const t = (alt - GLIDER_ALT) / (1 - GLIDER_ALT);
             return prof.gliderMeters + t * (prof.topMeters - prof.gliderMeters);

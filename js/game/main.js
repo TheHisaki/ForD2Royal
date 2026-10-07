@@ -300,7 +300,7 @@ function start() {
     world.duelBarrier = duelBoundary; // lu par Player, Combat et les bots (null hors 1V1)
     const effects = new Effects();
 
-    // 1V1 : un bus en panne au-dessus de chaque ville ; équipe 1 -> 1re ville, équipe 2 -> 2e
+    // 1V1 : un vaisseau en panne au-dessus de chaque ville ; équipe 1 -> 1re ville, équipe 2 -> 2e
     const duelTeam = Number(gameConfig.myTeam) || 1;
     // Chaque partie tire un côté de départ différent, mais le seed garantit que tous
     // les clients associent la même équipe à la même ville (haut ou bas).
@@ -1511,7 +1511,7 @@ function start() {
     let lastBotSeen = new Map();     // bot -> nombre de b_sync consécutifs sans lui
 
     function makeRemote(rp) {
-        // 1V1 : l'adversaire attend dans le bus de sa propre ville
+        // 1V1 : l'adversaire attend dans le vaisseau de sa propre ville
         const startShip = drop.shipFor({ team: rp.team || myTeam });
         const mate = new Player(startShip.x, startShip.y, world);
         mate.id = rp.id;
@@ -2703,7 +2703,7 @@ function start() {
     }
 
     /*
-       1V1 : panneau central « bus en panne » + compte à rebours d'expulsion.
+       1V1 : panneau central « vaisseau en panne » + compte à rebours d'expulsion.
        Élément à part (pas celui de l'attente multijoueur) : il n'est jamais recréé
        à chaque image, seul le texte change quand la seconde affichée change.
        waiting : en ligne, l'heure commune n'est pas encore arrivée.
@@ -2724,7 +2724,7 @@ function start() {
             duelEl.setAttribute('role', 'status');
             const alert = document.createElement('span');
             alert.className = 'de-alert';
-            alert.textContent = '⚠ Avarie moteur · bus en panne';
+            alert.textContent = '⚠ Avarie moteur · vaisseau en panne';
             const title = document.createElement('span');
             title.className = 'de-title';
             const count = document.createElement('span');

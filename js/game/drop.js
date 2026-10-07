@@ -200,17 +200,17 @@ export function drawSkyHaze(ctx, v, color = '#cfe4ff') {
     ctx.restore();
 }
 const AUTO_JUMP_GRACE = 0.16; // laisse le compteur afficher « 0 s » avant l'éjection
-// 1V1 : bus en panne au-dessus de chaque ville
+// 1V1 : le vaisseau reste en panne au-dessus de chaque ville
 const DUEL_COUNTDOWN = 5;      // secondes avant l'expulsion des joueurs
 /*
    1V1 : saut depuis 200 m (au lieu de 2000 m), planeur ouvert à 100 m.
-   L'altitude interne reste 1 = bus et 2/3 = ouverture du planeur (dessins inchangés) :
+   L'altitude interne reste 1 = vaisseau et 2/3 = ouverture du planeur (dessins inchangés) :
    seuls la durée de chute et l'altimètre changent.
    4,5 s de chute : 1,5 s de chute libre (~67 m/s) puis 3 s sous planeur (~33 m/s),
    contre 12 s sur la carte classique.
 */
 export const DUEL_DROP = { fallTime: 4.5, topMeters: 200, gliderMeters: 100 };
-const BROKEN_LEAVE_TIME = 3;   // durée (s) pendant laquelle le bus abandonné part en vrille
+const BROKEN_LEAVE_TIME = 3;   // durée (s) pendant laquelle le vaisseau abandonné part en vrille
 const BROKEN_SPIN = 0.55;      // rotation du bus abandonné (rad / s)
 const BROKEN_DRIFT = 150;      // vitesse de dérive du bus abandonné (unités / s)
 const OUTLINE = '#0a1030';
@@ -239,10 +239,10 @@ export class Drop {
 
         if (this.duelMode) {
             /*
-               1V1 : un bus en panne immobilisé au-dessus de CHAQUE ville (~200 m).
-               Chaque combattant est placé dans le bus de son camp (voir shipFor) et tout
+               1V1 : un vaisseau en panne immobilisé au-dessus de CHAQUE ville (~200 m).
+               Chaque combattant est placé dans le vaisseau de son camp (voir shipFor) et tout
                le monde est expulsé en même temps à la fin du compte à rebours.
-               L'altitude 1 = le bus ; le planeur s'ouvre à 2/3 de la chute, soit ~100 m.
+               L'altitude 1 = le vaisseau ; le planeur s'ouvre à 2/3 de la chute, soit ~100 m.
             */
             const cx = width / 2;
             const cy = height / 2;
@@ -302,19 +302,19 @@ export class Drop {
         this.trailTimer = 0;
     }
 
-    // Bus d'un combattant : le sien en 1V1 (son camp), le vaisseau unique sinon
+    // Vaisseau d’un combattant : le sien en 1V1 (son camp), le vaisseau unique sinon
     shipFor(f) {
         if (!this.duelMode || this.ships.length < 2) return this.ship;
         if (!f || f.team === this.localTeam) return this.ship;
         return this.ships.find(s => s !== this.ship) || this.ship;
     }
 
-    // 1V1 : le compte à rebours est terminé, tout le monde quitte son bus
+    // Compte à rebours terminé : tout le monde quitte son vaisseau
     get duelExpelled() {
         return this.duelMode && this.duelTime >= this.duelCountdown;
     }
 
-    // 1V1 : avance (ou recale) le compte à rebours ; à 0, les bus sont abandonnés
+    // 1V1 : avance (ou recale) le compte à rebours ; à 0, les vaisseaux sont abandonnés
     _setDuelTime(t) {
         let v = Math.max(0, Math.min(this.duelCountdown, t));
         if (v >= this.duelCountdown - 0.001) v = this.duelCountdown; // pas d'attente d'une image en plus
@@ -325,7 +325,7 @@ export class Drop {
             if (!s.active) continue;
             s.active = false;
             s.leave = BROKEN_LEAVE_TIME;
-            s.dropX = s.x; // point d'expulsion exact (le bus dérive ensuite)
+            s.dropX = s.x; // point d'expulsion exact (le vaisseau dérive ensuite)
             s.dropY = s.y;
         }
     }
@@ -417,8 +417,8 @@ export class Drop {
     update(dt, player, input, aimX, aimY) {
         // ----- Vaisseau -----
         if (this.duelMode) {
-            // Bus en panne : immobiles au-dessus des villes pendant le compte à rebours,
-            // puis abandonnés : ils partent en vrille en fumant et disparaissent.
+            // Vaisseau en panne : immobile au-dessus des villes pendant le compte à rebours,
+            // puis abandonné : il part en vrille en fumant et disparaît.
             if (!this.duelExpelled) this._setDuelTime(this.duelTime + dt);
             this.trailTimer += dt;
             const emit = this.trailTimer >= 0.06;
@@ -457,7 +457,7 @@ export class Drop {
             const t = trail[i];
             t.life -= dt / (t.span || 1.4);
             if (t.vx) {
-                // Fumée du bus en panne : elle s'échappe et se disperse
+                // Fumée du vaisseau en panne : elle s'échappe et se disperse
                 t.x += t.vx * dt;
                 t.y += t.vy * dt;
             }
@@ -1322,9 +1322,9 @@ function drawShip(ctx, ship, time) {
     ctx.restore();
 }
 
-/* ===================== BUS EN PANNE (1V1) ===================== */
+/* ===================== VAISSEAU EN PANNE (1V1) ===================== */
 
-// Opacité d'un vaisseau : 1 en service, fondu pendant qu'un bus abandonné s'éloigne
+// Opacité d'un vaisseau : 1 en service, fondu pendant qu'un vaisseau abandonné s'éloigne
 function shipFade(s) {
     if (s.active) return 1;
     return s.leave > 0 ? s.leave / BROKEN_LEAVE_TIME : 0;
@@ -1361,7 +1361,7 @@ function ellipseFill(ctx, x, y, rx, ry, rot = 0) {
 }
 
 /*
-   Bus du 1V1 en panne, vu de dessus (même gabarit que le vaisseau classique) :
+   Vaisseau 1V1 en panne, vu de dessus (même gabarit que le vaisseau classique) :
    - il tangue et tremble : il lutte pour rester en l'air ;
    - réacteur gauche en feu (flammes animées + lueur), réacteur droit mort qui tousse ;
    - aile droite arrachée (bord déchiqueté, câble qui pend, étincelles) ;

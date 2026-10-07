@@ -71,8 +71,8 @@ registerHudIcons({
         `<circle cx="12.2" cy="7.2" r="1.2" fill="${C.woodDark}" stroke-width="1"/>` +
         `<circle cx="14.2" cy="7.4" r="1.2" fill="${C.woodDark}" stroke-width="1"/>`,
 
-    // Décor : le bus de combat sous son ballon
-    bus: () =>
+    // Décor : le vaisseau de combat
+    ship: () =>
         '<path d="M8.2 8.6 L5.4 11.8 M15.8 8.6 L18.6 11.8" fill="none" stroke-width="1.1"/>' +
         `<ellipse cx="12" cy="5.4" rx="5" ry="4.4" fill="${C.red}"/>` +
         `<path d="M12 1 Q9.4 5.4 12 9.8 Q14.6 5.4 12 1 Z" fill="${C.yellow}" stroke-width="1.2"/>` +

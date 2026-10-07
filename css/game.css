@@ -730,7 +730,7 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
     #dropPrompt { font-size: 20px; bottom: 30%; }
 }
 
-/* ----- 1V1 : bus en panne, compte à rebours d'expulsion (centre-bas de l'écran) ----- */
+/* ----- 1V1 : vaisseau en panne, compte à rebours d'expulsion (centre-bas de l'écran) ----- */
 #duelExpel {
     position: fixed;
     left: 50%;

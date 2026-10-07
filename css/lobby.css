@@ -45,7 +45,7 @@
 .cloud-2 { width: 520px; height: 140px; top: 38%; animation-duration: 130s; animation-delay: -70s; opacity: 0.12; }
 .cloud-3 { width: 300px; height: 90px;  top: 8%;  animation-duration: 75s;  animation-delay: -45s; }
 
-.bg-bus {
+.bg-ship {
     position: absolute;
     top: 14%;
     font-size: 34px;
@@ -56,7 +56,7 @@
 
 @keyframes spin  { to { transform: translate(-50%, -50%) rotate(360deg); } }
 @keyframes drift { from { transform: translateX(-40vw); } to { transform: translateX(140vw); } }
-@keyframes bus {
+@keyframes ship {
     0%   { transform: translateX(-10vw) translateY(0); }
     50%  { transform: translateX(55vw) translateY(-12px); }
     100% { transform: translateX(115vw) translateY(0); }
@@ -1748,7 +1748,7 @@
     .game-mode-section,
     .party-chat { padding: 0; }
     .ready-button { padding: 10px; }
-    .bg-bus { display: none; }
+    .bg-ship { display: none; }
 }
 
 /* ===== AJUSTEMENTS ===== */
@@ -1796,8 +1796,8 @@
         padding-right: 30px;
     }
 
-    /* Le bus passe derrière les personnages sur petit écran : on le cache */
-    .bg-bus { display: none; }
+    /* Le vaisseau passe derrière les personnages sur petit écran : on le cache */
+    .bg-ship { display: none; }
 
     .lobby-toast { top: 110px; }
 }

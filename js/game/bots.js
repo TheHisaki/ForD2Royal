@@ -400,7 +400,7 @@ export class BotManager {
             // Atterrissage groupé en escouade
             let land;
             if (drop.duelMode) {
-                // 1V1 : chaque bot attend dans le bus de sa ville et atterrit dans sa ville
+                // 1V1 : chaque bot attend dans le vaisseau de sa ville et atterrit dans sa ville
                 const ship = drop.shipFor(bot);
                 bot.x = ship.x;
                 bot.y = ship.y;
@@ -516,7 +516,7 @@ export class BotManager {
         return { x: this.world.width / 2, y: this.world.height / 2 };
     }
 
-    // 1V1 : point d'atterrissage sur la terre ferme dans la ville de son bus
+    // 1V1 : point d'atterrissage sur la terre ferme dans la ville de son vaisseau
     duelLanding(town) {
         if (!town) return { x: this.world.width / 2, y: this.world.height / 2 };
         for (let k = 0; k < 12; k++) {
@@ -643,7 +643,7 @@ export class BotManager {
     updateShip(bot) {
         const drop = this.drop;
         if (drop.duelMode) {
-            // 1V1 : le bot reste dans SON bus jusqu'à l'expulsion commune (fin des 5 s)
+            // 1V1 : le vaisseau reste dans son camp jusqu'à l'expulsion commune (fin des 5 s)
             const ship = drop.shipFor(bot);
             bot.angle = ship.angle;
             if (!drop.duelExpelled) {
