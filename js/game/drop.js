@@ -5,6 +5,7 @@
    ================================== */
 
 import { clamp, inFrameView, fighterSeed, airProject, frameView, rectPointDist } from './utils.js';
+import { keepDuelSide } from './player.js?v=14';
 import { drawPlayer, drawStyledHead } from './draw.js?v=11';
 import { GLIDER_ART } from '../glider-art.js';
 import { drawBackpack } from './backpack-art.js';
@@ -482,6 +483,7 @@ export class Drop {
             player.vy += ((len ? a.y / len : 0) * AIR_SPEED - player.vy) * k;
             player.x = clamp(player.x + player.vx * dt, player.r, this.world.width - player.r);
             player.y = clamp(player.y + player.vy * dt, player.r, this.world.height - player.r);
+            keepDuelSide(player, this.world); // 1V1 : la frontière ne se survole pas
             player.angle = Math.atan2(aimY - player.y, aimX - player.x);
             player.moving = false;
             player.altitude -= dt / this.fallTime;

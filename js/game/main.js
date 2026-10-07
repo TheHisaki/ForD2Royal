@@ -3,18 +3,18 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=30 : 1V1 — frontière sur toute la carte (demi-plan) + rendu sans shadowBlur
+// ?v=31 : 1V1 — frontière infranchissable aussi en chute / planeur
 import { generateWorld, surfaceAt } from './world.js?v=12';
-import { Player } from './player.js?v=13';
+import { Player } from './player.js?v=14';
 import { Renderer } from './renderer.js?v=14';
 import { Hud } from './hud.js?v=14';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
-} from './drop.js?v=19';
+} from './drop.js?v=20';
 import { Combat } from './combat.js?v=13';
 import { Loot } from './loot.js?v=12';
-import { BotManager, roofAlphaAt } from './bots.js?v=20';
+import { BotManager, roofAlphaAt } from './bots.js?v=21';
 import { Corruption } from './corruption.js?v=11';
 import { CombatHud } from './combat-hud.js?v=13';
 import { Effects } from './effects.js?v=14';

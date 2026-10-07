@@ -8,6 +8,37 @@ import { INVENTORY_SLOTS } from './weapons.js';
 import { sampleGround } from './world.js?v=12';
 import { clamp } from './utils.js';
 
+/*
+   1V1 : frontière temporaire = demi-plan sur toute la carte (terre, eau ET ciel).
+   Appelé au sol (resolveCollisions) comme en chute / planeur (drop.js, bots.js) :
+   on ne peut ni la traverser à pied, ni nager autour, ni la survoler.
+   Le camp est mémorisé : même un gros déplacement d'un coup (grenade de propulsion)
+   ne fait pas passer de l'autre côté.
+*/
+export function keepDuelSide(f, world) {
+    const bd = world?.duelBarrier;
+    if (!bd || !bd.active) {
+        if (f._barrierSide) f._barrierSide = 0;
+        return;
+    }
+    const s = (f.x - bd.cx) * bd.tx + (f.y - bd.cy) * bd.ty;
+    const min = bd.half + (f.r || 26);
+    const side = f._barrierSide || (s < 0 ? -1 : 1);
+    if (s * side < min) {
+        const push = side * min - s;
+        f.x += bd.tx * push;
+        f.y += bd.ty * push;
+        // On glisse le long du mur au lieu de buter contre (la vitesse vers lui est annulée)
+        const vn = (f.vx || 0) * bd.tx + (f.vy || 0) * bd.ty;
+        if (vn * side < 0) {
+            f.vx -= bd.tx * vn;
+            f.vy -= bd.ty * vn;
+        }
+    } else {
+        f._barrierSide = side;
+    }
+}
+
 export class Player {
     constructor(x, y, world = null) {
         this.world = world;
@@ -98,24 +129,7 @@ export class Player {
         const r = this.r;
         const near = world.collide.query(this.x - r - 4, this.y - r - 4, this.x + r + 4, this.y + r + 4, this._near);
 
-        // 1V1 : frontière temporaire = demi-plan sur toute la carte (terre et eau).
-        // On mémorise son camp : même un gros déplacement (grenade de propulsion)
-        // ne peut pas faire passer de l'autre côté.
-        const bd = world.duelBarrier;
-        if (bd && bd.active) {
-            const s = (this.x - bd.cx) * bd.tx + (this.y - bd.cy) * bd.ty;
-            const min = bd.half + r;
-            const side = this._barrierSide || (s < 0 ? -1 : 1);
-            if (s * side < min) {
-                const push = side * min - s;
-                this.x += bd.tx * push;
-                this.y += bd.ty * push;
-            } else {
-                this._barrierSide = side;
-            }
-        } else if (this._barrierSide) {
-            this._barrierSide = 0;
-        }
+        keepDuelSide(this, world);
 
         for (let i = 0; i < near.length; i++) {
             const c = near[i];

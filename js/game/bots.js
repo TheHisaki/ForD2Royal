@@ -7,9 +7,9 @@
    ================================== */
 
 import { B, PLAYER, isWater } from './config.js?v=12';
-import { Player } from './player.js?v=13';
+import { Player, keepDuelSide } from './player.js?v=14';
 import { clamp, pick, airProject } from './utils.js';
-import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=19';
+import { drawFalling, fallHeight, tryRoofLanding, updateRoofSlide } from './drop.js?v=20';
 import { WEAPONS, HEALS } from './weapons.js';
 import { SKINS as SKIN_CATALOG, ITEMS } from '../cosmetics.js';
 import { hasBackpackArt } from './backpack-art.js';
@@ -748,6 +748,7 @@ export class BotManager {
         bot.vy += (uy * speed - bot.vy) * k;
         bot.x = clamp(bot.x + bot.vx * dt, bot.r, this.world.width - bot.r);
         bot.y = clamp(bot.y + bot.vy * dt, bot.r, this.world.height - bot.r);
+        keepDuelSide(bot, this.world); // 1V1 : la frontière ne se survole pas
         if (bot.vx * bot.vx + bot.vy * bot.vy > 900) bot.angle = Math.atan2(bot.vy, bot.vx);
         bot.moving = false;
         bot.altitude -= dt / (this.drop.fallTime || FALL_TIME); // 1V1 : chute plus courte
