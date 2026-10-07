@@ -51,6 +51,13 @@ export class LobbyAdmin {
     }
 
     onOpen() {
+        const net = window.networkManager;
+        const isAdmin = Boolean(net?.isAuthenticated?.() && net?.isAdmin);
+        if (!isAdmin) {
+            window.FOR2D_STORE?.show('lobby');
+            window.lobbyManager?.showToast?.('Accès réservé aux administrateurs.');
+            return;
+        }
         this.active = true;
         this.refreshGames();
         clearInterval(this.timer);
@@ -66,8 +73,11 @@ export class LobbyAdmin {
 
     refreshGames(silent = false) {
         const net = window.networkManager;
-        if (!net?.isConnected?.() || !net?.isAdmin) {
-            this.renderEmpty('Connexion au serveur ou compte administrateur requis.');
+        if (!net?.isConnected?.() || !net?.isAdmin || !net?.isAuthenticated?.()) {
+            this.renderEmpty('Accès réservé aux administrateurs.');
+            if (window.FOR2D_STORE?.view === 'admin') {
+                window.FOR2D_STORE.show('lobby');
+            }
             return;
         }
         net.getAdminGames?.();
@@ -75,6 +85,11 @@ export class LobbyAdmin {
 
     joinGame(roomCode) {
         if (!roomCode) return;
+        const net = window.networkManager;
+        if (!net?.isAuthenticated?.() || !net?.isAdmin) {
+            window.lobbyManager?.showToast?.('Accès réservé aux administrateurs.');
+            return;
+        }
         const game = this.games.find(g => g.roomCode === roomCode);
         const map = game?.mapId || 'default';
         const mode = game?.mode || 'solo';
@@ -114,6 +129,11 @@ export class LobbyAdmin {
 
     closeGame(roomCode) {
         if (!roomCode) return;
+        const net = window.networkManager;
+        if (!net?.isAuthenticated?.() || !net?.isAdmin) {
+            window.lobbyManager?.showToast?.('Accès réservé aux administrateurs.');
+            return;
+        }
         if (!confirm(`Confirmer la fermeture de la partie #${roomCode} ?\nTous les joueurs seront expulsés.`)) return;
         window.networkManager?.closeAdminGame?.(roomCode);
     }

@@ -863,8 +863,8 @@ class RoomManager {
             return room;
         }
 
-        // Partie en cours : seuls ses joueurs ou un administrateur peuvent y entrer.
-        const isAdminJoining = !!ws.isAdmin || Boolean(playerData.adminJoin || playerData.player?.adminJoin);
+        // Partie en cours : seuls ses joueurs ou un administrateur authentifié peuvent y entrer.
+        const isAdminJoining = Boolean(ws.isAdmin);
 
         if (room.state === 'game' && !isAdminJoining) {
             return this.send(ws, { type: 'error', code: 'room_in_game', message: 'Cette partie est déjà en cours.' });

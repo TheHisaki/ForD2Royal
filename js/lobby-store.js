@@ -276,7 +276,17 @@ class Store {
                 this.openPixieShop();
                 return;
             }
-            const view = Object.keys(HASH).find(v => HASH[v] === h) || 'lobby';
+            let view = Object.keys(HASH).find(v => HASH[v] === h) || 'lobby';
+            if (view === 'admin') {
+                const isAdmin = Boolean(window.networkManager?.isAuthenticated?.() && window.networkManager?.isAdmin);
+                if (!isAdmin) {
+                    view = 'lobby';
+                    if (location.hash === '#admin') {
+                        history.replaceState(null, '', location.pathname + location.search);
+                    }
+                    window.lobbyManager?.showToast?.('Accès réservé aux administrateurs.');
+                }
+            }
             this.show(view, false);
         };
         addEventListener('hashchange', fromHash);
@@ -395,6 +405,16 @@ class Store {
     /* ----- Navigation ----- */
 
     show(view, updateHash = true) {
+        if (view === 'admin') {
+            const isAdmin = Boolean(window.networkManager?.isAuthenticated?.() && window.networkManager?.isAdmin);
+            if (!isAdmin) {
+                view = 'lobby';
+                if (location.hash === '#admin') {
+                    history.replaceState(null, '', location.pathname + location.search);
+                }
+                window.lobbyManager?.showToast?.('Accès réservé aux administrateurs.');
+            }
+        }
         if (view !== 'lobby' && !$(SCREEN_IDS[view])) view = 'lobby';
         const e = this.el;
         const changed = view !== this.view;
