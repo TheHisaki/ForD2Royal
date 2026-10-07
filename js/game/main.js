@@ -126,6 +126,11 @@ function start() {
     const teamSize = gameConfig.teamSize;
     const teamMode = teamSize > 1;
     const mapId = gameConfig.mapId || (isDuel ? 'duel-two-towns' : 'default');
+    // État du Best of 3 (uniquement en 1V1, conservé dans l'URL entre les manches)
+    let duelRound = Math.max(1, Math.min(3, Number(urlParams.get('duelRound')) || 1));
+    let duelScore1 = Math.max(0, Math.min(2, Number(urlParams.get('duelScore1')) || 0));
+    let duelScore2 = Math.max(0, Math.min(2, Number(urlParams.get('duelScore2')) || 0));
+    let duelRoundHandled = false;
 
     /* ----- Aléatoire synchronisé en multijoueur -----
        En mode multijoueur, la graine (seed) envoyée par le serveur est partagée
@@ -619,7 +624,10 @@ function start() {
     const hud = new Hud(world, player, fighters);
     hud.setFlight(drop);
     combatHud = new CombatHud(player, fighters, loot);
-    if (isDuel) combatHud.setAltitudeProfile(DUEL_DROP); // altimètre : 200 m, planeur à 100 m
+    if (isDuel) {
+        combatHud.setAltitudeProfile(DUEL_DROP); // altimètre duel : repère à 100 m
+        updateDuelScoreHud();
+    }
     hud.setZone?.(corruption);
     renderer.setZone(corruption); // la carte elle-même devient violet / noir dans la corruption
     combatHud.setZone?.(corruption);
@@ -1571,8 +1579,10 @@ function start() {
             case 'room_joined':
                 if (Array.isArray(msg.players)) syncRoomPlayers(msg.players);
                 if (msg.authorityId) setAuthority(msg.authorityId);
-                // Heure commune de la partie (départ du vaisseau)
-                if (Number.isFinite(msg.clock)) setGameClock(msg.clock);
+                // Une manche suivante doit repartir à son propre compte à rebours de 5 s,
+                // même si la salle conserve l'horloge de la première manche.
+                if (isDuel && duelRound > 1) setGameClock(0);
+                else if (Number.isFinite(msg.clock)) setGameClock(msg.clock);
                 break;
             case 'player_joined':
             case 'player_reconnected':
@@ -2046,8 +2056,19 @@ function start() {
     }
 
     /* ----- Fin de partie ----- */
+    function checkDuelEnd() {
+        if (duelRoundHandled) return;
+        const alive = fighters.filter(f => f.alive);
+        if (alive.length !== 1) return;
+        finishDuelRound(alive[0]);
+    }
+
     function checkEnd() {
         if (gameOver) return;
+        if (isDuel) {
+            checkDuelEnd();
+            return;
+        }
 
         if (teamMode) {
             const teamAlive = fighters.filter(f => f.alive && f.team === player.team);
@@ -2569,6 +2590,93 @@ function start() {
         if (duelPop) count.classList.remove(duelPop);
         count.classList.add(next);
         duelPop = next;
+    }
+
+    function duelNameForTeam(team) {
+        if (team === player.team) return player.name || 'TOI';
+        const other = [...remotePlayersMap.values()].find(f => f.team === team && f.name);
+        if (other) return other.name;
+        const enemyBot = bots?.bots?.find?.(f => f.team === team && f.name);
+        return enemyBot?.name || (team === 1 ? 'JOUEUR 1' : 'JOUEUR 2');
+    }
+
+    function updateDuelScoreHud() {
+        if (!isDuel) return;
+        let el = document.getElementById('duelScoreHud');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'duelScoreHud';
+            el.setAttribute('aria-live', 'polite');
+            const round = document.createElement('span');
+            round.className = 'ds-round';
+            const left = document.createElement('span');
+            left.className = 'ds-player ds-left';
+            const score = document.createElement('strong');
+            score.className = 'ds-score';
+            const right = document.createElement('span');
+            right.className = 'ds-player ds-right';
+            el.append(round, left, score, right);
+            document.body.appendChild(el);
+        }
+        el.querySelector('.ds-round').textContent = `MANCHE ${duelRound} / 3`;
+        el.querySelector('.ds-left').textContent = duelNameForTeam(1);
+        el.querySelector('.ds-score').textContent = `${duelScore1}  —  ${duelScore2}`;
+        el.querySelector('.ds-right').textContent = duelNameForTeam(2);
+    }
+
+    function showDuelRoundResult(winnerTeam, final) {
+        let el = document.getElementById('duelRoundResult');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'duelRoundResult';
+            el.setAttribute('role', 'status');
+            const kicker = document.createElement('span'); kicker.className = 'drr-kicker';
+            const title = document.createElement('strong'); title.className = 'drr-title';
+            const score = document.createElement('span'); score.className = 'drr-score';
+            const next = document.createElement('span'); next.className = 'drr-next';
+            el.append(kicker, title, score, next);
+            document.body.appendChild(el);
+        }
+        el.querySelector('.drr-kicker').textContent = final ? 'DUEL TERMINÉ' : `MANCHE ${duelRound} GAGNÉE`;
+        el.querySelector('.drr-title').textContent = `${duelNameForTeam(winnerTeam)} remporte la manche`;
+        el.querySelector('.drr-score').textContent = `${duelScore1}  —  ${duelScore2}`;
+        el.querySelector('.drr-next').textContent = final ? 'Victoire au meilleur des 3' : `Manche ${duelRound + 1} dans 3 secondes…`;
+        el.hidden = false;
+        el.classList.remove('is-visible');
+        void el.offsetWidth;
+        el.classList.add('is-visible');
+    }
+
+    function restartDuelRound() {
+        const url = new URL(window.location.href);
+        url.searchParams.set('duelRound', String(duelRound + 1));
+        url.searchParams.set('duelScore1', String(duelScore1));
+        url.searchParams.set('duelScore2', String(duelScore2));
+        // Le serveur conserve la salle ; la manche suivante recale son horloge localement.
+        window.location.href = url.href;
+    }
+
+    function finishDuelRound(winner) {
+        if (!isDuel || duelRoundHandled || !winner) return;
+        duelRoundHandled = true;
+        gameOver = true;
+        if (winner.team === 1) duelScore1 = Math.min(2, duelScore1 + 1);
+        else duelScore2 = Math.min(2, duelScore2 + 1);
+        const final = duelScore1 >= 2 || duelScore2 >= 2 || duelRound >= 3;
+        stats.place = winner.team === player.team ? 1 : 2;
+        stats.endT = time;
+        updateDuelScoreHud();
+        showDuelRoundResult(winner.team, final);
+        SFX.play(winner.team === player.team ? 'victory' : 'defeat');
+
+        if (final) {
+            setTimeout(() => {
+                document.getElementById('duelRoundResult')?.remove();
+                endScreen.show(endResult(winner.team === player.team));
+            }, 2600);
+        } else {
+            setTimeout(restartDuelRound, 3000);
+        }
     }
 
     /* ----- Envois réseau périodiques ----- */

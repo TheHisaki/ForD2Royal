@@ -462,6 +462,7 @@ export class CombatHud {
     */
     setAltitudeProfile(profile) {
         this._altProfile = profile && profile.topMeters > 0 ? profile : null;
+        this.el?.alt?.box?.classList.toggle('duel-alt', Boolean(this._altProfile));
         this._altM = -1;
         this._altState = '';
     }
