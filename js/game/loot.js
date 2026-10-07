@@ -280,7 +280,6 @@ export class Loot {
         if (x < r || y < r || x > this.world.width - r || y > this.world.height - r) return true;
         const list = this.world.collide.query(x - r, y - r, x + r, y + r, this._tmp);
         for (const o of list) {
-            if (o.duelBoundary && !this.world.duelBoundaryActive) continue;
             if (o.kind === 'circle') {
                 if (Math.hypot(o.x - x, o.y - y) < o.r + r) return true;
             } else if (rectPointDist(o, x, y) < r) {

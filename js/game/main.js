@@ -3,7 +3,7 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=29 : 1V1 — loot différent par manche + frontière temporaire entre villes
+// ?v=30 : 1V1 — frontière pleine largeur sans collisions circulaires
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { Player } from './player.js?v=12';
 import { Renderer } from './renderer.js?v=14';
@@ -61,8 +61,7 @@ const BLAST_FX = {
 };
 
 const DUEL_BOUNDARY_SECONDS = 10;
-const DUEL_BOUNDARY_HALF_LENGTH = 680;
-const DUEL_BOUNDARY_RADIUS = 58;
+const DUEL_BOUNDARY_GAP = 64;
 
 function duelRoundSeed(baseSeed, round, isDuel) {
     const base = (Number(baseSeed) >>> 0) || 1;
@@ -82,18 +81,33 @@ function createDuelBoundary(world) {
     const tangent = { x: dx / length, y: dy / length };
     const normal = { x: -tangent.y, y: tangent.x };
     const center = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
-    const count = Math.ceil((DUEL_BOUNDARY_HALF_LENGTH * 2) / (DUEL_BOUNDARY_RADIUS * 1.35)) + 1;
-    const colliders = [];
-    for (let i = 0; i < count; i++) {
-        const offset = -DUEL_BOUNDARY_HALF_LENGTH + (i / (count - 1)) * DUEL_BOUNDARY_HALF_LENGTH * 2;
-        colliders.push({
-            kind: 'circle', duelBoundary: true,
-            x: center.x + normal.x * offset,
-            y: center.y + normal.y * offset,
-            r: DUEL_BOUNDARY_RADIUS
-        });
+    // La ligne dépasse les quatre coins : elle couvre toute la largeur de la carte,
+    // sans extrémité contournable en haut, en bas ou sur les côtés.
+    const halfLength = Math.hypot(world.width, world.height);
+    return { center, normal, tangent, halfLength };
+}
+
+function constrainDuelFighter(f, boundary) {
+    if (!f || !f.alive || f.phase !== 'ground') return;
+    // Équipe 1 = ville A / côté négatif ; équipe 2 = ville B / côté positif.
+    const side = Number(f.team) === 2 ? 1 : -1;
+    const along = (f.x - boundary.center.x) * boundary.tangent.x +
+        (f.y - boundary.center.y) * boundary.tangent.y;
+    const allowed = side * along;
+    if (allowed >= DUEL_BOUNDARY_GAP) return;
+
+    const correction = side * DUEL_BOUNDARY_GAP - along;
+    f.x += boundary.tangent.x * correction;
+    f.y += boundary.tangent.y * correction;
+
+    // Supprimer uniquement la vitesse qui pousse vers la frontière ; les déplacements
+    // parallèles restent inchangés et il n'y a donc plus de ping-pong de collisions.
+    const toward = side * (f.vx * boundary.tangent.x + f.vy * boundary.tangent.y);
+    if (toward < 0) {
+        const normalVelocity = f.vx * boundary.tangent.x + f.vy * boundary.tangent.y;
+        f.vx -= boundary.tangent.x * normalVelocity;
+        f.vy -= boundary.tangent.y * normalVelocity;
     }
-    return { center, normal, tangent, halfLength: DUEL_BOUNDARY_HALF_LENGTH, colliders, inserted: false };
 }
 
 function drawDuelBoundary(ctx, boundary, age, time) {
@@ -2906,18 +2920,10 @@ function start() {
         drop.update(dt, player, input, aim.x, aim.y);
 
         // Après l'expulsion, le passage central est verrouillé pendant 10 s.
-        // Les colliders sont ajoutés à ce moment seulement : ils ne gênent ni le loot
-        // initial ni la chute, puis le flag les rend inoffensifs après expiration.
+        // La contrainte géométrique reste légère : aucune chaîne de colliders n'est
+        // ajoutée à la grille, ce qui évite les poussées répétées et les chutes de FPS.
         if (duelBoundary) {
             if (drop.duelExpelled) {
-                if (!duelBoundary.inserted) {
-                    for (const collider of duelBoundary.colliders) {
-                        world.collide.insert(collider,
-                            collider.x - collider.r, collider.y - collider.r,
-                            collider.x + collider.r, collider.y + collider.r);
-                    }
-                    duelBoundary.inserted = true;
-                }
                 duelBoundaryAge = Math.min(DUEL_BOUNDARY_SECONDS, duelBoundaryAge + dt);
                 world.duelBoundaryActive = duelBoundaryAge < DUEL_BOUNDARY_SECONDS;
             } else {
@@ -2977,6 +2983,11 @@ function start() {
             if (withInput) playerActions();
         }
         bots.update(dt, time);
+        if (duelBoundary && world.duelBoundaryActive) {
+            // Une seule projection par combattant : pas de grille surchargée ni de
+            // répétition de poussées entre cercles qui faisait chuter les FPS.
+            for (const fighter of fighters) constrainDuelFighter(fighter, duelBoundary);
+        }
         combat.update(dt);
         corruption.update(dt, fighters, combat);
         loot.update(dt);

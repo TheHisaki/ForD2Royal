@@ -775,7 +775,6 @@ export class Combat {
     _wallAt(list, x, y) {
         for (let i = 0; i < list.length; i++) {
             const c = list[i];
-            if (c.duelBoundary && !this.world.duelBoundaryActive) continue;
             if (c.kind === 'circle') {
                 const dx = x - c.x;
                 const dy = y - c.y;

@@ -86,7 +86,6 @@ function spotFree(world, x, y, r) {
     const near = world.collide ? world.collide.query(x - r, y - r, x + r, y + r, _near) : [];
     for (let i = 0; i < near.length; i++) {
         const c = near[i];
-        if (c.duelBoundary && !world.duelBoundaryActive) continue;
         if (c.kind === 'circle') {
             if (Math.hypot(x - c.x, y - c.y) < r + c.r) return false;
         } else if (rectPointDist(c, x, y) < r) {

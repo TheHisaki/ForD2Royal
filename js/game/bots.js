@@ -148,7 +148,6 @@ function segmentClear(world, ax, ay, bx, by, pad = 0) {
     _rects.length = 0;
     for (let i = 0; i < list.length; i++) {
         const c = list[i];
-        if (c.duelBoundary && !world.duelBoundaryActive) continue;
         if (c.kind === 'circle') {
             const rr = c.r + pad;
             // Pré-filtre : cercle hors du rectangle englobant du segment => ne peut pas le toucher

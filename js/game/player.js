@@ -100,7 +100,6 @@ export class Player {
 
         for (let i = 0; i < near.length; i++) {
             const c = near[i];
-            if (c.duelBoundary && !world.duelBoundaryActive) continue;
             if (c.kind === 'circle') {
                 const dx = this.x - c.x;
                 const dy = this.y - c.y;
