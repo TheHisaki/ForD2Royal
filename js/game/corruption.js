@@ -28,6 +28,13 @@ const PHASES = [
     { wait: 25, shrink: 22, r: 250,  dps: 8 },
     { wait: 20, shrink: 20, r: 0,    dps: 10 }
 ];
+// 1V1 : 3 phases, environ 120 secondes entre le début de la corruption et la zone finale.
+// Les rayons sont exprimés dans l'échelle classique puis réduits par this.scale (0,5 sur l'île duel).
+const DUEL_PHASES = [
+    { wait: 20, shrink: 20, r: 1500, dps: 2 },
+    { wait: 15, shrink: 25, r: 750,  dps: 5 },
+    { wait: 0,  shrink: 40, r: 0,    dps: 10 }
+];
 const DONE_DPS = 12;          // dégâts par seconde une fois la zone finale fermée
 const DPS_BONUS_EVERY = 90;   // +1 dégât par seconde toutes les 90 s de partie
 const TICK = 1;               // un tick de dégâts par seconde et par combattant
@@ -102,8 +109,10 @@ function visibleArc(cx, cy, r, minX, minY, maxX, maxY) {
 export class Corruption {
     constructor(world, seed = null) {
         this.world = world;
+        this.isDuel = world.mapId === 'duel-two-towns';
         this.scale = Math.min(world.width, world.height) / 6000;
-        this.phases = PHASES.map(p => ({ ...p, r: p.r * this.scale }));
+        const phaseProfile = this.isDuel ? DUEL_PHASES : PHASES;
+        this.phases = phaseProfile.map(p => ({ ...p, r: p.r * this.scale }));
         this.startRadius = START_RADIUS * this.scale;
         this.islandMin = 900 * this.scale;
         this.islandMaxX = world.width - this.islandMin;

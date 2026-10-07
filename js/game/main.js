@@ -3,7 +3,7 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=34 : pseudo local correct + spawn 1V1 haut/bas aléatoire par partie
+// ?v=35 : confirmation de sortie + corruption 1V1 en 3 phases / 2 minutes
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { Player } from './player.js?v=15';
 import { Renderer } from './renderer.js?v=14';
@@ -15,7 +15,7 @@ import {
 import { Combat } from './combat.js?v=13';
 import { Loot } from './loot.js?v=12';
 import { BotManager, roofAlphaAt } from './bots.js?v=21';
-import { Corruption } from './corruption.js?v=11';
+import { Corruption } from './corruption.js?v=12';
 import { CombatHud } from './combat-hud.js?v=13';
 import { Effects } from './effects.js?v=14';
 import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=11';

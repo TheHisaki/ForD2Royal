@@ -554,6 +554,7 @@
             const link = e.target.closest('#lobbyBackBtn, #esLobbyBtn');
             if (link) {
                 e.preventDefault();
+                if (link.id === 'lobbyBackBtn' && !window.confirm('Veux-tu vraiment quitter la partie et retourner au lobby ?')) return;
                 // Préserver la config pour que le lobby sache qu'on revient d'une partie en groupe
                 try {
                     const cfg = JSON.parse(sessionStorage.getItem('for2d-game-mode') || '{}');
@@ -591,6 +592,6 @@
     })();
     </script>
 
-    <script type="module" src="js/game/main.js?v=34"></script>
+    <script type="module" src="js/game/main.js?v=35"></script>
 </body>
 </html>
