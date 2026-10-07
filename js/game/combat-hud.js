@@ -150,6 +150,10 @@ export class CombatHud {
         el.hidden = !visible;
     }
 
+    setSupplyDrops(supplyDrops) {
+        this.supplyDrops = supplyDrops || null;
+    }
+
     update(dt) {
         const p = this.player;
         this.updateSlots();
@@ -179,11 +183,14 @@ export class CombatHud {
             }
         }
 
-        // Coffre ou objet à portée
-        const near = p.alive && p.phase === 'ground' ? this.loot.nearestInteractable(p) : null;
+        // Ravitaillement prioritaire sur les coffres/objets quand le joueur est dessus.
+        const supplyNear = p.alive && p.phase === 'ground' ? this.supplyDrops?.nearest(p) : null;
+        const near = supplyNear || (p.alive && p.phase === 'ground' ? this.loot.nearestInteractable(p) : null);
         this._show(this.el.interact, 'interact', !!near);
         if (near) {
-            let txt = this.loot.describe(near);
+            let txt = near.kind === 'supply'
+                ? this.supplyDrops.describe(near.target)
+                : this.loot.describe(near);
             // Inventaire plein : on prévient que l'objet en main sera posé au sol
             const out = near.kind === 'item' ? this.loot.swapTarget(p, near.target) : null;
             if (out) {

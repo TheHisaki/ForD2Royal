@@ -802,6 +802,13 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
     #duelExpel .de-count.pop-b { animation: none; }
 }
 
+/* ----- Ravitaillement en approche ----- */
+#supplyAnnouncement { position: fixed; left: 50%; top: 19%; z-index: 31; transform: translate(-50%, -12px) scale(.94); display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: min(430px, 86vw); padding: 12px 24px 14px; color: #fff; background: linear-gradient(135deg, rgba(62,12,30,.94), rgba(8,22,58,.94)); border: 2px solid #ffcc45; border-radius: 10px; box-shadow: 0 0 0 4px rgba(255,51,75,.16), 0 0 30px rgba(255,110,30,.35); opacity: 0; pointer-events: none; text-align: center; }
+#supplyAnnouncement.is-visible { animation: supplyAnnIn .35s ease-out forwards; }
+#supplyAnnouncement .supply-ann-title { color: #ffe03d; font: 400 27px var(--font-display, 'Bebas Neue', Impact, sans-serif); letter-spacing: 2px; }
+#supplyAnnouncement .supply-ann-sub { color: #dce7ff; font: 600 12px var(--font-body, 'Rubik', sans-serif); letter-spacing: .5px; }
+@keyframes supplyAnnIn { to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+
 /* ----- HUD du Best of 3 1V1 -----
    Toujours : MOI en bleu (à gauche), l'ADVERSAIRE en rouge (à droite).
    Pastilles centrales = une par manche (bleue gagnée, rouge perdue, contour = en cours). */

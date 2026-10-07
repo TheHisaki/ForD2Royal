@@ -3,11 +3,11 @@
    Carte, vaisseau, joueur, bots, coffres, armes, effets et HUD.
    ================================== */
 
-// ?v=35 : confirmation de sortie + corruption 1V1 en 3 phases / 2 minutes
+// ?v=36 : ravitaillements périodiques et caisses parachutées
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { Player } from './player.js?v=15';
 import { Renderer } from './renderer.js?v=14';
-import { Hud } from './hud.js?v=14';
+import { Hud } from './hud.js?v=15';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
@@ -15,8 +15,9 @@ import {
 import { Combat } from './combat.js?v=13';
 import { Loot } from './loot.js?v=12';
 import { BotManager, roofAlphaAt } from './bots.js?v=21';
+import { SupplyDrops } from './supply-drops.js?v=2';
 import { Corruption } from './corruption.js?v=12';
-import { CombatHud } from './combat-hud.js?v=13';
+import { CombatHud } from './combat-hud.js?v=14';
 import { Effects } from './effects.js?v=14';
 import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=11';
 import { drawPlayer, drawDying } from './draw.js?v=11';
@@ -737,6 +738,16 @@ function start() {
         firstEnemyTeam: Math.max(...teams.map(t => t.team || 1)) + 1
     });
 
+    // Les Duo gardent la partie classique sans ravitaillements ; tous les autres modes en ont.
+    const supplyEnabled = String(gameConfig.mode || gameConfig.modeName || '').toLowerCase() !== 'duo';
+    const supplyDrops = supplyEnabled ? new SupplyDrops({
+        world, loot, seed: gameSeed + duelRound * 101,
+        isHost: () => isHost,
+        send: netSend,
+        idPrefix: `${duelRound}-`,
+        onAnnounce: (drop, remaining) => showSupplyAnnouncement(drop, remaining)
+    }) : null;
+
     // Le HUD duel dépend de BotManager (nom de l'adversaire bot) : l'initialiser après sa création.
     if (isDuel) updateDuelScoreHud();
 
@@ -776,7 +787,9 @@ function start() {
 
     const hud = new Hud(world, player, fighters);
     hud.setFlight(drop);
+    hud.setSupplyDrops(supplyDrops);
     combatHud = new CombatHud(player, fighters, loot);
+    combatHud.setSupplyDrops(supplyDrops);
     if (isDuel) {
         combatHud.setAltitudeProfile(DUEL_DROP); // altimètre duel : repère à 100 m
         document.body.classList.add('is-duel'); // le lieu / les alertes descendent sous le tableau des scores
@@ -821,6 +834,7 @@ function start() {
     // Ouvre un coffre / ramasse un objet ; une arme ramassée pioche en main est équipée tout de suite
     const interact = () => {
         if (!player.alive || player.dbno || player.phase !== 'ground') return;
+        if (supplyDrops?.interact(player)) return;
         const before = player.inventory.slice();
         if (!loot.interact(player)) return;
         if (player.slot === 0) {
@@ -1891,6 +1905,15 @@ function start() {
                     if (owner) dropAdminWeapon(owner, msg.weaponId, msg.rarity);
                 }
                 break;
+            case 'supply_spawn':
+                if (!isHost) supplyDrops?.addRemote(msg);
+                break;
+            case 'supply_open_request':
+                if (isHost) supplyDrops?.handleOpenRequest(msg.dropId);
+                break;
+            case 'supply_open':
+                supplyDrops?.openRemote(msg.dropId);
+                break;
             case 'loot_spawn':
                 if (Array.isArray(msg.items)) for (const d of msg.items) loot.addRemote(d);
                 break;
@@ -2638,6 +2661,7 @@ function start() {
             corruption.drawWorld(ctx, v, time); // au-dessus du sol et des toits, sous le vaisseau et les chutes
             // La frontière est un obstacle aérien : au-dessus des arbres, bâtiments et joueurs.
             if (duelBoundary) drawDuelBoundary(ctx, duelBoundary, duelBoundaryAge, time, v);
+            supplyDrops?.draw(ctx, time, v);
             if (player.throwState && player.phase === 'ground' && player.alive) combat.drawThrowPreview(ctx, player, player.angle);
             drawSkyHaze(ctx, v, world.theme?.haze); // voile d'altitude : le sol paraît lointain depuis le ciel
             bots.drawAir(ctx, time, v, canSeeFromHouse);   // culling fait dans drawFalling (position en perspective)
@@ -2745,6 +2769,29 @@ function start() {
         if (duelPop) count.classList.remove(duelPop);
         count.classList.add(next);
         duelPop = next;
+    }
+
+    function showSupplyAnnouncement(drop, remaining = 15) {
+        let el = document.getElementById('supplyAnnouncement');
+        if (!el) {
+            el = document.createElement('div');
+            el.id = 'supplyAnnouncement';
+            el.setAttribute('role', 'status');
+            const title = document.createElement('strong');
+            title.className = 'supply-ann-title';
+            const sub = document.createElement('span');
+            sub.className = 'supply-ann-sub';
+            el.append(title, sub);
+            document.body.appendChild(el);
+        }
+        el.querySelector('.supply-ann-title').textContent = 'RAVITAILLEMENT EN APPROCHE';
+        el.querySelector('.supply-ann-sub').textContent = `Arrivée dans ${Math.max(1, Math.ceil(remaining))} secondes · marqué sur la carte`;
+        el.hidden = false;
+        el.classList.remove('is-visible');
+        void el.offsetWidth;
+        el.classList.add('is-visible');
+        clearTimeout(el._hideTimer);
+        el._hideTimer = setTimeout(() => { el.classList.remove('is-visible'); el.hidden = true; }, 4200);
     }
 
     function duelNameForTeam(team) {
@@ -2959,6 +3006,7 @@ function start() {
         renderer.updateZoom(dt);
         const aim = aimPoint();
         drop.update(dt, player, input, aim.x, aim.y);
+        supplyDrops?.update(dt, time);
 
         // Après l'expulsion, le passage entre les deux camps est fermé pendant 10 s.
         if (duelBoundary) {
@@ -3161,7 +3209,7 @@ function start() {
 
     // Accès depuis la console du navigateur pour tester (ex : FOR2D_GAME.player.x = 1500)
     window.FOR2D_GAME = {
-        world, player, renderer, hud, drop, loot, combat, bots, fighters, effects, corruption, SFX,
+        world, player, renderer, hud, drop, supplyDrops, loot, combat, bots, fighters, effects, corruption, SFX,
         endScreen, spectator, stats
     };
 }

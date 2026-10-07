@@ -449,6 +449,11 @@ export class Hud {
         this.resize();
     }
 
+    setSupplyDrops(supplyDrops) {
+        this.supplyDrops = supplyDrops || null;
+        this._mmKey = '';
+    }
+
     // Appelé au démarrage et quand la fenêtre change de taille (lectures de layout ici seulement)
     resize() {
         // Le HUD est agrandi (zoom CSS --hud-zoom) : la minimap est dessinée à sa taille réelle
@@ -814,6 +819,23 @@ export class Hud {
         this._mmScale = ks;
     }
 
+    drawSupplyMarkers(ctx, k) {
+        const drops = this.supplyDrops?.activeDrops?.() || [];
+        for (const d of drops) {
+            const falling = d.state === 'falling';
+            const pulse = 0.65 + 0.35 * Math.sin((this.time || 0) * 7 + d.x * 0.01);
+            ctx.save();
+            ctx.translate(d.x, d.y);
+            ctx.rotate(Math.PI / 4);
+            ctx.fillStyle = falling ? `rgba(255, 51, 75, ${0.65 * pulse})` : '#ff334b';
+            ctx.fillRect(-10 / k, -10 / k, 20 / k, 20 / k);
+            ctx.strokeStyle = '#ffe03d';
+            ctx.lineWidth = 2 / k;
+            ctx.strokeRect(-10 / k, -10 / k, 20 / k, 20 / k);
+            ctx.restore();
+        }
+    }
+
     drawMinimap() {
         const base = this._mmBase;
         if (!base) return;
@@ -838,7 +860,8 @@ export class Hud {
             if (n) zk += `,${Math.round(n.x * k)},${Math.round(n.y * k)},${Math.round(n.r * k)}`;
         }
         const mateKey = this.fighters ? this.fighters.filter(f => f !== p && f.alive && f.team === p.team).map(f => `${Math.round(f.x * k)},${Math.round(f.y * k)},${f.dbno ? 1 : 0}`).join(';') : '';
-        const key = `${sx},${sy},${Math.round((p.angle || 0) * 20)},${p.phase},${p.alive ? 1 : 0},${ship},${zk},${mateKey}`;
+        const supplyKey = this.supplyDrops?.activeDrops?.().map(d => `${d.id},${d.state},${Math.floor(d.age)}`).join(';') || '';
+        const key = `${sx},${sy},${Math.round((p.angle || 0) * 20)},${p.phase},${p.alive ? 1 : 0},${ship},${zk},${supplyKey},${mateKey}`;
         if (key === this._mmKey) return; // rien n'a bougé à l'échelle de la minimap
         this._mmKey = key;
 
@@ -860,8 +883,8 @@ export class Hud {
         }
 
         // Corruption puis trajet du vaisseau (coordonnées monde)
-        const shipOn = d && d.ship.active;
-        if (zoneOn || shipOn) {
+        const supplyOn = Boolean(this.supplyDrops?.activeDrops?.().length);
+        if (zoneOn || shipOn || supplyOn) {
             ctx.setTransform(k, 0, 0, k, -sx, -sy);
             if (zoneOn) {
                 this.drawZone(ctx, k, sx / k, sy / k, w / k, h / k);
@@ -869,6 +892,7 @@ export class Hud {
                 this.drawSafeGuide(ctx, k, (Math.min(w, h) / 2 - 12 * this.dpr) / k);
             }
             if (shipOn) this.drawFlightPath(ctx, k);
+            if (supplyOn) this.drawSupplyMarkers(ctx, k);
             ctx.setTransform(1, 0, 0, 1, 0, 0);
         }
 
@@ -1056,7 +1080,8 @@ export class Hud {
         // Corruption + trajet du vaisseau (coordonnées monde)
         const zoneOn = zoneActive(this.zone);
         const shipOn = this.drop && this.drop.ship.active;
-        if (zoneOn || shipOn) {
+        const supplyOn = Boolean(this.supplyDrops?.activeDrops?.().length);
+        if (zoneOn || shipOn || supplyOn) {
             ctx.save();
             ctx.scale(k, k);
             if (zoneOn) {
@@ -1064,6 +1089,7 @@ export class Hud {
                 this.drawSafeGuide(ctx, k, Infinity);
             }
             if (shipOn) this.drawFlightPath(ctx, k);
+            if (supplyOn) this.drawSupplyMarkers(ctx, k);
             ctx.restore();
         }
 
