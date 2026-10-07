@@ -819,21 +819,148 @@ export class Hud {
         this._mmScale = ks;
     }
 
-    drawSupplyMarkers(ctx, k) {
-        const drops = this.supplyDrops?.activeDrops?.() || [];
-        for (const d of drops) {
-            const falling = d.state === 'falling';
-            const pulse = 0.65 + 0.35 * Math.sin((this.time || 0) * 7 + d.x * 0.01);
+    drawSupplyBadge(ctx, x, y, scale, state, age, time) {
+        const dpr = this.dpr || 1;
+        const s = scale * dpr;
+
+        ctx.save();
+        ctx.translate(x, y);
+
+        // 1. Onde radar / halo d'atterrissage
+        const pulse = ((time * 1.3 + (age || 0) * 0.4) % 1.4) / 1.4;
+        const pulseRadius = (16 + pulse * 22) * s;
+        ctx.beginPath();
+        ctx.arc(0, 0, pulseRadius, 0, Math.PI * 2);
+        ctx.strokeStyle = state === 'falling'
+            ? `rgba(255, 209, 102, ${(1 - pulse) * 0.75})`
+            : `rgba(6, 214, 160, ${(1 - pulse) * 0.65})`;
+        ctx.lineWidth = 2 * s;
+        ctx.stroke();
+
+        // 2. Halo lumineux d'approche
+        ctx.beginPath();
+        ctx.arc(0, 0, 16 * s, 0, Math.PI * 2);
+        ctx.fillStyle = state === 'falling'
+            ? 'rgba(255, 170, 0, 0.28)'
+            : 'rgba(6, 214, 160, 0.24)';
+        ctx.fill();
+
+        // 3. Ombre portée du badge
+        ctx.beginPath();
+        ctx.arc(0, 2 * s, 13 * s, 0, Math.PI * 2);
+        ctx.fillStyle = 'rgba(0, 0, 0, 0.55)';
+        ctx.fill();
+
+        // 4. Fond du badge (bleu nuit haute lisibilité)
+        ctx.beginPath();
+        ctx.arc(0, 0, 13 * s, 0, Math.PI * 2);
+        ctx.fillStyle = '#0b132b';
+        ctx.fill();
+        ctx.strokeStyle = state === 'falling' ? '#ffb703' : '#06d6a0';
+        ctx.lineWidth = 2.4 * s;
+        ctx.stroke();
+
+        // 5. Illustration selon l'état (descendant avec parachute OU caisse au sol)
+        if (state === 'falling') {
+            // --- PARACHUTE DÉPLOYÉ ---
+            const py = -4 * s;
+            const pr = 8.5 * s;
+
+            // Lignes de suspension du parachute vers la caisse
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.85)';
+            ctx.lineWidth = 1 * s;
+            ctx.moveTo(-pr * 0.85, py);
+            ctx.lineTo(-3 * s, 3 * s);
+            ctx.moveTo(pr * 0.85, py);
+            ctx.lineTo(3 * s, 3 * s);
+            ctx.moveTo(0, py - 1 * s);
+            ctx.lineTo(0, 3 * s);
+            ctx.stroke();
+
+            // Dôme du parachute (arc de cercle)
             ctx.save();
-            ctx.translate(d.x, d.y);
-            ctx.rotate(Math.PI / 4);
-            ctx.fillStyle = falling ? `rgba(255, 51, 75, ${0.65 * pulse})` : '#ff334b';
-            ctx.fillRect(-10 / k, -10 / k, 20 / k, 20 / k);
-            ctx.strokeStyle = '#ffe03d';
-            ctx.lineWidth = 2 / k;
-            ctx.strokeRect(-10 / k, -10 / k, 20 / k, 20 / k);
+            ctx.beginPath();
+            ctx.arc(0, py, pr, Math.PI, 0, false);
+            ctx.closePath();
+            ctx.clip();
+
+            // Tranches colorées vives style Battle Royale
+            ctx.fillStyle = '#ef476f';
+            ctx.fillRect(-pr, py - pr, pr * 0.65, pr);
+            ctx.fillStyle = '#ffd166';
+            ctx.fillRect(-pr + pr * 0.65, py - pr, pr * 0.7, pr);
+            ctx.fillStyle = '#06d6a0';
+            ctx.fillRect(0.35 * pr, py - pr, pr * 0.65, pr);
             ctx.restore();
+
+            // Contour du dôme
+            ctx.beginPath();
+            ctx.arc(0, py, pr, Math.PI, 0, false);
+            ctx.closePath();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.2 * s;
+            ctx.stroke();
+
+            // Caisse suspendue (orange militaire)
+            ctx.fillStyle = '#f77f00';
+            ctx.beginPath();
+            ctx.roundRect(-4.5 * s, 2.5 * s, 9 * s, 7 * s, 1.5 * s);
+            ctx.fill();
+            ctx.strokeStyle = '#2b1b17';
+            ctx.lineWidth = 1.2 * s;
+            ctx.stroke();
+
+            // Sangle de la caisse
+            ctx.fillStyle = '#fcbf49';
+            ctx.fillRect(-1.5 * s, 2.5 * s, 3 * s, 7 * s);
+
+            // Petit indicateur de descente (flèche animée sous la caisse)
+            const arrowBob = Math.sin(time * 8) * 1.5 * s;
+            ctx.fillStyle = '#ffd166';
+            ctx.beginPath();
+            ctx.moveTo(-2.5 * s, 10.5 * s + arrowBob);
+            ctx.lineTo(2.5 * s, 10.5 * s + arrowBob);
+            ctx.lineTo(0, 13 * s + arrowBob);
+            ctx.closePath();
+            ctx.fill();
+        } else {
+            // --- CAISSE AU SOL PRÊTE À ÊTRE OUVERTE ---
+            ctx.fillStyle = '#f77f00';
+            ctx.beginPath();
+            ctx.roundRect(-6.5 * s, -4.5 * s, 13 * s, 10.5 * s, 2 * s);
+            ctx.fill();
+            ctx.strokeStyle = '#2b1b17';
+            ctx.lineWidth = 1.4 * s;
+            ctx.stroke();
+
+            // Renforts métalliques
+            ctx.fillStyle = '#fcbf49';
+            ctx.fillRect(-6 * s, -1 * s, 12 * s, 3.5 * s);
+            ctx.fillRect(-2 * s, -4 * s, 4 * s, 9.5 * s);
+
+            // Étoile brillante au centre
+            ctx.fillStyle = '#ffffff';
+            ctx.font = `bold ${Math.round(8 * s)}px sans-serif`;
+            ctx.textAlign = 'center';
+            ctx.textBaseline = 'middle';
+            ctx.fillText('★', 0, 0.5 * s);
+
+            // Balise d'antenne lumineuse clignotante au-dessus
+            ctx.strokeStyle = '#ffd166';
+            ctx.lineWidth = 1.4 * s;
+            ctx.beginPath();
+            ctx.moveTo(0, -4.5 * s);
+            ctx.lineTo(0, -8.5 * s);
+            ctx.stroke();
+
+            ctx.beginPath();
+            ctx.arc(0, -9 * s, 2.2 * s, 0, Math.PI * 2);
+            ctx.fillStyle = (Math.sin(time * 10) > 0) ? '#06d6a0' : '#ffd166';
+            ctx.fill();
         }
+
+        ctx.restore();
     }
 
     drawMinimap() {
@@ -860,7 +987,7 @@ export class Hud {
             if (n) zk += `,${Math.round(n.x * k)},${Math.round(n.y * k)},${Math.round(n.r * k)}`;
         }
         const mateKey = this.fighters ? this.fighters.filter(f => f !== p && f.alive && f.team === p.team).map(f => `${Math.round(f.x * k)},${Math.round(f.y * k)},${f.dbno ? 1 : 0}`).join(';') : '';
-        const supplyKey = this.supplyDrops?.activeDrops?.().map(d => `${d.id},${d.state},${Math.floor(d.age)}`).join(';') || '';
+        const supplyKey = this.supplyDrops?.activeDrops?.().map(d => `${d.id},${d.state},${Math.floor(d.age * 4)}`).join(';') || '';
         const key = `${sx},${sy},${Math.round((p.angle || 0) * 20)},${p.phase},${p.alive ? 1 : 0},${ship},${zk},${supplyKey},${mateKey}`;
         if (key === this._mmKey) return; // rien n'a bougé à l'échelle de la minimap
         this._mmKey = key;
@@ -883,8 +1010,7 @@ export class Hud {
         }
 
         // Corruption puis trajet du vaisseau (coordonnées monde)
-        const supplyOn = Boolean(this.supplyDrops?.activeDrops?.().length);
-        if (zoneOn || shipOn || supplyOn) {
+        if (zoneOn || shipOn) {
             ctx.setTransform(k, 0, 0, k, -sx, -sy);
             if (zoneOn) {
                 this.drawZone(ctx, k, sx / k, sy / k, w / k, h / k);
@@ -892,8 +1018,48 @@ export class Hud {
                 this.drawSafeGuide(ctx, k, (Math.min(w, h) / 2 - 12 * this.dpr) / k);
             }
             if (shipOn) this.drawFlightPath(ctx, k);
-            if (supplyOn) this.drawSupplyMarkers(ctx, k);
             ctx.setTransform(1, 0, 0, 1, 0, 0);
+        }
+
+        // Ravitaillements bien visibles sur la minimap (ou épinglés au bord avec indicateur de direction)
+        const supplyOn = Boolean(this.supplyDrops?.activeDrops?.().length);
+        if (supplyOn) {
+            const drops = this.supplyDrops?.activeDrops?.() || [];
+            const pad = 16 * this.dpr;
+            for (const d of drops) {
+                const mx = d.x * k - sx;
+                const my = d.y * k - sy;
+                const isInside = mx >= pad && mx <= w - pad && my >= pad && my <= h - pad;
+                if (isInside) {
+                    this.drawSupplyBadge(ctx, mx, my, 1, d.state, d.age, this.time);
+                } else {
+                    const cx = w / 2;
+                    const cy = h / 2;
+                    const ang = Math.atan2(my - cy, mx - cx);
+                    const rx = w / 2 - pad;
+                    const ry = h / 2 - pad;
+                    const cos = Math.cos(ang);
+                    const sin = Math.sin(ang);
+                    const factor = Math.min(Math.abs(rx / (cos || 1e-5)), Math.abs(ry / (sin || 1e-5)));
+                    const edgeX = cx + cos * factor;
+                    const edgeY = cy + sin * factor;
+
+                    // Flèche directionnelle dorée vers le ravitaillement
+                    ctx.save();
+                    ctx.translate(edgeX, edgeY);
+                    ctx.rotate(ang);
+                    ctx.fillStyle = '#ffb703';
+                    ctx.beginPath();
+                    ctx.moveTo(13 * this.dpr, 0);
+                    ctx.lineTo(5 * this.dpr, -5 * this.dpr);
+                    ctx.lineTo(5 * this.dpr, 5 * this.dpr);
+                    ctx.closePath();
+                    ctx.fill();
+                    ctx.restore();
+
+                    this.drawSupplyBadge(ctx, edgeX, edgeY, 0.85, d.state, d.age, this.time);
+                }
+            }
         }
 
         // Dessiner les coéquipiers sur la minimap
@@ -1080,8 +1246,7 @@ export class Hud {
         // Corruption + trajet du vaisseau (coordonnées monde)
         const zoneOn = zoneActive(this.zone);
         const shipOn = this.drop && this.drop.ship.active;
-        const supplyOn = Boolean(this.supplyDrops?.activeDrops?.().length);
-        if (zoneOn || shipOn || supplyOn) {
+        if (zoneOn || shipOn) {
             ctx.save();
             ctx.scale(k, k);
             if (zoneOn) {
@@ -1089,8 +1254,19 @@ export class Hud {
                 this.drawSafeGuide(ctx, k, Infinity);
             }
             if (shipOn) this.drawFlightPath(ctx, k);
-            if (supplyOn) this.drawSupplyMarkers(ctx, k);
             ctx.restore();
+        }
+
+        // Ravitaillements sur la grande carte
+        const supplyOn = Boolean(this.supplyDrops?.activeDrops?.().length);
+        if (supplyOn) {
+            const drops = this.supplyDrops?.activeDrops?.() || [];
+            for (const d of drops) {
+                const dx = d.x * k;
+                const dy = d.y * k;
+                this.drawSupplyBadge(ctx, dx, dy, 1.35, d.state, d.age, time || this.time);
+                outlinedText(ctx, d.state === 'falling' ? 'APPROCHE' : 'LIVRÉ', dx, dy + 20 * dpr, 9.5 * dpr);
+            }
         }
 
         // Coéquipiers sur la grande carte

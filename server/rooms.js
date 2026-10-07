@@ -1724,7 +1724,7 @@ class RoomManager {
             if (typeof data.dropId !== 'string' || !data.dropId || data.dropId.length > 48) return;
             if (data.type === 'supply_spawn') {
                 if (!Number.isFinite(Number(data.x)) || !Number.isFinite(Number(data.y)) || !Number.isFinite(Number(data.at))) return;
-                if (!Array.isArray(data.contents) || data.contents.length > 4) return;
+                if (!Array.isArray(data.contents) || data.contents.length > 6) return;
                 data.x = Math.max(0, Math.min(100000, Number(data.x)));
                 data.y = Math.max(0, Math.min(100000, Number(data.y)));
                 data.at = Math.max(0, Number(data.at));
@@ -1734,6 +1734,8 @@ class RoomManager {
                         kind: String(c.kind || '').slice(0, 16),
                         ...(c.weaponId !== undefined ? { weaponId: String(c.weaponId).slice(0, 32) } : {}),
                         ...(c.itemId !== undefined ? { itemId: String(c.itemId).slice(0, 32) } : {}),
+                        ...(c.ammoType !== undefined ? { ammoType: String(c.ammoType).slice(0, 16) } : {}),
+                        ...(c.amount !== undefined ? { amount: Math.max(1, Math.min(999, Number(c.amount) | 0)) } : {}),
                         ...(c.rarity !== undefined ? { rarity: Math.max(0, Math.min(ADMIN_MAX_RARITY, Number(c.rarity) | 0)) } : {}),
                         ...(c.mag !== undefined ? { mag: Math.max(0, Math.min(999, Number(c.mag) | 0)) } : {}),
                         ...(c.count !== undefined ? { count: Math.max(1, Math.min(10, Number(c.count) | 0)) } : {})

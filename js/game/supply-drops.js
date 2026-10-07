@@ -48,12 +48,39 @@ export class SupplyDrops {
     _randomContent() {
         const weaponId = LOOT_WEAPONS[Math.floor(this.rng() * LOOT_WEAPONS.length)] || LOOT_WEAPONS[0];
         const legendary = Math.max(0, RARITIES.length - 1);
-        const weapon = { kind: 'weapon', weaponId, rarity: legendary, mag: WEAPONS[weaponId]?.magSize || 0 };
+        const wDef = WEAPONS[weaponId];
+        const weapon = { kind: 'weapon', weaponId, rarity: legendary, mag: wDef?.magSize || 0 };
+
+        let ammo = null;
+        if (wDef && wDef.ammo) {
+            let ammoAmount = 30;
+            switch (wDef.ammo) {
+                case 'light':
+                    ammoAmount = 60;
+                    break;
+                case 'medium':
+                    ammoAmount = 60;
+                    break;
+                case 'shells':
+                    ammoAmount = 16;
+                    break;
+                case 'heavy':
+                    ammoAmount = 10;
+                    break;
+                case 'bolts':
+                    ammoAmount = 12;
+                    break;
+                default:
+                    ammoAmount = Math.max(12, (wDef.magSize || 10) * 2);
+            }
+            ammo = { kind: 'ammo', ammoType: wDef.ammo, amount: ammoAmount };
+        }
+
         const useThrowable = this.rng() < 0.35;
         const item = useThrowable
-            ? { kind: 'throwable', itemId: Object.keys(THROWABLES)[Math.floor(this.rng() * Object.keys(THROWABLES).length)], count: 1 }
-            : { kind: 'heal', itemId: Object.keys(HEALS)[Math.floor(this.rng() * Object.keys(HEALS).length)], count: 1 };
-        return [weapon, item];
+            ? { kind: 'throwable', itemId: Object.keys(THROWABLES)[Math.floor(this.rng() * Object.keys(THROWABLES).length)], count: 2 }
+            : { kind: 'heal', itemId: Object.keys(HEALS)[Math.floor(this.rng() * Object.keys(HEALS).length)], count: 2 };
+        return [weapon, ammo, item].filter(Boolean);
     }
 
     _isLand(x, y) {

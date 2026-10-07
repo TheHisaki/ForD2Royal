@@ -2,8 +2,7 @@
 server/data/account-sessions.json
 
 # Archives locales de conversations Kiro (métadonnées internes)
-/ancienne conv/
-/ancienne conv V2/
+/[aA]ncienne conv*/
 
 # Secrets locaux de connexion
 mdp

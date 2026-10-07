@@ -775,8 +775,8 @@ function start() {
         firstEnemyTeam: Math.max(...teams.map(t => t.team || 1)) + 1
     });
 
-    // Les Duo gardent la partie classique sans ravitaillements ; tous les autres modes en ont.
-    const supplyEnabled = !m.includes('duo');
+    // Pas de ravitaillement en 1v1 (duel) ni en duo ; activé en solo, trio et escouade.
+    const supplyEnabled = !isDuel && !m.includes('duo');
     const supplyDrops = supplyEnabled ? new SupplyDrops({
         world, loot, seed: gameSeed + duelRound * 101,
         isHost: () => isHost,
