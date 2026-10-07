@@ -720,6 +720,23 @@ class NetworkManager {
         return true;
     }
 
+    getAdminGames() {
+        if (!this.isAdmin) return false;
+        this.send({ type: 'admin_get_games' });
+        return true;
+    }
+
+    closeAdminGame(roomCode) {
+        if (!this.isAdmin || !roomCode) return false;
+        this.send({ type: 'admin_close_game', roomCode });
+        return true;
+    }
+
+    updateAdminNav() {
+        const btn = document.getElementById('adminNavBtn');
+        if (btn) btn.hidden = !this.isAdmin;
+    }
+
     sendGameData(type, payload) {
         this.send({
             type,
@@ -862,10 +879,12 @@ class NetworkManager {
         switch (msg.type) {
             case 'account_authenticated':
                 this.handleAccountAuthenticated(msg);
+                this.updateAdminNav();
                 break;
             case 'account_updated':
                 this.account = msg.account || this.account;
                 this.isAdmin = !!this.account?.isAdmin;
+                this.updateAdminNav();
                 this.matchmakingCountdownSeconds = this.isAdmin && msg.matchmakingCountdownSeconds === 3 ? 3 : 30;
                 if (this.account?.name) {
                     lsSet(ID_KEYS.name, this.account.name);
@@ -876,6 +895,7 @@ class NetworkManager {
                 break;
             case 'account_logged_out':
                 this.isAdmin = false;
+                this.updateAdminNav();
                 this.matchmakingCountdownSeconds = 30;
                 if (this.logoutDone) this.logoutDone();
                 else if (!this.reloading && this.accountToken) {
@@ -884,6 +904,12 @@ class NetworkManager {
                     this.reloadPage(0);
                 }
                 this.emitFriend(msg);
+                break;
+            case 'admin_games_list':
+                if (this.onAdminGames) this.onAdminGames(msg.games);
+                break;
+            case 'admin_game_closed':
+                if (this.onAdminGameClosed) this.onAdminGameClosed(msg.roomCode, msg.message);
                 break;
             case 'profile_state':
                 this.whenProfileModules(() => this.handleProfileState(msg));

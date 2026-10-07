@@ -306,6 +306,12 @@ wss.on('connection', (ws, req) => {
                 case 'kick_player':
                     roomManager.kickPlayer(ws, msg.playerId);
                     break;
+                case 'admin_get_games':
+                    roomManager.sendAdminGamesList(ws);
+                    break;
+                case 'admin_close_game':
+                    roomManager.closeGameByAdmin(ws, msg.roomCode || msg.code);
+                    break;
                 default:
                     // Événements de synchronisation en partie (voir js/game/main.js)
                     if (GAME_MESSAGES.has(msg.type)) roomManager.relayGameMessage(ws, msg);

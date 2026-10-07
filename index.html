@@ -70,6 +70,7 @@
                 <button type="button" class="nav-btn" data-view="store" aria-controls="storeScreen">Boutique</button>
                 <button type="button" class="nav-btn" data-view="profile">Profil</button>
                 <button type="button" class="nav-btn" data-view="ranks">Classements</button>
+                <button type="button" class="nav-btn nav-btn-admin" id="adminNavBtn" data-view="admin" aria-controls="adminScreen" hidden>Admin</button>
             </nav>
 
             <div class="header-right">
@@ -672,6 +673,68 @@
             </div>
         </section>
 
+        <!-- ===== ADMINISTRATION (js/lobby-admin.js) ===== -->
+        <section id="adminScreen" class="shop-screen hub-screen admin-screen" hidden aria-labelledby="adminTitle">
+            <div class="shop-bg" aria-hidden="true"><div class="shop-rays"></div></div>
+            <div class="shop-inner">
+                <div class="shop-head">
+                    <button type="button" class="shop-back" data-shop-back>
+                        <span class="hud-ico" data-icon="back" aria-hidden="true"></span>
+                        <span>Retour</span>
+                        <kbd>Échap</kbd>
+                    </button>
+                    <div class="shop-titles">
+                        <div class="admin-title-row">
+                            <h2 class="shop-title" id="adminTitle" tabindex="-1">Administration</h2>
+                            <span class="admin-badge-pulse">SERVEUR EN DIRECT</span>
+                        </div>
+                        <p class="shop-timer">Supervision des parties actives (multijoueur et bots), téléportation & expulsion</p>
+                    </div>
+                    <div class="admin-head-controls">
+                        <button type="button" class="shop-filter is-active" id="adminRefreshBtn" title="Actualiser la liste">
+                            <span>🔄 Actualiser</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- STATISTIQUES SERVEUR -->
+                <div class="admin-stats-bar">
+                    <div class="admin-stat-card">
+                        <span class="admin-stat-num" id="adminStatTotal">0</span>
+                        <span class="admin-stat-lbl">Parties en cours</span>
+                    </div>
+                    <div class="admin-stat-card">
+                        <span class="admin-stat-num" id="adminStatMulti">0</span>
+                        <span class="admin-stat-lbl">Multijoueur</span>
+                    </div>
+                    <div class="admin-stat-card">
+                        <span class="admin-stat-num" id="adminStatBots">0</span>
+                        <span class="admin-stat-lbl">Parties avec bots</span>
+                    </div>
+                    <div class="admin-stat-card">
+                        <span class="admin-stat-num" id="adminStatPlayers">0</span>
+                        <span class="admin-stat-lbl">Joueurs actifs</span>
+                    </div>
+                </div>
+
+                <!-- TABLEAU DES PARTIES EN COURS -->
+                <div class="admin-content-wrap">
+                    <div class="admin-games-container">
+                        <div class="admin-table-header">
+                            <span>Type & Salle</span>
+                            <span>Mode & Carte</span>
+                            <span>Joueurs</span>
+                            <span>Durée</span>
+                            <span style="text-align: right;">Actions</span>
+                        </div>
+                        <div id="adminGamesList" class="admin-games-list shop-scroll">
+                            <!-- Rempli dynamiquement par js/lobby-admin.js -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
         <!-- ===== FOOTER : actualités défilantes ===== -->
         <footer class="lobby-footer">
             <div class="news-section">
@@ -1025,14 +1088,16 @@
     <!-- Icônes SVG du lobby (module ES, expose window.FOR2D_ICONS) -->
     <script type="module" src="js/lobby-icons.js?v=2"></script>
     <!-- Casier + boutique + solde de Pixies + boutique de Pixies (module ES, expose window.FOR2D_STORE) -->
-    <script type="module" src="js/lobby-store.js"></script>
+    <script type="module" src="js/lobby-store.js?v=2"></script>
     <!-- Skins SVG des personnages du lobby -->
     <script type="module" src="js/lobby-skin.js"></script>
     <!-- Passe de combat, Profil, Classements + niveau du lobby (module ES) -->
     <script type="module" src="js/lobby-hub.js?v=2"></script>
-    <script src="js/network.js?v=10"></script>
+    <!-- Panneau administration (module ES) -->
+    <script type="module" src="js/lobby-admin.js?v=1"></script>
+    <script src="js/network.js?v=11"></script>
     <script src="js/friends.js?v=4"></script>
-    <script src="js/lobby.js?v=10"></script>
+    <script src="js/lobby.js?v=11"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

@@ -863,20 +863,27 @@ class RoomManager {
             return room;
         }
 
-        // Partie en cours : seuls ses joueurs (même identifiant) peuvent y revenir.
-        // (Prendre la place d'un autre mélangerait les identifiants entre les machines.)
-        if (room.mode === DUEL_MODE && room.players.size >= 2) {
-            return this.send(ws, { type: 'error', code: 'duel_room_full', message: 'Une salle 1v1 ne peut accueillir que deux joueurs.' });
+        // Partie en cours : seuls ses joueurs ou un administrateur peuvent y entrer.
+        const isAdminJoining = !!ws.isAdmin || Boolean(playerData.adminJoin || playerData.player?.adminJoin);
+
+        if (room.state === 'game' && !isAdminJoining) {
+            return this.send(ws, { type: 'error', code: 'room_in_game', message: 'Cette partie est déjà en cours.' });
         }
 
-        if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
-            return this.send(ws, { type: 'error', code: 'room_full', message: 'La salle est complète (4 joueurs max).' });
+        if (!isAdminJoining) {
+            if (room.mode === DUEL_MODE && room.players.size >= 2) {
+                return this.send(ws, { type: 'error', code: 'duel_room_full', message: 'Une salle 1v1 ne peut accueillir que deux joueurs.' });
+            }
+
+            if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
+                return this.send(ws, { type: 'error', code: 'room_full', message: 'La salle est complète (4 joueurs max).' });
+            }
         }
 
-        // Trouver un numéro de slot libre (2, 3, ou 4)
+        // Trouver un numéro de slot libre
         const usedSlots = new Set([...room.players.values()].map(p => p.slot));
         let freeSlot = 2;
-        while (usedSlots.has(freeSlot) && freeSlot <= 4) freeSlot++;
+        while (usedSlots.has(freeSlot) && freeSlot <= (isAdminJoining ? 99 : 4)) freeSlot++;
 
         const newPlayer = {
             id: candidateId || `p_${Date.now()}_${Math.floor(Math.random() * 1000)}`,
@@ -889,30 +896,39 @@ class RoomManager {
             ready: false,
             isAdmin: !!ws.isAdmin,
             slot: freeSlot,
+            team: 1,
             reconnectToken: newReconnectToken(),
             ws
         };
+
+        if (room.state === 'game') {
+            const existingTeams = [...room.players.values()].map(p => p.team || 1);
+            newPlayer.team = Math.max(1, ...existingTeams) + 1;
+            newPlayer.inLobby = false;
+        }
 
         room.players.set(newPlayer.id, newPlayer);
         this.playerRooms.set(ws, code);
         ws.playerId = newPlayer.id;
 
-        console.log(`[Multiplayer] ${newPlayer.name} a rejoint la salle ${code} (slot ${freeSlot})`);
+        console.log(`[Multiplayer] ${newPlayer.name} a rejoint la salle ${code} (slot ${freeSlot}, state: ${room.state}, admin: ${isAdminJoining})`);
 
-        // Ajuster automatiquement le mode selon le nombre de joueurs présents
-        const count = room.players.size;
+        // Ajuster automatiquement le mode selon le nombre de joueurs présents (uniquement en lobby)
         let modeChanged = false;
-        if (count >= 2 && (!room.mode || room.mode === 'solo' || room.mode === 'duel')) {
-            room.mode = 'duo';
-            modeChanged = true;
-        }
-        if (count >= 3 && (room.mode === 'solo' || room.mode === 'duo')) {
-            room.mode = 'trio';
-            modeChanged = true;
-        }
-        if (count >= 4 && room.mode !== 'section') {
-            room.mode = 'section';
-            modeChanged = true;
+        if (room.state === 'lobby') {
+            const count = room.players.size;
+            if (count >= 2 && (!room.mode || room.mode === 'solo' || room.mode === 'duel')) {
+                room.mode = 'duo';
+                modeChanged = true;
+            }
+            if (count >= 3 && (room.mode === 'solo' || room.mode === 'duo')) {
+                room.mode = 'trio';
+                modeChanged = true;
+            }
+            if (count >= 4 && room.mode !== 'section') {
+                room.mode = 'section';
+                modeChanged = true;
+            }
         }
 
         // Confirmer au joueur qu'il a rejoint
@@ -924,15 +940,27 @@ class RoomManager {
             mode: room.mode,
             ...this.fillInfo(room),
             slot: freeSlot,
+            team: newPlayer.team,
             reconnectToken: newPlayer.reconnectToken,
-            players: this.serializePlayers(room)
+            state: room.state,
+            authorityId: room.authorityId || null,
+            seed: room.seed,
+            clock: room.state === 'game' && room.flightAt ? Date.now() - room.flightAt : undefined,
+            players: room.state === 'game' ? this.matchPlayers(room) : this.serializePlayers(room)
         });
 
         // Notifier les autres joueurs
-        this.broadcastToRoom(room, {
-            type: 'player_joined',
-            player: this.serializePlayer(newPlayer, room)
-        }, ws);
+        if (room.state === 'game') {
+            this.broadcastToMatch(room, {
+                type: 'player_joined',
+                player: this.serializePlayer(newPlayer, room)
+            }, ws);
+        } else {
+            this.broadcastToRoom(room, {
+                type: 'player_joined',
+                player: this.serializePlayer(newPlayer, room)
+            }, ws);
+        }
 
         // Si le mode a été ajusté automatiquement, diffuser la nouvelle config
         if (modeChanged) {
@@ -1836,6 +1864,101 @@ class RoomManager {
                 try {
                     player.ws.send(msg);
                 } catch { /* socket drop */ }
+            }
+        }
+    }
+
+    sendAdminGamesList(ws) {
+        if (!ws.isAdmin) {
+            return this.send(ws, { type: 'error', code: 'admin_required', message: 'Accès réservé aux administrateurs.' });
+        }
+        const games = [];
+        for (const [code, r] of this.rooms) {
+            if (r.state === 'game') {
+                const activePlayers = [...r.players.values()].map(p => ({
+                    id: p.id,
+                    name: p.name,
+                    isAdmin: !!p.isAdmin,
+                    isHost: p.id === r.hostId,
+                    inLobby: !!p.inLobby,
+                    slot: p.slot,
+                    team: p.team
+                }));
+                const isBotGame = (r.botFill !== false && r.players.size <= 1) || r.startChoice === 'bots';
+                games.push({
+                    roomCode: code,
+                    mode: r.mode,
+                    mapId: r.mode === DUEL_MODE ? 'duel-two-towns' : 'default',
+                    seed: r.seed,
+                    isBotGame,
+                    botFill: !!r.botFill,
+                    fillTeam: !!r.fillTeam,
+                    playersCount: r.players.size,
+                    players: activePlayers,
+                    startedAt: r.startedAt || r.createdAt,
+                    duration: Math.max(0, Math.floor((Date.now() - (r.startedAt || r.createdAt)) / 1000)),
+                    authorityId: r.authorityId
+                });
+            }
+        }
+        this.send(ws, {
+            type: 'admin_games_list',
+            games
+        });
+    }
+
+    closeGameByAdmin(ws, roomCode) {
+        if (!ws.isAdmin) {
+            return this.send(ws, { type: 'error', code: 'admin_required', message: 'Accès réservé aux administrateurs.' });
+        }
+        const code = String(roomCode || '').trim().toUpperCase();
+        const room = this.rooms.get(code);
+        if (!room) {
+            return this.send(ws, { type: 'admin_error', message: 'Partie introuvable ou déjà terminée.' });
+        }
+
+        console.log(`[Admin] Fermeture de la partie ${code} par ${ws.accountName || ws.playerId}`);
+
+        // Expulser tous les joueurs de la partie
+        this.broadcastToMatch(room, {
+            type: 'player_kicked',
+            roomCode: room.code,
+            message: 'La partie a été fermée par un administrateur.'
+        });
+
+        for (const p of room.players.values()) {
+            if (p.ws && p.ws !== ws) {
+                try {
+                    this.send(p.ws, {
+                        type: 'player_kicked',
+                        roomCode: room.code,
+                        message: 'La partie a été fermée par un administrateur.'
+                    });
+                    this.playerRooms.delete(p.ws);
+                    delete p.ws.playerId;
+                    p.ws.close?.(4003, 'admin_closed_game');
+                } catch { /* ignore */ }
+            }
+        }
+
+        this.dequeueMatchmaking(room);
+        this.rooms.delete(code);
+
+        this.send(ws, {
+            type: 'admin_game_closed',
+            roomCode: code,
+            message: `La partie ${code} a été fermée.`
+        });
+
+        this.notifyAdminsWithGamesList();
+    }
+
+    notifyAdminsWithGamesList() {
+        for (const sockets of this.accountSockets.values()) {
+            for (const socket of sockets) {
+                if (socket.isAdmin && socket.readyState === 1) {
+                    this.sendAdminGamesList(socket);
+                }
             }
         }
     }

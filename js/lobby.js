@@ -333,6 +333,12 @@ class LobbyManager {
         if (choice === 'players') {
             this.startRealPlayerQueue();
         } else {
+            if (net?.isConnected()) {
+                this.autoRoom = true;
+                net.readyAfterCreate = true;
+                net.createRoom(this.currentGameMode.toLowerCase(), true, this.botsEnabled, 'bots');
+                return;
+            }
             this.startGame();
         }
     }
@@ -1566,6 +1572,13 @@ class LobbyManager {
 
         // Boutons « Remplir l'équipe » (accueil) et interrupteurs du menu des modes
         this.updateBotFillUI();
+
+        // Afficher l'onglet Admin si le joueur connecté est administrateur
+        const adminNavBtn = document.getElementById('adminNavBtn');
+        if (adminNavBtn) {
+            const isAdmin = Boolean(window.networkManager?.isAdmin || this.players[0]?.isAdmin);
+            adminNavBtn.hidden = !isAdmin;
+        }
 
         // Mettre à jour le mode de jeu
         const modeDisplay = document.querySelector('.mode-display');

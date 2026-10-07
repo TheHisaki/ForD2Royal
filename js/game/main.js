@@ -208,6 +208,7 @@ function start() {
     const seedParam = urlParams.get('seed');
     const modeParam = urlParams.get('mode');
     const mapParam = urlParams.get('map');
+    const adminJoinParam = urlParams.get('adminJoin') === '1' || gameConfig.adminJoin === true;
     // Config enregistrée pour une AUTRE partie (autre onglet, ancienne partie) : on n'en
     // garde rien de ce qui concerne la salle (liste des joueurs, hôte...)
     if (roomParam && (gameConfig.roomCode !== roomParam || (seedParam && String(gameConfig.seed) !== seedParam))) {
@@ -217,6 +218,12 @@ function start() {
         gameConfig.isHost = false;
         gameConfig.isAdmin = false;
         gameConfig.myTeam = 1;
+    }
+    if (adminJoinParam) {
+        gameConfig.adminJoin = true;
+        gameConfig.isAdmin = true;
+        if (!gameConfig.myPlayerId) gameConfig.myPlayerId = pidParam || `admin_${Date.now()}`;
+        if (!gameConfig.myTeam) gameConfig.myTeam = 99;
     }
     if (roomParam) {
         gameConfig.isMultiplayer = true;
@@ -319,6 +326,27 @@ function start() {
     player.phase = 'ship';
     player.team = 1;
     player.squadSlot = gameConfig.mySlot || 1; // Joueur principal (slot assigné dans le salon)
+
+    if (adminJoinParam) {
+        // Spawn aléatoire direct sur la terre ferme pour l'administrateur
+        for (let tries = 0; tries < 500; tries++) {
+            const rx = 150 + Math.random() * (world.width - 300);
+            const ry = 150 + Math.random() * (world.height - 300);
+            const ground = world.sampleGround(rx, ry);
+            if (!isWater(ground.biome)) {
+                const inB = world.buildings.some(b => rx > b.x - 20 && rx < b.x + b.w + 20 && ry > b.y - 20 && ry < b.y + b.h + 20);
+                if (!inB) {
+                    player.x = rx;
+                    player.y = ry;
+                    break;
+                }
+            }
+        }
+        player.phase = 'ground';
+        player.altitude = 0;
+        player.shield = 100;
+        player.health = 100;
+    }
     // Skin équipé dans le casier du lobby (sinon on garde les couleurs par défaut)
     try {
         const eq = Cosmetics.equipped;
@@ -758,8 +786,12 @@ function start() {
 
     const canvas = document.getElementById('gameCanvas');
     renderer = new Renderer(canvas, world);
-    renderer.setFlightView(flightViewAt(1), 1, true); // caméra à la hauteur du vaisseau
-    renderer.follow(drop.ship, 0, true);
+    if (adminJoinParam) {
+        renderer.follow(player, 0, true);
+    } else {
+        renderer.setFlightView(flightViewAt(1), 1, true); // caméra à la hauteur du vaisseau
+        renderer.follow(drop.ship, 0, true);
+    }
     renderer.warmup();
 
     const equippedItem = () => player.inventory?.[player.slot] || null;
@@ -938,6 +970,12 @@ function start() {
             default:
                 break;
         }
+    }
+
+    if (adminJoinParam) {
+        giveWeaponToFighter(player, 'ar', 3);
+        giveWeaponToFighter(player, 'shotgun', 3);
+        giveHealToFighter(player, 'shieldPotion', 2);
     }
 
     // ================= ROUE D'EMOTES (clic droit maintenu, au centre de l'écran) =================
@@ -1949,9 +1987,13 @@ function start() {
                     slot: player.squadSlot,
                     accountToken: localStorage.getItem('for2d-account-token') || undefined,
                     reconnectToken: gameConfig.roomReconnectToken,
-                    inGame: true
+                    inGame: true,
+                    adminJoin: adminJoinParam
                 }
             }));
+            if (adminJoinParam) {
+                setTimeout(() => sendState(true), 250);
+            }
         });
         ws.addEventListener('message', (event) => {
             let msg;

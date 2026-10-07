@@ -23,8 +23,8 @@ const { gloss, shine } = ICON_KIT;
 const $ = (id) => document.getElementById(id);
 // Écrans plein cadre du lobby : adresse (#...) et élément. Passe, Profil et Classements
 // sont remplis par js/lobby-hub.js, qui écoute l'événement « for2d:view ».
-const HASH = { store: '#boutique', locker: '#casier', pass: '#passe', profile: '#profil', ranks: '#classements' };
-const SCREEN_IDS = { store: 'storeScreen', locker: 'lockerScreen', pass: 'passScreen', profile: 'profileScreen', ranks: 'ranksScreen' };
+const HASH = { store: '#boutique', locker: '#casier', pass: '#passe', profile: '#profil', ranks: '#classements', admin: '#admin' };
+const SCREEN_IDS = { store: 'storeScreen', locker: 'lockerScreen', pass: 'passScreen', profile: 'profileScreen', ranks: 'ranksScreen', admin: 'adminScreen' };
 const RARITY_ORDER = ['common', 'uncommon', 'rare', 'epic', 'legendary'];
 const TYPE_ORDER = Object.keys(TYPES);
 const REDUCED = typeof matchMedia === 'function' && matchMedia('(prefers-reduced-motion: reduce)').matches;
