@@ -5,6 +5,7 @@
 
 // ?v=36 : ravitaillements périodiques et caisses parachutées
 import { generateWorld, surfaceAt } from './world.js?v=12';
+import { isWater } from './config.js';
 import { Player } from './player.js?v=15';
 import { Renderer } from './renderer.js?v=14';
 import { Hud } from './hud.js?v=15';
@@ -329,18 +330,26 @@ function start() {
 
     if (adminJoinParam) {
         // Spawn aléatoire direct sur la terre ferme pour l'administrateur
+        let spawned = false;
         for (let tries = 0; tries < 500; tries++) {
             const rx = 150 + Math.random() * (world.width - 300);
             const ry = 150 + Math.random() * (world.height - 300);
-            const ground = world.sampleGround(rx, ry);
-            if (!isWater(ground.biome)) {
-                const inB = world.buildings.some(b => rx > b.x - 20 && rx < b.x + b.w + 20 && ry > b.y - 20 && ry < b.y + b.h + 20);
+            const ground = world.sampleGround ? world.sampleGround(rx, ry) : null;
+            const surf = surfaceAt ? surfaceAt(world, rx, ry) : 'grass';
+            const inWaterTile = surf === 'water' || (ground && isWater(ground.biome));
+            if (!inWaterTile) {
+                const inB = Array.isArray(world.buildings) && world.buildings.some(b => rx > b.x - 20 && rx < b.x + b.w + 20 && ry > b.y - 20 && ry < b.y + b.h + 20);
                 if (!inB) {
                     player.x = rx;
                     player.y = ry;
+                    spawned = true;
                     break;
                 }
             }
+        }
+        if (!spawned) {
+            player.x = (world.width || 6000) / 2;
+            player.y = (world.height || 6000) / 2;
         }
         player.phase = 'ground';
         player.altitude = 0;
@@ -1992,7 +2001,9 @@ function start() {
                 }
             }));
             if (adminJoinParam) {
-                setTimeout(() => sendState(true), 250);
+                setTimeout(() => {
+                    if (netOpen() && clockBase !== null) netTick(performance.now());
+                }, 250);
             }
         });
         ws.addEventListener('message', (event) => {
