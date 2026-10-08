@@ -1105,11 +1105,14 @@ function start() {
         // Le test est limité au sol : passer au-dessus d'un toit ne doit pas zoomer.
         const insideHouse = player.phase === 'ground' && Boolean(buildingAt(player.x, player.y));
         const target = insideHouse ? baseTarget * 1.35 : baseTarget;
+        const floor = insideHouse ? target : baseTarget;
         const mode = `${sniper ? `sniper:${rarity}` : 'classic'}:${insideHouse ? 'inside' : 'outside'}`;
         if (mode !== zoomMode) {
-            renderer.setZoomTarget(target, sniper ? baseTarget : 1);
+            renderer.setZoomTarget(target, floor);
             zoomMode = mode;
         }
+        // Verrouillage immédiat : la molette ne peut pas repasser sous le zoom intérieur.
+        if (insideHouse) renderer.setZoomMin(target);
     };
     enforceZoomTarget();
 
@@ -1454,9 +1457,11 @@ function start() {
         onAdminPanel: () => toggleAdminPanel(),
         onZoom: (f) => {
             const held = equippedItem();
-            const floor = held?.kind === 'weapon' && held.weaponId === 'sniper'
-                ? sniperZoomForRarity(held.rarity)
-                : 1;
+            const sniper = held?.kind === 'weapon' && held.weaponId === 'sniper';
+            const base = sniper ? sniperZoomForRarity(held.rarity) : 1;
+            const insideHouse = player.phase === 'ground' && Boolean(buildingAt(player.x, player.y));
+            const floor = insideHouse ? base * 1.35 : base;
+            if (insideHouse) renderer.setZoomMin(floor);
             renderer.zoomBy(f, floor);
         },
         // Le saut est transmis par p_state (changement de phase)
