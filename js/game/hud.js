@@ -33,6 +33,22 @@ function zoneActive(z) {
     return !!(z && z.cur && z.state && z.state !== 'idle');
 }
 
+function drawEnemyDot(ctx, x, y, radius) {
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x, y, radius + 1.5, 0, TAU);
+    ctx.fillStyle = '#0b1438';
+    ctx.fill();
+    ctx.beginPath();
+    ctx.arc(x, y, radius, 0, TAU);
+    ctx.fillStyle = '#ff3f52';
+    ctx.fill();
+    ctx.strokeStyle = '#ffb0b9';
+    ctx.lineWidth = Math.max(1, radius * 0.22);
+    ctx.stroke();
+    ctx.restore();
+}
+
 /* ===================== IMAGE DE LA CARTE ===================== */
 
 // Sol de la carte : couleurs des biomes + relief des montagnes + trait de côte net
@@ -373,10 +389,11 @@ function outlinedText(ctx, text, x, y, px, font = '"Bebas Neue", Impact, sans-se
 /* ===================== HUD ===================== */
 
 export class Hud {
-    constructor(world, player, fighters = []) {
+    constructor(world, player, fighters = [], options = {}) {
         this.world = world;
         this.player = player;
         this.fighters = fighters;
+        this.showEnemyDots = options.showEnemyDots === true;
         this.mapImage = buildMapImage(world, 1024); // une seule fois (jamais reconstruite)
         this.mapOpen = false;
         this.slot = 0;
@@ -1047,9 +1064,13 @@ export class Hud {
             if (n) zk += `,${Math.round(n.x * k)},${Math.round(n.y * k)},${Math.round(n.r * k)}`;
         }
         const mateKey = this.fighters ? this.fighters.filter(f => f !== p && f.alive && f.team === p.team).map(f => `${Math.round(f.x * k)},${Math.round(f.y * k)},${f.dbno ? 1 : 0}`).join(';') : '';
+        const enemyKey = this.showEnemyDots && this.fighters
+            ? this.fighters.filter(f => f !== p && f.alive && f.phase !== 'ship')
+                .map(f => `${Math.round(f.x * k)},${Math.round(f.y * k)},${f.dbno ? 1 : 0}`).join(';')
+            : '';
         // Ravitaillements animés (ondes, anneau de progression) : ~12 images par seconde
         const supplyKey = this.supplyDrops?.activeDrops?.().map(d => `${d.id},${d.state},${Math.floor(d.age * 12)}`).join(';') || '';
-        const key = `${sx},${sy},${Math.round((p.angle || 0) * 20)},${p.phase},${p.alive ? 1 : 0},${ship},${zk},${supplyKey},${mateKey}`;
+        const key = `${sx},${sy},${Math.round((p.angle || 0) * 20)},${p.phase},${p.alive ? 1 : 0},${ship},${zk},${supplyKey},${mateKey},${enemyKey}`;
         if (key === this._mmKey) return; // rien n'a bougé à l'échelle de la minimap
         this._mmKey = key;
 
@@ -1118,6 +1139,18 @@ export class Hud {
                     const teamCol = SQUAD_COLORS[f.squadSlot || 2] || '#ffd21e';
                     const col = f.dbno ? '#ff334b' : teamCol;
                     drawArrow(ctx, fx, fy, f.angle || 0, 7.5 * this.dpr, col);
+                }
+            }
+        }
+
+        // Gun Game : positions adverses visibles comme de petits points rouges
+        if (this.showEnemyDots && this.fighters) {
+            for (const f of this.fighters) {
+                if (f === p || !f.alive || f.phase === 'ship') continue;
+                const fx = f.x * k - sx;
+                const fy = f.y * k - sy;
+                if (fx >= -12 && fx <= w + 12 && fy >= -12 && fy <= h + 12) {
+                    drawEnemyDot(ctx, fx, fy, 4.5 * this.dpr);
                 }
             }
         }
@@ -1324,6 +1357,14 @@ export class Hud {
                 const teamCol = SQUAD_COLORS[f.squadSlot || 2] || '#ffd21e';
                 const col = f.dbno ? '#ff334b' : teamCol;
                 drawArrow(ctx, fx, fy, f.angle || 0, 8.5 * dpr, col);
+            }
+        }
+
+        // Gun Game : tous les adversaires sont indiqués par un point rouge
+        if (this.showEnemyDots && this.fighters) {
+            for (const f of this.fighters) {
+                if (f === p || !f.alive || f.phase === 'ship') continue;
+                drawEnemyDot(ctx, f.x * k, f.y * k, 6 * dpr);
             }
         }
 

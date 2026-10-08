@@ -8,7 +8,7 @@ import { generateWorld, surfaceAt } from './world.js?v=12';
 import { isWater, BIOME_NAMES } from './config.js';
 import { Player } from './player.js?v=15';
 import { Renderer } from './renderer.js?v=14';
-import { Hud } from './hud.js?v=17';
+import { Hud } from './hud.js?v=18';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
@@ -30,7 +30,7 @@ import { itemArt } from '../item-art.js?v=10';
 import { InventoryUI } from './inventory-ui.js?v=9';
 import { EndScreen, Spectator } from './end-screen.js?v=9';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=10';
-import { GUNGAME_MAP_ID, GUNGAME_MAX_PLAYERS, GUNGAME_STAGE_COUNT, gunGameWeapon, isGunGameMode } from './gungame.js?v=2';
+import { GUNGAME_MAP_ID, GUNGAME_MAX_PLAYERS, GUNGAME_STAGE_COUNT, gunGameWeapon, isGunGameMode, setGunGameSeed } from './gungame.js?v=3';
 import { drawCapsuleBase, drawCapsuleDome } from './capsules.js?v=1';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
@@ -294,6 +294,7 @@ function start() {
     const _realRandom = Math.random;
     const baseSeed = gameConfig.seed || Date.now();
     const gameSeed = duelRoundSeed(baseSeed, duelRound, isDuel);
+    if (isGunGame) setGunGameSeed(gameSeed);
     {
         // Générateur Mulberry32 (rapide, bon cycle, identique à noise.js)
         let _a = (gameSeed >>> 0) || 1;
@@ -1124,7 +1125,7 @@ function start() {
     };
     enforceZoomTarget();
 
-    const hud = new Hud(world, player, fighters);
+    const hud = new Hud(world, player, fighters, { showEnemyDots: isGunGame });
     hud.setFlight(drop);
     hud.setSupplyDrops(supplyDrops);
     combatHud = new CombatHud(player, fighters, loot);

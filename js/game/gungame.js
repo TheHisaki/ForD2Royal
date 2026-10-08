@@ -4,7 +4,7 @@
    Une arme peut revenir avec une autre rareté ; une combinaison arme + rareté ne revient jamais.
    ================================== */
 
-import { WEAPONS } from './weapons.js';
+import { LOOT_WEAPONS, WEAPONS } from './weapons.js';
 
 export const GUNGAME_MODE = 'gungame';
 export const GUNGAME_MAP_ID = 'gun-game-arena';
@@ -17,39 +17,69 @@ const stage = (weaponId, rarity) => ({
     key: `${weaponId}:${rarity}`
 });
 
-// 20 combinaisons uniques, classées de la plus forte à la plus faible :
-// les premiers paliers donnent les armes rares/puissantes, le dernier reste exigeant.
-export const GUNGAME_STAGES = Object.freeze([
-    stage('sniper', 3),
-    stage('crossbow', 2),
-    stage('ar', 2),
-    stage('shotgun', 2),
-    stage('smg', 2),
-    stage('pistol', 2),
-    stage('sniper', 1),
-    stage('ricochet', 1),
-    stage('crossbow', 1),
-    stage('ar', 1),
-    stage('shotgun', 1),
-    stage('smg', 1),
-    stage('pistol', 1),
-    stage('sniper', 0),
-    stage('ricochet', 0),
-    stage('crossbow', 0),
-    stage('ar', 0),
-    stage('shotgun', 0),
-    stage('smg', 0),
-    stage('pistol', 0)
-]);
+// Petit RNG isolé : la liste ne dépend pas des autres appels aléatoires du jeu.
+function seededRandom(seed) {
+    let a = (Number(seed) >>> 0) || 1;
+    return () => {
+        a = (a + 0x6D2B79F5) | 0;
+        let t = Math.imul(a ^ (a >>> 15), 1 | a);
+        t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+    };
+}
+
+function shuffle(list, rng) {
+    for (let i = list.length - 1; i > 0; i--) {
+        const j = Math.floor(rng() * (i + 1));
+        [list[i], list[j]] = [list[j], list[i]];
+    }
+    return list;
+}
+
+// Plus le palier monte, plus la rareté est basse. Chaque groupe mélange ses armes
+// avec la seed de la partie : une partie ne reprend donc pas le même ordre.
+const RARITY_SCHEDULE = [
+    4,
+    3, 3, 3, 3,
+    2, 2, 2, 2, 2,
+    1, 1, 1, 1, 1,
+    0, 0, 0, 0, 0
+];
+
+export function buildGunGameStages(matchSeed = 1) {
+    const rng = seededRandom((Number(matchSeed) ^ 0x47554e47) >>> 0);
+    const byRarity = new Map();
+    const stages = [];
+    for (const rarity of RARITY_SCHEDULE) {
+        let pool = byRarity.get(rarity);
+        if (!pool || pool.length === 0) {
+            pool = shuffle([...LOOT_WEAPONS], rng);
+            byRarity.set(rarity, pool);
+        }
+        const weaponId = pool.pop();
+        stages.push(stage(weaponId, rarity));
+    }
+    return Object.freeze(stages);
+}
+
+// Fallback déterministe avant que main.js installe la seed de la partie.
+export const GUNGAME_STAGES = buildGunGameStages(0x2D524F59);
 
 export function isGunGameMode(mode) {
     const m = String(mode || '').toLowerCase().replace(/[ _-]/g, '');
     return m === 'gungame' || m === 'gun-game';
 }
 
+let activeStages = GUNGAME_STAGES;
+
+export function setGunGameSeed(matchSeed) {
+    activeStages = buildGunGameStages(matchSeed);
+    return activeStages;
+}
+
 export function gunGameStage(stageIndex) {
     const index = Math.max(0, Math.min(GUNGAME_STAGE_COUNT - 1, Number(stageIndex) | 0));
-    return GUNGAME_STAGES[index];
+    return activeStages[index];
 }
 
 export function gunGameWeapon(stageIndex) {
