@@ -670,7 +670,8 @@ function start() {
         killer.gunStage = Math.min(GUNGAME_STAGE_COUNT, next);
         if (killer.gunStage < GUNGAME_STAGE_COUNT) applyGunGameLoadout(killer, killer.gunStage);
         if (killer === player) {
-            combatHud?.killBanner(`NOUVEAU PALIER ${Math.min(GUNGAME_STAGE_COUNT, killer.gunStage + 1)}/${GUNGAME_STAGE_COUNT}`);
+            const nextLabel = Math.min(GUNGAME_STAGE_COUNT, killer.gunStage + 1);
+            combatHud?.killBanner(`${victim.name || 'Joueur'} · NOUVEAU PALIER ${nextLabel}/${GUNGAME_STAGE_COUNT}`);
             renderer?.shake(6);
         }
         updateGunGameHud();
@@ -933,7 +934,7 @@ function start() {
 
         if (killer === player && victim !== player) {
             SFX.play('killConfirm');
-            combatHud?.killBanner(victim.name);
+            if (!isGunGame) combatHud?.killBanner(victim.name);
             hitmarker.t = 1;
             hitmarker.kill = true;
             renderer?.shake(6);
