@@ -432,9 +432,11 @@ function start() {
     let playerDeathShown = false;
     let adminPanelOpen = false;
 
-    // État local du Gun Game : chaque élimination est dédupliquée par victime/tueur,
-    // puis tous les clients réappliquent le même palier et la même arme.
+    // Chaque mort reçoit un identifiant d'événement : un même adversaire peut réapparaître
+    // et deux victimes différentes peuvent être traitées dans la même milliseconde.
     const gunKillEvents = new Set();
+    const gunProgressEvents = new Set();
+    let gunKillSequence = 0;
     const gunRespawnTimers = new Map();
     let gunGameOver = false;
     let gunWinnerId = null;
@@ -629,7 +631,7 @@ function start() {
         if (!isGunGame || !winner || gunGameOver) return;
         gunGameOver = true;
         gunWinnerId = winner.id;
-        if (!gunWinnerSent && winner === player) {
+        if (!gunWinnerSent && (winner === player || (winner.isBot && isHost))) {
             gunWinnerSent = true;
             netSend({ type: 'gungame_winner', playerId: String(winner.id), stage: GUNGAME_STAGE_COUNT, killId: `winner:${winner.id}` });
         }
@@ -645,20 +647,40 @@ function start() {
         }, VICTORY_DELAY);
     }
 
+    function newGunGameKillId(victim) {
+        return `${String(player.id)}:${++gunKillSequence}:${String(victim?.id || 'unknown')}`.slice(0, 160);
+    }
+
     function registerGunGameKill(killer, victim, forcedStage = null, eventId = '') {
         if (!isGunGame || !killer || !victim || killer === victim || gunGameOver) return;
-        const key = eventId || `${killer.id}:${victim.id}`;
+        const key = eventId || newGunGameKillId(victim);
         if (gunKillEvents.has(key)) return;
         gunKillEvents.add(key);
+
+        // Le palier n'est calculé que par le propriétaire du tueur. En multijoueur,
+        // le propriétaire de la victime ne possède souvent qu'une copie périmée du tueur.
         const current = Math.max(0, Number(killer.gunStage) | 0);
-        const next = Number.isInteger(forcedStage) ? Math.max(current, Math.min(GUNGAME_STAGE_COUNT, forcedStage)) : current + 1;
+        const next = Number.isInteger(forcedStage)
+            ? Math.max(current, Math.min(GUNGAME_STAGE_COUNT, forcedStage))
+            : current + 1;
         killer.gunStage = Math.min(GUNGAME_STAGE_COUNT, next);
         if (killer.gunStage < GUNGAME_STAGE_COUNT) applyGunGameLoadout(killer, killer.gunStage);
         if (killer === player) {
-            combatHud?.killBanner(`PALIER ${Math.min(GUNGAME_STAGE_COUNT, (killer.gunStage || 0) + 1)}/${GUNGAME_STAGE_COUNT}`);
+            combatHud?.killBanner(`NOUVEAU PALIER ${Math.min(GUNGAME_STAGE_COUNT, killer.gunStage + 1)}/${GUNGAME_STAGE_COUNT}`);
             renderer?.shake(6);
         }
         updateGunGameHud();
+
+        // Les autres clients reçoivent le résultat exact de cet événement, même si
+        // plusieurs kills ont été envoyés presque simultanément par des victimes différentes.
+        if (isMultiplayer && owns(killer)) {
+            netSend({
+                type: 'gungame_progress',
+                playerId: String(killer.id),
+                stage: killer.gunStage,
+                killId: key
+            });
+        }
         if (killer.gunStage >= GUNGAME_STAGE_COUNT) declareGunGameWinner(killer);
     }
 
@@ -819,13 +841,22 @@ function start() {
         onKill(killer, victim, weaponId) {
             // Appelé seulement chez le propriétaire de la victime (voir Combat.owns)
             showDeath(killer, victim, weaponId);
+            const killId = isGunGame && killer ? newGunGameKillId(victim) : '';
             if (isGunGame) {
-                registerGunGameKill(killer, victim);
+                // Si le tueur est distant, son propre client recevra cet événement et
+                // avancera le palier. L'hôte reste propriétaire de ses bots.
+                if (killer && owns(killer)) registerGunGameKill(killer, victim, null, killId);
                 scheduleGunGameRespawn(victim);
             } else {
                 loot.dropAll(victim); // les objets créés sont diffusés (loot.onSpawn)
             }
-            if (isMultiplayer) netSend({ type: 'kill', v: victim.id, k: killer ? killer.id : null, w: weaponId || '', ...(isGunGame && killer ? { gg: killer.gunStage || 0 } : {}) });
+            if (isMultiplayer) netSend({
+                type: 'kill',
+                v: victim.id,
+                k: killer ? killer.id : null,
+                w: weaponId || '',
+                ...(isGunGame && killer ? { gg: killer.gunStage || 0, killId } : {})
+            });
         },
         onDBNO(victim, attacker, weaponId) {
             showDbno(victim, attacker);
@@ -2164,7 +2195,20 @@ function start() {
                 if (killer && killer !== victim) killer.kills = (killer.kills || 0) + 1;
                 showDeath(killer, victim, msg.w || '');
                 if (isGunGame) {
-                    registerGunGameKill(killer, victim, Number.isInteger(msg.gg) ? msg.gg : null, `kill:${victim.id}:${killer?.id || 'none'}`);
+                    const killId = typeof msg.killId === 'string' && msg.killId
+                        ? msg.killId.slice(0, 160)
+                        : `legacy:${victim.id}:${killer?.id || 'none'}`;
+                    // Le joueur qui a fait le kill incrémente localement. Les autres
+                    // attendent gungame_progress pour ne pas compter deux fois un kill.
+                    if (killer === player || (killer?.isBot && isHost)) {
+                        registerGunGameKill(killer, victim, null, killId);
+                    } else if (killer && Number.isInteger(msg.gg)) {
+                        // Compatibilité visuelle avec les anciens clients : ceci ne compte
+                        // pas de kill et sera corrigé par la progression événementielle.
+                        killer.gunStage = Math.max(killer.gunStage || 0, Math.min(GUNGAME_STAGE_COUNT - 1, msg.gg));
+                        applyGunGameLoadout(killer, killer.gunStage);
+                        updateGunGameHud();
+                    }
                     scheduleGunGameRespawn(victim);
                 }
                 break;
@@ -2173,10 +2217,16 @@ function start() {
                 if (!isGunGame) break;
                 const fighter = fighterById(msg.playerId);
                 const stage = Number(msg.stage);
+                const killId = typeof msg.killId === 'string' && msg.killId ? msg.killId.slice(0, 160) : '';
+                if (killId) {
+                    if (gunProgressEvents.has(killId)) break;
+                    gunProgressEvents.add(killId);
+                }
                 if (fighter && Number.isInteger(stage) && stage >= 0 && stage <= GUNGAME_STAGE_COUNT) {
                     fighter.gunStage = Math.max(fighter.gunStage || 0, stage);
                     if (fighter.gunStage < GUNGAME_STAGE_COUNT) applyGunGameLoadout(fighter, fighter.gunStage);
                     updateGunGameHud();
+                    if (fighter.gunStage >= GUNGAME_STAGE_COUNT) declareGunGameWinner(fighter);
                 }
                 break;
             }

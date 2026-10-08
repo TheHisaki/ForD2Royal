@@ -571,7 +571,7 @@ class LobbyManager {
         if (!overlay) return;
 
         const partyCount = this.getRealPartyPlayerCount();
-        const modeHierarchy = { duel: 1, solo: 1, gungame: 15, duo: 2, trio: 3, section: 4 };
+        const modeHierarchy = { duel: 1, solo: 1, gungame: 4, duo: 2, trio: 3, section: 4 };
 
         overlay.querySelectorAll('.mode-card').forEach(card => {
             const mode = card.dataset.mode;
@@ -623,7 +623,7 @@ class LobbyManager {
 
     selectMode(mode) {
         const partyCount = this.getRealPartyPlayerCount();
-        const modeHierarchy = { duel: 1, solo: 1, gungame: 15, duo: 2, trio: 3, section: 4 };
+        const modeHierarchy = { duel: 1, solo: 1, gungame: 4, duo: 2, trio: 3, section: 4 };
         if (modeHierarchy[mode] && modeHierarchy[mode] < partyCount) {
             const requiredName = partyCount === 2 ? 'Duo, Trio ou Section' : partyCount === 3 ? 'Trio ou Section' : 'Section';
             this.showToast(`Impossible en groupe de ${partyCount} joueurs : choisissez ${requiredName}.`);
@@ -1270,14 +1270,18 @@ class LobbyManager {
 
         if (msg.state === 'searching') {
             if (title) title.textContent = 'RECHERCHE D\'ADVERSAIRES';
-            if (subtitle) subtitle.textContent = 'Recherche d\'autres équipes en ligne...';
+            if (subtitle) subtitle.textContent = msg.mode === 'gungame'
+                ? 'Recherche d\'autres joueurs en ligne...'
+                : 'Recherche d\'autres équipes en ligne...';
             if (teamsWrap) teamsWrap.hidden = false;
             if (teamsCount) teamsCount.textContent = `${msg.teamsCount || 1} / ${msg.teamsNeeded || 2}`;
             if (countdownWrap) countdownWrap.hidden = true;
         } else if (msg.state === 'countdown') {
             const n = msg.teamsCount || 2;
             if (title) title.textContent = 'ADVERSAIRES TROUVÉS !';
-            if (subtitle) subtitle.textContent = `${n} équipes prêtes dans la partie.`;
+            if (subtitle) subtitle.textContent = msg.mode === 'gungame'
+                ? `${n} joueurs prêts dans la partie.`
+                : `${n} équipes prêtes dans la partie.`;
             // Compteur à jour (il reste visible : d'autres équipes peuvent encore arriver)
             if (teamsWrap) teamsWrap.hidden = false;
             if (teamsCount) teamsCount.textContent = String(n);

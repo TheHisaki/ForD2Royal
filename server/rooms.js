@@ -11,6 +11,7 @@ const { INITIAL_MATCHMAKING_COUNTDOWN, isAdminName, parseMatchmakingCountdown } 
 const ROOM_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MAX_PLAYERS_PER_ROOM = 4; // Escouade max par lobby
 const MAX_GUNGAME_PLAYERS = 15;
+const MIN_GUNGAME_PLAYERS = 2;
 const MAX_FIGHTERS = 24;        // places sur la carte (même valeur que js/game/main.js)
 const DUEL_MODE = 'duel';
 const GUNGAME_MODE = 'gungame';
@@ -1138,16 +1139,16 @@ class RoomManager {
         const teamsCount = queue.rooms.size;
         const queuedPlayers = [...queue.rooms].reduce((sum, code) => sum + (this.rooms.get(code)?.players.size || 0), 0);
         const gunGameQueue = room.mode === GUNGAME_MODE;
-        const queueReady = gunGameQueue ? queuedPlayers >= MAX_GUNGAME_PLAYERS : teamsCount >= 2;
+        const queueReady = gunGameQueue ? queuedPlayers >= MIN_GUNGAME_PLAYERS : teamsCount >= 2;
         console.log(`[Matchmaking] File ${room.mode}: ${teamsCount} équipes, ${queuedPlayers} joueurs en attente`);
 
         if (!queueReady) {
-            // Gun Game attend 15 joueurs réels ; les autres modes attendent 2 équipes.
+            // Gun Game démarre avec au moins 2 joueurs réels ; les autres modes attendent 2 équipes.
             this.broadcastToQueue(queue, {
                 type: 'matchmaking_status',
                 state: 'searching',
                 teamsCount: gunGameQueue ? queuedPlayers : teamsCount,
-                teamsNeeded: gunGameQueue ? MAX_GUNGAME_PLAYERS : 2,
+                teamsNeeded: gunGameQueue ? MIN_GUNGAME_PLAYERS : 2,
                 mode: room.mode
             });
         } else {
@@ -1214,7 +1215,7 @@ class RoomManager {
         console.log(`[Matchmaking] Salle ${room.code} retirée de la file ${mode}. Restant: ${queue.rooms.size}`);
 
         const queuedPlayers = [...queue.rooms].reduce((sum, code) => sum + (this.rooms.get(code)?.players.size || 0), 0);
-        const belowThreshold = mode === GUNGAME_MODE ? queuedPlayers < MAX_GUNGAME_PLAYERS : queue.rooms.size < 2;
+        const belowThreshold = mode === GUNGAME_MODE ? queuedPlayers < MIN_GUNGAME_PLAYERS : queue.rooms.size < 2;
         if (belowThreshold && queue.timer) {
             clearInterval(queue.timer);
             queue.timer = null;
@@ -1225,7 +1226,7 @@ class RoomManager {
                 type: 'matchmaking_status',
                 state: 'searching',
                 teamsCount: mode === GUNGAME_MODE ? queuedPlayers : queue.rooms.size,
-                teamsNeeded: mode === GUNGAME_MODE ? MAX_GUNGAME_PLAYERS : 2,
+                teamsNeeded: mode === GUNGAME_MODE ? MIN_GUNGAME_PLAYERS : 2,
                 mode
             });
         }
@@ -1248,9 +1249,9 @@ class RoomManager {
         }
 
         let validRooms = roomCodes.map(code => this.rooms.get(code)).filter(r => r && r.state === 'lobby');
-        // Une équipe toute seule attend, sauf Gun Game lorsqu'une salle unique contient déjà 15 joueurs.
+        // Une équipe toute seule attend ; Gun Game démarre dès 2 joueurs réels.
         const queuedPlayers = validRooms.reduce((sum, r) => sum + r.players.size, 0);
-        if ((mode !== GUNGAME_MODE && validRooms.length < 2) || (mode === GUNGAME_MODE && queuedPlayers < MAX_GUNGAME_PLAYERS)) {
+        if ((mode !== GUNGAME_MODE && validRooms.length < 2) || (mode === GUNGAME_MODE && queuedPlayers < MIN_GUNGAME_PLAYERS)) {
             for (const r of validRooms) this.enqueueMatchmaking(r);
             return;
         }
