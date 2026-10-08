@@ -17,29 +17,29 @@ const stage = (weaponId, rarity) => ({
     key: `${weaponId}:${rarity}`
 });
 
-// 20 combinaisons uniques : les mêmes armes peuvent revenir, jamais la même rareté
-// pour une même arme. La dernière étape est volontairement précise et exigeante.
+// 20 combinaisons uniques, classées de la plus forte à la plus faible :
+// les premiers paliers donnent les armes rares/puissantes, le dernier reste exigeant.
 export const GUNGAME_STAGES = Object.freeze([
-    stage('pistol', 0),
-    stage('smg', 0),
-    stage('shotgun', 0),
-    stage('ar', 0),
-    stage('crossbow', 0),
-    stage('ricochet', 0),
-    stage('sniper', 0),
-    stage('pistol', 1),
-    stage('smg', 1),
-    stage('shotgun', 1),
-    stage('ar', 1),
-    stage('crossbow', 1),
-    stage('ricochet', 1),
-    stage('sniper', 1),
-    stage('pistol', 2),
-    stage('smg', 2),
-    stage('shotgun', 2),
-    stage('ar', 2),
+    stage('sniper', 3),
     stage('crossbow', 2),
-    stage('sniper', 3)
+    stage('ar', 2),
+    stage('shotgun', 2),
+    stage('smg', 2),
+    stage('pistol', 2),
+    stage('sniper', 1),
+    stage('ricochet', 1),
+    stage('crossbow', 1),
+    stage('ar', 1),
+    stage('shotgun', 1),
+    stage('smg', 1),
+    stage('pistol', 1),
+    stage('sniper', 0),
+    stage('ricochet', 0),
+    stage('crossbow', 0),
+    stage('ar', 0),
+    stage('shotgun', 0),
+    stage('smg', 0),
+    stage('pistol', 0)
 ]);
 
 export function isGunGameMode(mode) {
