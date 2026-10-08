@@ -36,7 +36,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/game.css?v=18">
+    <link rel="stylesheet" href="css/game.css?v=19">
     <link rel="stylesheet" href="css/settings.css?v=6">
     <link rel="stylesheet" href="css/end-screen.css?v=6">
 </head>
@@ -265,6 +265,36 @@
         <div id="zoneAlert" hidden role="status" aria-live="polite">
             <span class="za-title"></span>
             <span class="za-sub"></span>
+        </div>
+
+        <!-- Annonce de ravitaillement (sous l'alerte de corruption) : secteur, direction, compte à rebours -->
+        <div id="supplyAnnouncement" hidden role="status" aria-live="polite">
+            <span class="sa-icon" aria-hidden="true">
+                <svg viewBox="0 0 48 48" focusable="false">
+                    <path class="sa-chute" d="M5 20C5 9.5 13.5 3 24 3s19 6.5 19 17c-3.1-2.7-6.4-2.7-9.5 0-3.1-2.7-6.4-2.7-9.5 0-3.1-2.7-6.4-2.7-9.5 0-3.1-2.7-6.4-2.7-9.5 0z"/>
+                    <path class="sa-gore" d="M14.5 20c0-9.6 4.2-15.8 9.5-17 5.3 1.2 9.5 7.4 9.5 17-3.1-2.7-6.4-2.7-9.5 0-3.1-2.7-6.4-2.7-9.5 0z"/>
+                    <path class="sa-lines" d="M6.5 20.5 18 32M41.5 20.5 30 32M24 20v11"/>
+                    <rect class="sa-box" x="15.5" y="30.5" width="17" height="14" rx="2.5"/>
+                    <path class="sa-strap" d="M24 30.5v14M15.5 37.5h17"/>
+                </svg>
+            </span>
+            <span class="sa-body" aria-hidden="true">
+                <span class="sa-kicker">Ravitaillement</span>
+                <strong class="sa-title">Largage en approche</strong>
+                <span class="sa-where">
+                    <span class="sa-dir"><svg viewBox="0 0 16 16" focusable="false"><path d="M8 1.5 13.5 14 8 10.6 2.5 14z"/></svg></span>
+                    <span class="sa-place"></span>
+                </span>
+            </span>
+            <span class="sa-timer" aria-hidden="true">
+                <svg class="sa-ring" viewBox="0 0 44 44" focusable="false">
+                    <circle class="sa-ring-track" cx="22" cy="22" r="19"/>
+                    <circle class="sa-ring-fill" cx="22" cy="22" r="19"/>
+                </svg>
+                <span class="sa-count">15</span>
+                <span class="sa-unit">sec</span>
+            </span>
+            <span class="sa-sr"></span>
         </div>
 
         <!-- Confirmation d'élimination -->
@@ -592,6 +622,6 @@
     })();
     </script>
 
-    <script type="module" src="js/game/main.js?v=39"></script>
+    <script type="module" src="js/game/main.js?v=40"></script>
 </body>
 </html>

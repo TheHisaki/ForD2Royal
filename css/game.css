@@ -802,12 +802,264 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
     #duelExpel .de-count.pop-b { animation: none; }
 }
 
-/* ----- Ravitaillement en approche ----- */
-#supplyAnnouncement { position: fixed; left: 50%; top: 19%; z-index: 31; transform: translate(-50%, -12px) scale(.94); display: flex; flex-direction: column; align-items: center; gap: 3px; min-width: min(430px, 86vw); padding: 12px 24px 14px; color: #fff; background: linear-gradient(135deg, rgba(62,12,30,.94), rgba(8,22,58,.94)); border: 2px solid #ffcc45; border-radius: 10px; box-shadow: 0 0 0 4px rgba(255,51,75,.16), 0 0 30px rgba(255,110,30,.35); opacity: 0; pointer-events: none; text-align: center; }
-#supplyAnnouncement.is-visible { animation: supplyAnnIn .35s ease-out forwards; }
-#supplyAnnouncement .supply-ann-title { color: #ffe03d; font: 400 27px var(--font-display, 'Bebas Neue', Impact, sans-serif); letter-spacing: 2px; }
-#supplyAnnouncement .supply-ann-sub { color: #dce7ff; font: 600 12px var(--font-body, 'Rubik', sans-serif); letter-spacing: .5px; }
-@keyframes supplyAnnIn { to { opacity: 1; transform: translate(-50%, 0) scale(1); } }
+/* ----- Ravitaillement en approche -----
+   Bandeau sous l'alerte de corruption : pictogramme, secteur + flèche vers l'impact,
+   compte à rebours dans un anneau (main.js met à jour le chiffre, l'anneau et la flèche). */
+#supplyAnnouncement {
+    --sa-orange: #ff8a1f;
+    --sa-gold: #ffb21f;
+    position: absolute;
+    left: 50%;
+    top: calc(var(--gap) + clamp(118px, 5vw + 84px, 146px));
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: min(360px, 90vw);
+    max-width: min(520px, 94vw);
+    padding: 8px 10px 8px 8px;
+    border-radius: 12px;
+    background: linear-gradient(180deg, rgba(16, 32, 82, 0.95), rgba(7, 15, 42, 0.95));
+    border: 1px solid rgba(255, 178, 31, 0.55);
+    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.42), 0 0 24px rgba(255, 138, 31, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    color: var(--text-primary);
+    pointer-events: none;
+    overflow: hidden;
+    opacity: 0;
+}
+
+#supplyAnnouncement[hidden] { display: none; }
+
+/* Liseré lumineux en haut + reflet qui balaie le bandeau à l'apparition */
+#supplyAnnouncement::before,
+#supplyAnnouncement::after {
+    content: '';
+    position: absolute;
+    pointer-events: none;
+}
+
+#supplyAnnouncement::before {
+    left: 0;
+    right: 0;
+    top: 0;
+    height: 3px;
+    background: linear-gradient(90deg, transparent, var(--sa-gold) 18%, var(--sa-orange) 50%, var(--sa-gold) 82%, transparent);
+}
+
+#supplyAnnouncement::after {
+    inset: 0;
+    background: linear-gradient(105deg, transparent 38%, rgba(255, 255, 255, 0.16) 50%, transparent 62%);
+    transform: translateX(-120%);
+}
+
+#supplyAnnouncement.is-in { animation: saIn 0.45s cubic-bezier(0.2, 1.3, 0.4, 1) forwards; }
+#supplyAnnouncement.is-in::after { animation: saSweep 1.1s 0.25s ease-out forwards; }
+#supplyAnnouncement.is-out { opacity: 1; animation: saOut 0.35s ease-in forwards; }
+
+/* Pictogramme : parachute + caisse sur une tuile orange */
+.sa-icon {
+    position: relative;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 52px;
+    height: 52px;
+    border-radius: 10px;
+    background: radial-gradient(circle at 50% 30%, #ffd25c 0%, var(--sa-orange) 55%, #d9520f 100%);
+    box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.22), 0 0 16px rgba(255, 138, 31, 0.5);
+}
+
+.sa-icon::after {
+    content: '';
+    position: absolute;
+    inset: -4px;
+    border-radius: 13px;
+    border: 2px solid rgba(255, 178, 31, 0.7);
+    opacity: 0;
+}
+
+#supplyAnnouncement.is-in .sa-icon::after { animation: saPing 1.4s 0.3s ease-out 3; }
+
+.sa-icon svg {
+    width: 40px;
+    height: 40px;
+    overflow: visible;
+    filter: drop-shadow(0 2px 0 rgba(11, 20, 56, 0.35));
+    animation: saBob 1.8s ease-in-out infinite;
+    transform-origin: 50% 10%;
+}
+
+.sa-chute { fill: #ffffff; }
+.sa-gore { fill: #ffe7c7; }
+.sa-lines { fill: none; stroke: #ffffff; stroke-width: 1.8; stroke-linecap: round; }
+.sa-box { fill: #16306f; stroke: #0b1438; stroke-width: 1.5; }
+.sa-strap { fill: none; stroke: var(--accent-yellow); stroke-width: 2.4; }
+
+/* Texte */
+.sa-body {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-width: 0;
+}
+
+.sa-kicker {
+    font-family: var(--font-body);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 2.5px;
+    text-transform: uppercase;
+    color: var(--sa-gold);
+}
+
+.sa-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: clamp(22px, 2.2vw, 30px);
+    line-height: 1;
+    letter-spacing: 1.5px;
+    color: #fff;
+    white-space: nowrap;
+}
+
+.sa-where {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    margin-top: 4px;
+    min-width: 0;
+    font-family: var(--font-body);
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-secondary);
+}
+
+.sa-place {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.sa-dir {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    background: rgba(255, 178, 31, 0.18);
+    box-shadow: inset 0 0 0 1px rgba(255, 178, 31, 0.5);
+}
+
+.sa-dir svg {
+    width: 11px;
+    height: 11px;
+    fill: #ffd36b;
+}
+
+/* Compte à rebours : chiffre dans un anneau qui se vide pendant la descente */
+.sa-timer {
+    position: relative;
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 52px;
+    height: 52px;
+}
+
+.sa-ring {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    transform: rotate(-90deg);
+}
+
+.sa-ring circle { fill: none; stroke-width: 4; }
+.sa-ring-track { stroke: rgba(255, 255, 255, 0.12); }
+
+.sa-ring-fill {
+    stroke: var(--sa-gold);
+    stroke-linecap: round;
+    stroke-dasharray: 119.38;
+    stroke-dashoffset: 0;
+    transition: stroke-dashoffset 0.2s linear;
+    filter: drop-shadow(0 0 3px rgba(255, 178, 31, 0.7));
+}
+
+.sa-count {
+    position: relative;
+    font-family: var(--font-display);
+    font-size: 24px;
+    line-height: 0.9;
+    color: #fff;
+}
+
+.sa-unit {
+    position: relative;
+    font-family: var(--font-body);
+    font-size: 8px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    color: var(--text-secondary);
+}
+
+/* Texte complet pour les lecteurs d'écran (le visuel est masqué pour eux) */
+.sa-sr {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0 0 0 0);
+    white-space: nowrap;
+}
+
+@keyframes saIn {
+    0%   { opacity: 0; transform: translateX(-50%) translateY(-14px) scale(0.9); }
+    100% { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+@keyframes saOut {
+    from { opacity: 1; transform: translateX(-50%) scale(1); }
+    to   { opacity: 0; transform: translateX(-50%) translateY(-8px) scale(0.96); }
+}
+
+@keyframes saSweep { to { transform: translateX(120%); } }
+
+@keyframes saPing {
+    0%   { opacity: 0.9; transform: scale(0.92); }
+    100% { opacity: 0; transform: scale(1.25); }
+}
+
+@keyframes saBob {
+    0%, 100% { transform: translateY(-1.5px) rotate(-4deg); }
+    50%      { transform: translateY(1.5px) rotate(4deg); }
+}
+
+@media (max-width: 760px), (max-height: 520px) {
+    #supplyAnnouncement { top: calc(var(--gap) + 94px); gap: 8px; min-width: 0; padding: 6px 8px 6px 6px; }
+    .sa-icon, .sa-timer { width: 40px; height: 40px; }
+    .sa-icon svg { width: 30px; height: 30px; }
+    .sa-title { font-size: 19px; }
+    .sa-kicker { font-size: 9px; letter-spacing: 2px; }
+    .sa-where { font-size: 11px; margin-top: 2px; }
+    .sa-count { font-size: 19px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    #supplyAnnouncement.is-in,
+    #supplyAnnouncement.is-out,
+    #supplyAnnouncement.is-in::after,
+    #supplyAnnouncement.is-in .sa-icon::after,
+    .sa-icon svg { animation: none; }
+    #supplyAnnouncement.is-in { opacity: 1; }
+    #supplyAnnouncement.is-out { opacity: 0; }
+    .sa-ring-fill { transition: none; }
+}
 
 /* ----- HUD du Best of 3 1V1 -----
    Toujours : MOI en bleu (à gauche), l'ADVERSAIRE en rouge (à droite).
@@ -3173,6 +3425,7 @@ html.touch-ui #killFeed {
 html.touch-ui .kill-entry { max-width: 100%; font-size: 11px; padding: 2px 8px; } /* trop long : « … » */
 html.touch-ui .kill-entry:nth-last-child(n+4) { display: none; }
 html.touch-ui #zoneAlert { top: calc(var(--edge-t) + clamp(26px, 6vh, 38px) + 66px); }
+html.touch-ui #supplyAnnouncement { top: calc(var(--edge-t) + clamp(26px, 6vh, 38px) + 122px); }
 
 /* Bas centre : hotbar, avec l'objet en main et ses munitions juste au-dessus */
 html.touch-ui .hud-bottom-right {
@@ -3259,6 +3512,7 @@ html.touch-ui #fullMapClose { width: 48px; height: 48px; top: -8px; right: -8px;
         max-width: calc(100vw - 2 * var(--gap) - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px));
     }
     html.touch-ui #zoneAlert { top: calc(var(--edge-t) + var(--minimap) + 156px); }
+    html.touch-ui #supplyAnnouncement { top: calc(var(--edge-t) + var(--minimap) + 212px); }
 }
 
 

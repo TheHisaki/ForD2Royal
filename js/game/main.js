@@ -5,10 +5,10 @@
 
 // ?v=36 : ravitaillements périodiques et caisses parachutées
 import { generateWorld, surfaceAt } from './world.js?v=12';
-import { isWater } from './config.js';
+import { isWater, BIOME_NAMES } from './config.js';
 import { Player } from './player.js?v=15';
 import { Renderer } from './renderer.js?v=14';
-import { Hud } from './hud.js?v=15';
+import { Hud } from './hud.js?v=16';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
@@ -16,7 +16,7 @@ import {
 import { Combat } from './combat.js?v=13';
 import { Loot } from './loot.js?v=12';
 import { BotManager, roofAlphaAt } from './bots.js?v=21';
-import { SupplyDrops } from './supply-drops.js?v=2';
+import { SupplyDrops, SUPPLY_FALL_TIME } from './supply-drops.js?v=3';
 import { Corruption } from './corruption.js?v=12';
 import { CombatHud } from './combat-hud.js?v=14';
 import { Effects } from './effects.js?v=14';
@@ -782,7 +782,17 @@ function start() {
         isHost: () => isHost,
         send: netSend,
         idPrefix: `${duelRound}-`,
-        onAnnounce: (drop, remaining) => showSupplyAnnouncement(drop, remaining)
+        onAnnounce: (drop, remaining) => showSupplyAnnouncement(drop, remaining),
+        // Impact : nuage de poussière, son et petite secousse si on est tout près
+        onLand: (d) => {
+            effects.landing(d.x, d.y);
+            SFX.play('land', { x: d.x, y: d.y });
+            if (player.alive && player.phase === 'ground' && Math.hypot(d.x - player.x, d.y - player.y) < 420) renderer?.shake(5);
+        },
+        onOpen: (d) => {
+            effects.chestOpen(d.x, d.y);
+            SFX.play('chest', { x: d.x, y: d.y });
+        }
     }) : null;
 
     // Le HUD duel dépend de BotManager (nom de l'adversaire bot) : l'initialiser après sa création.
@@ -2694,6 +2704,8 @@ function start() {
     /* ----- Dessins en plus de la carte ----- */
     const hooks = {
         under: (ctx, v) => {
+            // Zone d'atterrissage et caisse posée : au sol, sous les objets qu'elle laisse tomber
+            supplyDrops?.drawGround(ctx, time, v);
             loot.draw(ctx, time, v);
             effects.drawGround(ctx, v);
         },
@@ -2714,7 +2726,7 @@ function start() {
             corruption.drawWorld(ctx, v, time); // au-dessus du sol et des toits, sous le vaisseau et les chutes
             // La frontière est un obstacle aérien : au-dessus des arbres, bâtiments et joueurs.
             if (duelBoundary) drawDuelBoundary(ctx, duelBoundary, duelBoundaryAge, time, v);
-            supplyDrops?.draw(ctx, time, v);
+            supplyDrops?.draw(ctx, time, v); // parachute en descente + fumigène (au-dessus des arbres)
             if (player.throwState && player.phase === 'ground' && player.alive) combat.drawThrowPreview(ctx, player, player.angle);
             drawSkyHaze(ctx, v, world.theme?.haze); // voile d'altitude : le sol paraît lointain depuis le ciel
             bots.drawAir(ctx, time, v, canSeeFromHouse);   // culling fait dans drawFalling (position en perspective)
@@ -2824,27 +2836,90 @@ function start() {
         duelPop = next;
     }
 
-    function showSupplyAnnouncement(drop, remaining = 15) {
-        let el = document.getElementById('supplyAnnouncement');
-        if (!el) {
-            el = document.createElement('div');
-            el.id = 'supplyAnnouncement';
-            el.setAttribute('role', 'status');
-            const title = document.createElement('strong');
-            title.className = 'supply-ann-title';
-            const sub = document.createElement('span');
-            sub.className = 'supply-ann-sub';
-            el.append(title, sub);
-            document.body.appendChild(el);
+    /* ----- Annonce de ravitaillement (centre-haut) -----
+       Une seule annonce par largage : secteur de la carte, flèche vers le point d'impact
+       et compte à rebours en direct (anneau), puis disparition après SUPPLY_ANN_TIME. */
+    const SUPPLY_ANN_TIME = 5.5;        // s d'affichage
+    const SUPPLY_RING = 2 * Math.PI * 19; // circonférence de l'anneau SVG (r = 19)
+    const supplyAnn = (() => {
+        const el = document.getElementById('supplyAnnouncement');
+        if (!el) return null;
+        return {
+            el,
+            place: el.querySelector('.sa-place'),
+            dir: el.querySelector('.sa-dir svg'),
+            count: el.querySelector('.sa-count'),
+            ring: el.querySelector('.sa-ring-fill'),
+            sr: el.querySelector('.sa-sr'),
+            drop: null, until: 0, secs: -1, dash: -1, deg: NaN, hideTimer: 0
+        };
+    })();
+
+    // « Secteur C4 · Près de Bois-Sombre » (même quadrillage que la grande carte)
+    function supplyPlaceText(x, y) {
+        const col = Math.max(0, Math.min(7, Math.floor((x / world.width) * 8)));
+        const row = Math.max(0, Math.min(7, Math.floor((y / world.height) * 8)));
+        let near = null;
+        let best = Infinity;
+        for (const t of world.towns || []) {
+            const dist = Math.hypot(x - t.x, y - t.y) - (t.radius || 0);
+            if (dist < best) { best = dist; near = t; }
         }
-        el.querySelector('.supply-ann-title').textContent = 'RAVITAILLEMENT EN APPROCHE';
-        el.querySelector('.supply-ann-sub').textContent = `Arrivée dans ${Math.max(1, Math.ceil(remaining))} secondes · marqué sur la carte`;
-        el.hidden = false;
-        el.classList.remove('is-visible');
-        void el.offsetWidth;
-        el.classList.add('is-visible');
-        clearTimeout(el._hideTimer);
-        el._hideTimer = setTimeout(() => { el.classList.remove('is-visible'); el.hidden = true; }, 4200);
+        const where = near && best < 450
+            ? `Près de ${near.name}`
+            : (BIOME_NAMES[world.sampleGround(x, y).biome] || 'Zone sauvage');
+        return `Secteur ${'ABCDEFGH'[col]}${row + 1} · ${where}`;
+    }
+
+    function showSupplyAnnouncement(drop, remaining = SUPPLY_FALL_TIME) {
+        const a = supplyAnn;
+        // Largage déjà posé (partie rejointe en cours) : seulement visible sur la carte
+        if (!a || !drop || remaining < 1) return;
+        const place = supplyPlaceText(drop.x, drop.y);
+        a.drop = drop;
+        a.until = drop.age + Math.min(SUPPLY_ANN_TIME, remaining);
+        a.secs = -1;
+        a.dash = -1;
+        a.deg = NaN;
+        if (a.place) a.place.textContent = place;
+        if (a.sr) a.sr.textContent = `Ravitaillement en approche, atterrissage dans ${Math.ceil(remaining)} secondes. ${place}.`;
+        clearTimeout(a.hideTimer);
+        a.el.hidden = false;
+        a.el.classList.remove('is-in', 'is-out');
+        void a.el.offsetWidth; // relance l'animation d'entrée (une fois toutes les 30 s)
+        a.el.classList.add('is-in');
+        updateSupplyAnnouncement();
+    }
+
+    function updateSupplyAnnouncement() {
+        const a = supplyAnn;
+        const d = a?.drop;
+        if (!d) return;
+        if (d.opened || d.age >= a.until) {
+            a.drop = null;
+            a.el.classList.remove('is-in');
+            a.el.classList.add('is-out');
+            a.hideTimer = setTimeout(() => { a.el.hidden = true; a.el.classList.remove('is-out'); }, 380);
+            return;
+        }
+        const left = supplyDrops?.remaining(d) ?? 0;
+        const secs = Math.max(0, Math.ceil(left));
+        if (secs !== a.secs) {
+            a.secs = secs;
+            if (a.count) a.count.textContent = String(secs);
+        }
+        // Anneau : la part restante de la descente
+        const dash = Math.round(SUPPLY_RING * (1 - left / SUPPLY_FALL_TIME) * 2) / 2;
+        if (dash !== a.dash) {
+            a.dash = dash;
+            if (a.ring) a.ring.style.strokeDashoffset = String(dash);
+        }
+        // Flèche : direction du point d'impact depuis le joueur (le haut de l'écran = nord)
+        const deg = Math.round((Math.atan2(d.y - player.y, d.x - player.x) * 180 / Math.PI + 90) * 2) / 2;
+        if (deg !== a.deg) {
+            a.deg = deg;
+            if (a.dir) a.dir.style.transform = `rotate(${deg}deg)`;
+        }
     }
 
     function duelNameForTeam(team) {
@@ -3221,6 +3296,7 @@ function start() {
         hud.update(dt, time);
         inventoryUI.update();
         combatHud.update(dt);
+        updateSupplyAnnouncement();
         updateTouchHud();
     }
 
