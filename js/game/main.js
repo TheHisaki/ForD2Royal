@@ -1096,23 +1096,31 @@ function start() {
         return held?.kind === 'weapon' && held.weaponId === 'sniper';
     };
     let zoomMode = '';
-    const enforceZoomTarget = () => {
+    /*
+       Zoom voulu selon l'arme et l'endroit.
+       À l'intérieur d'une maison, la caméra se rapproche de 35 % et ce zoom devient
+       un minimum : impossible de dézoomer tant qu'on reste dedans (la molette peut
+       seulement rapprocher). Le test est limité au sol : passer au-dessus d'un toit
+       ne doit pas zoomer.
+    */
+    const zoomState = () => {
         const held = equippedItem();
         const sniper = held?.kind === 'weapon' && held.weaponId === 'sniper';
         const rarity = sniper ? Math.max(0, Math.min(RARITIES.length - 1, Number(held.rarity) | 0)) : 0;
         const baseTarget = sniper ? sniperZoomForRarity(rarity) : 1;
-        // À l'intérieur d'une maison, la caméra se rapproche de 35 %.
-        // Le test est limité au sol : passer au-dessus d'un toit ne doit pas zoomer.
         const insideHouse = player.phase === 'ground' && Boolean(buildingAt(player.x, player.y));
         const target = insideHouse ? baseTarget * 1.35 : baseTarget;
-        const floor = insideHouse ? target : baseTarget;
+        // Plancher : le zoom intérieur dans une maison, sinon celui de l'arme
+        const floor = insideHouse ? target : sniper ? baseTarget : 1;
         const mode = `${sniper ? `sniper:${rarity}` : 'classic'}:${insideHouse ? 'inside' : 'outside'}`;
+        return { target, floor, mode };
+    };
+    const enforceZoomTarget = () => {
+        const { target, floor, mode } = zoomState();
         if (mode !== zoomMode) {
             renderer.setZoomTarget(target, floor);
             zoomMode = mode;
         }
-        // Verrouillage immédiat : la molette ne peut pas repasser sous le zoom intérieur.
-        if (insideHouse) renderer.setZoomMin(target);
     };
     enforceZoomTarget();
 
@@ -1456,13 +1464,8 @@ function start() {
         onSlot: (i) => { if (!player.dbno) selectSlot(i); },
         onAdminPanel: () => toggleAdminPanel(),
         onZoom: (f) => {
-            const held = equippedItem();
-            const sniper = held?.kind === 'weapon' && held.weaponId === 'sniper';
-            const base = sniper ? sniperZoomForRarity(held.rarity) : 1;
-            const insideHouse = player.phase === 'ground' && Boolean(buildingAt(player.x, player.y));
-            const floor = insideHouse ? base * 1.35 : base;
-            if (insideHouse) renderer.setZoomMin(floor);
-            renderer.zoomBy(f, floor);
+            // Dans une maison, le plancher est le zoom intérieur : on ne peut pas dézoomer
+            renderer.zoomBy(f, zoomState().floor);
         },
         // Le saut est transmis par p_state (changement de phase)
         onJump: () => { if (!player.dbno) drop.jump(player); },
