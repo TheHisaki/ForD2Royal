@@ -84,10 +84,10 @@ export const LOOT_WEAPONS = ['pistol', 'crossbow', 'ricochet', 'smg', 'ar', 'sho
 
 /* ===================== LANÇABLES ===================== */
 export const THROWABLES = {
-    smoke: { id: 'smoke', name: 'Grenade fumigène', short: 'Fumigène', icon: '💨', color: '#a9b8c8', fuse: 1.2, duration: 8, radius: 150, damage: 0 },
-    explosive: { id: 'explosive', name: 'Grenade explosive', short: 'Explosive', icon: '💣', color: '#ff704d', fuse: 1.4, radius: 150, damage: 72 },
-    flash: { id: 'flash', name: 'Grenade flash', short: 'Flash', icon: '✦', color: '#fff0a0', fuse: 1.1, radius: 190, damage: 0, duration: 3 },
-    propulsion: { id: 'propulsion', name: 'Grenade de propulsion', short: 'Propulsion', icon: '↗', color: '#62d8ff', fuse: 0.8, radius: 120, damage: 0, impulse: 720 }
+    smoke: { id: 'smoke', name: 'Grenade fumigène', short: 'Fumigène', icon: '💨', color: '#a9b8c8', fuse: 1.2, duration: 8, radius: 150, throwRange: 500, damage: 0 },
+    explosive: { id: 'explosive', name: 'Grenade explosive', short: 'Explosive', icon: '💣', color: '#ff704d', fuse: 1.4, radius: 150, throwRange: 480, damage: 72 },
+    flash: { id: 'flash', name: 'Grenade flash', short: 'Flash', icon: '✦', color: '#fff0a0', fuse: 1.1, radius: 190, throwRange: 460, damage: 0, duration: 3 },
+    propulsion: { id: 'propulsion', name: 'Grenade de propulsion', short: 'Propulsion', icon: '↗', color: '#62d8ff', fuse: 0.8, radius: 120, throwRange: 440, damage: 0, impulse: 720 }
 };
 // Le légendaire est le plus dézoomé, au plancher technique global.
 export const SNIPER_ZOOM_BY_RARITY = [0.92, 0.84, 0.76, 0.66, 0.55];

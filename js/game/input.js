@@ -268,7 +268,11 @@ export class Input {
             e.preventDefault();
             const v = stick(e.clientX - t.fireX, e.clientY - t.fireY, t.fireRadius);
             setKnob(fireKnob, v.cx, v.cy);
-            if (v.amount < 0.25) return; // un appui un peu de travers ne change pas la visée
+            if (v.amount < 0.25) {
+                // Retour complet au centre : annulation de la visée et du lancer préparé
+                t.aiming = false;
+                return;
+            }
             const len = Math.hypot(v.cx, v.cy) || 1;
             t.aimX = v.cx / len;
             t.aimY = v.cy / len;

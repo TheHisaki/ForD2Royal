@@ -17,6 +17,8 @@ const THROW_AIR = 0.62;       // durée du vol avant de toucher le sol (s)
 const THROW_HEIGHT = 70;      // hauteur max de l'arc (dessin)
 const THROW_LAND_KEEP = 0.35; // part de la vitesse gardée à l'atterrissage
 const THROW_FRICTION = 5;     // freinage au sol (par s)
+const THROW_MAX_DEFAULT = 480;
+const THROW_MIN_RANGE = 70;
 const THROW_WALL_KEEP = 0.45; // rebond sur un mur
 const PREVIEW_STEP = 1 / 60;  // pas de calcul de la trajectoire prévisualisée (= une image à 60 i/s)
 
@@ -78,7 +80,13 @@ export class Combat {
         return Boolean(f.throwState && f.throwState.slot === f.slot && this._heldThrowable(f));
     }
 
-    throwNow(f, angle, visual = false) {
+    cancelThrow(f) {
+        if (!f?.throwState) return false;
+        f.throwState = null;
+        return true;
+    }
+
+    throwNow(f, angle, visual = false, distance = null) {
         if (!f?.alive || f.dbno || f.phase !== 'ground') return false;
         const state = f.throwState;
         const t = this._heldThrowable(f);
@@ -90,7 +98,11 @@ export class Combat {
         }
         f.throwState = null;
         const a = Number.isFinite(angle) ? angle : f.angle;
-        const p = this._launch(this._freeThrowables.pop() || {}, f, a);
+        const maxRange = Number(t.throwRange) || THROW_MAX_DEFAULT;
+        const range = Number.isFinite(distance)
+            ? Math.max(THROW_MIN_RANGE, Math.min(maxRange, Number(distance)))
+            : maxRange;
+        const p = this._launch(this._freeThrowables.pop() || {}, f, a, range);
         p.itemId = t.id;
         p.owner = f;
         p.visual = visual;
@@ -98,16 +110,21 @@ export class Combat {
         p.spin = (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 4);
         p.rot = Math.random() * Math.PI * 2;
         this.throwables.push(p);
-        this.events.onThrow?.(f, t, a, visual);
+        this.events.onThrow?.(f, t, a, visual, range);
         return true;
     }
 
     // Position et vitesse de départ d'une grenade lancée par f dans la direction a
-    _launch(p, f, a) {
+    // distance est la longueur choisie par le joueur, bornée par le type de grenade.
+    _launch(p, f, a, distance = THROW_MAX_DEFAULT) {
         p.x = f.x + Math.cos(a) * (f.r + 8);
         p.y = f.y + Math.sin(a) * (f.r + 8);
-        p.vx = Math.cos(a) * THROW_SPEED;
-        p.vy = Math.sin(a) * THROW_SPEED;
+        p.originX = p.x;
+        p.originY = p.y;
+        p.throwDistance = Math.max(THROW_MIN_RANGE, Number(distance) || THROW_MAX_DEFAULT);
+        const speed = p.throwDistance / THROW_AIR;
+        p.vx = Math.cos(a) * speed;
+        p.vy = Math.sin(a) * speed;
         p.z = 0;
         p.age = 0;
         p.landed = false;
@@ -133,8 +150,20 @@ export class Combat {
             p.vx *= k;
             p.vy *= k;
         }
-        const nx = p.x + p.vx * dt;
-        const ny = p.y + p.vy * dt;
+        const nx0 = p.x + p.vx * dt;
+        const ny0 = p.y + p.vy * dt;
+        const ox = nx0 - (p.originX ?? p.x);
+        const oy = ny0 - (p.originY ?? p.y);
+        const travelled = Math.hypot(ox, oy);
+        const limit = Number(p.throwDistance) || THROW_MAX_DEFAULT;
+        const scale = travelled > limit ? limit / (travelled || 1) : 1;
+        const nx = p.originX + ox * scale;
+        const ny = p.originY + oy * scale;
+        if (travelled >= limit) {
+            p.vx = 0;
+            p.vy = 0;
+            p.reachedRange = true;
+        }
         if (this._hitWall(nx, ny)) {
             const hitX = this._hitWall(nx, p.y);
             const hitY = this._hitWall(p.x, ny);
@@ -147,7 +176,7 @@ export class Combat {
         }
     }
 
-    ghostThrow(f, itemId, angle) {
+    ghostThrow(f, itemId, angle, distance = null) {
         if (!f) return false;
         const had = f.inventory?.[f.slot];
         const old = f.slot;
@@ -155,15 +184,19 @@ export class Combat {
             f.inventory = f.inventory || [];
             f.inventory[old] = { kind: 'throwable', itemId, count: 1 };
         }
-        return this.throwNow(f, angle, true);
+        return this.throwNow(f, angle, true, distance);
     }
 
     // Trajectoire prévue jusqu'à l'explosion : points à l'écran (x, y - hauteur) + point d'arrivée
-    throwPreview(f, angle) {
+    throwPreview(f, angle, distance = null) {
         const t = this._heldThrowable(f);
         if (!t || !f?.alive || f.dbno) return null;
         const a = Number.isFinite(angle) ? angle : f.angle;
-        const p = this._launch(this._previewP || (this._previewP = {}), f, a);
+        const maxRange = Number(t.throwRange) || THROW_MAX_DEFAULT;
+        const range = Number.isFinite(distance)
+            ? Math.max(THROW_MIN_RANGE, Math.min(maxRange, Number(distance)))
+            : maxRange;
+        const p = this._launch(this._previewP || (this._previewP = {}), f, a, range);
         const points = [{ x: p.x, y: p.y }];
         const fuse = t.fuse || 1;
         while (p.age < fuse) {
@@ -221,8 +254,8 @@ export class Combat {
     }
 
     // Prévisualisation (maintien) : arc pointillé + zone d'effet là où la grenade va exploser
-    drawThrowPreview(ctx, f, angle) {
-        const pv = this.throwPreview(f, angle);
+    drawThrowPreview(ctx, f, angle, distance = null) {
+        const pv = this.throwPreview(f, angle, distance);
         if (!pv) return;
         const { points, end, radius, color } = pv;
         ctx.save();

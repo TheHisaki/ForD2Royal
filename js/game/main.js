@@ -9,18 +9,18 @@ import { isWater, BIOME_NAMES } from './config.js';
 import { Player } from './player.js?v=15';
 import { Renderer } from './renderer.js?v=14';
 import { Hud } from './hud.js?v=18';
-import { Input } from './input.js?v=12';
+import { Input } from './input.js?v=13';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
 } from './drop.js?v=20';
-import { Combat } from './combat.js?v=13';
+import { Combat } from './combat.js?v=14';
 import { Loot } from './loot.js?v=12';
 import { BotManager, roofAlphaAt } from './bots.js?v=21';
 import { SupplyDrops, SUPPLY_FALL_TIME } from './supply-drops.js?v=3';
 import { Corruption } from './corruption.js?v=12';
 import { CombatHud } from './combat-hud.js?v=14';
 import { Effects } from './effects.js?v=14';
-import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=11';
+import { HEALS, WEAPONS, THROWABLES, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=12';
 import { drawPlayer, drawDying } from './draw.js?v=11';
 import { iconCanvas } from './icons.js';
 import { SFX } from '../sfx.js?v=16';
@@ -756,11 +756,16 @@ function start() {
                 });
             }
         },
-        onThrow(f, throwable, angle, visual) {
+        onThrow(f, throwable, angle, visual, distance) {
             // Le son est joué partout (lancer réel ou rejoué pour un autre joueur)
             SFX.play('throw', { x: f.x, y: f.y, vol: actionVol(f) });
             if (!visual && isMultiplayer && owns(f)) {
-                netSend({ type: 'p_throw', s: f.id, i: throwable.id, a: Math.round(angle * 1000) / 1000, x: Math.round(f.x), y: Math.round(f.y) });
+                netSend({
+                    type: 'p_throw', s: f.id, i: throwable.id,
+                    a: Math.round(angle * 1000) / 1000,
+                    d: Math.round((Number(distance) || 0) * 10) / 10,
+                    x: Math.round(f.x), y: Math.round(f.y)
+                });
             }
         },
         onThrowableBounce(p) {
@@ -1489,14 +1494,16 @@ function start() {
        Au doigt, il n'y a pas de curseur : on place un point visé devant le joueur.
        Stick de tir tenu = sa direction ; sinon le personnage regarde où il marche. */
     const TOUCH_AIM_DIST = 260; // distance du point visé (unités du monde)
+    const THROW_DEAD_ZONE = 44;  // retour au centre = annulation du lancer
     let touchFacing = null;
+    let currentAim = { x: 0, y: 0, distance: 0, cancelled: true };
     function aimPoint() {
         if (input.touchMode) {
             const dir = input.touchAimDir();
             if (dir) {
                 touchFacing = dir;
             } else if (input.touch.fireId === null) {
-                // Pas de visée en cours : la marche donne la direction (le tir maintenu la garde)
+                // Pas de visée en cours : la marche donne la direction (pour les tirs normaux)
                 const a = input.axis();
                 const len = Math.hypot(a.x, a.y);
                 if (len > 0.2) touchFacing = { x: a.x / len, y: a.y / len };
@@ -1506,13 +1513,24 @@ function start() {
                     player.x + touchFacing.x * TOUCH_AIM_DIST,
                     player.y + touchFacing.y * TOUCH_AIM_DIST
                 );
-                input.mouse.x = s.x; // le viseur (hitmarker) suit le même point
+                input.mouse.x = s.x;
                 input.mouse.y = s.y;
             }
         } else {
             touchFacing = null; // souris : visée normale au curseur
         }
-        return renderer.screenToWorld(input.mouse.x, input.mouse.y);
+        const point = renderer.screenToWorld(input.mouse.x, input.mouse.y);
+        const dx = point.x - player.x;
+        const dy = point.y - player.y;
+        const distance = Math.hypot(dx, dy);
+        const touchCentered = input.touchMode && input.touch.fireId !== null && !input.touch.aiming;
+        currentAim = {
+            x: point.x,
+            y: point.y,
+            distance,
+            cancelled: distance <= THROW_DEAD_ZONE || touchCentered
+        };
+        return point;
     }
 
     // État des boutons tactiles, mis à jour à chaque image (écritures DOM seulement si ça change)
@@ -2185,7 +2203,7 @@ function start() {
                 const f = fighterById(msg.s || msg.id);
                 if (!f || owns(f) || !f.alive || typeof msg.i !== 'string') break;
                 f.angle = Number.isFinite(msg.a) ? msg.a : f.angle;
-                combat.ghostThrow(f, msg.i, f.angle);
+                combat.ghostThrow(f, msg.i, f.angle, Number.isFinite(msg.d) ? msg.d : null);
                 break;
             }
             case 'p_effect': {
@@ -2418,10 +2436,17 @@ function start() {
         const held = player.inventory[player.slot];
         if (!held) return;
         if (held.kind === 'throwable') {
-            // Maintenir : preview continue, relâcher : lancer. Appui très court : lancer immédiat.
+            // Le curseur au centre annule la préparation. Il faut ressortir de la zone morte
+            // avant de pouvoir valider un lancer.
+            if (currentAim.cancelled) {
+                if (combat.isThrowing(player)) combat.cancelThrow(player);
+                return;
+            }
+            const throwDistance = currentAim.distance;
+            // Maintenir : preview continue, relâcher : lancer à la distance visée.
             if (pressed && input.mouse.down) combat.beginThrow(player);
             if (input.mouse.down && !combat.isThrowing(player)) combat.beginThrow(player);
-            if (released || (pressed && !input.mouse.down)) combat.throwNow(player, player.angle);
+            if (released || (pressed && !input.mouse.down)) combat.throwNow(player, player.angle, false, throwDistance);
         } else if (held.kind === 'heal') {
             if (pressed) combat.startUse(player);
         } else if ((input.mouse.down || pressed) && !emoteWheelOpen) {
@@ -3121,7 +3146,9 @@ function start() {
             // La frontière est un obstacle aérien : au-dessus des arbres, bâtiments et joueurs.
             if (duelBoundary) drawDuelBoundary(ctx, duelBoundary, duelBoundaryAge, time, v);
             supplyDrops?.draw(ctx, time, v); // parachute en descente + fumigène (au-dessus des arbres)
-            if (player.throwState && player.phase === 'ground' && player.alive) combat.drawThrowPreview(ctx, player, player.angle);
+            if (player.throwState && !currentAim.cancelled && player.phase === 'ground' && player.alive) {
+                combat.drawThrowPreview(ctx, player, player.angle, currentAim.distance);
+            }
             drawSkyHaze(ctx, v, world.theme?.haze); // voile d'altitude : le sol paraît lointain depuis le ciel
             bots.drawAir(ctx, time, v, canSeeFromHouse);   // culling fait dans drawFalling (position en perspective)
             if (isMultiplayer) {

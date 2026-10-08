@@ -1747,6 +1747,7 @@ class RoomManager {
         if (data.type === 'p_throw') {
             if (typeof data.i !== 'string' || data.i.length > 32 || !Number.isFinite(Number(data.a)) || !Number.isFinite(Number(data.x)) || !Number.isFinite(Number(data.y))) return;
             data.a = Math.max(-Math.PI * 2, Math.min(Math.PI * 2, Number(data.a)));
+            data.d = Number.isFinite(Number(data.d)) ? Math.max(70, Math.min(600, Number(data.d))) : undefined;
             data.x = Math.max(-100000, Math.min(100000, Number(data.x)));
             data.y = Math.max(-100000, Math.min(100000, Number(data.y)));
             data.s = ws.playerId;
