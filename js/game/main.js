@@ -3207,6 +3207,13 @@ function start() {
     const capsuleCountdown = () => (capsuleWait !== null ? capsuleWait : capsuleLeft);
 
     function openCapsules() {
+        // Un clic maintenu dans la capsule ne doit jamais devenir un tir après l'ouverture.
+        // On exige un nouveau clic (ou un nouveau geste du stick tactile).
+        input.resetFire?.();
+        input.mouse.down = false;
+        input.mouse.pressed = false;
+        input.mouse.released = false;
+        input.mouse.pressDuration = 0;
         for (const f of fighters) {
             if (f.alive && f.phase === 'ground' && canSeeFromHouse(f)) effects.landing(f.x, f.y);
         }
