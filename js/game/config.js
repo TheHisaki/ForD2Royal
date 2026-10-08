@@ -113,6 +113,30 @@ export const ROAD_LINKS = [
    Thème visuel propre (couleurs du sol, végétation, routes, villes, noms des zones).
 */
 export const DUEL_MAP_ID = 'duel-two-towns';
+export const GUNGAME_MAP_ID = 'gun-game-arena';
+export const GUNGAME_THEME = {
+    id: 'gun-game',
+    colors: [
+        [20, 73, 132], [40, 130, 190], [224, 202, 133], [82, 164, 102],
+        [44, 122, 73], [191, 119, 60], [107, 112, 141], [226, 232, 246], [47, 145, 182]
+    ],
+    oceanDeep: 'rgb(20, 73, 132)',
+    haze: '#c5e9ff',
+    grid: 'rgba(20, 48, 94, 0.08)',
+    biomeNames: ['Océan', 'Canal', 'Plage', 'Prairie', 'Pinède', 'Terre rouge', 'Falaises', 'Neige', 'Lac'],
+    road: { edge: '#263c5f', fill: '#8298ad', cobble: 'rgba(16, 30, 54, 0.2)' },
+    mapRoad: { edge: 'rgba(24, 42, 70, 0.92)', fill: '#b3c8d7', dash: 'rgba(255, 255, 255, 0.7)' }
+};
+
+export const TOWNS_GUNGAME = [
+    { id: 'nexus', name: 'Nexus Central', x: 2250, y: 2250, radius: 480, style: 'arena', biome: B.PLAINE },
+    { id: 'redline', name: 'Redline Yard', x: 950, y: 3450, radius: 430, style: 'arena', biome: B.DESERT },
+    { id: 'skyport', name: 'Skyport', x: 3550, y: 1050, radius: 430, style: 'arena', biome: B.FORET }
+];
+export const ROAD_LINKS_GUNGAME = [['nexus', 'redline'], ['nexus', 'skyport']];
+
+/* Thème Gun Game : grands espaces, couleurs de stade et lignes de vue dégagées. */
+
 export const TOWNS_DUEL = [
     { id: 'erables',  name: 'Hameau des Érables', x: 1040, y: 960,  radius: 440, style: 'maple', biome: B.FORET },
     { id: 'ecarlate', name: 'Comptoir Écarlate',  x: 1960, y: 2040, radius: 440, style: 'mesa',  biome: B.DESERT }
@@ -158,6 +182,31 @@ export const MAP_PRESETS = {
         towns: TOWNS,
         roadLinks: ROAD_LINKS,
         natureAttempts: 30000
+    },
+    [GUNGAME_MAP_ID]: {
+        width: 4500,
+        height: 4500,
+        terrainSeed: 428731,
+        // Carte compacte en carré arrondi : 75 % de la largeur originale, sans goulot central.
+        regionSeeds: [
+            { b: B.PLAINE, x: 2250, y: 2250 },
+            { b: B.FORET, x: 3550, y: 1050 },
+            { b: B.DESERT, x: 950, y: 3450 },
+            { b: B.MONTAGNE, x: 850, y: 800 },
+            { b: B.PLAINE, x: 3500, y: 3500 },
+            { b: B.FORET, x: 1700, y: 1050 },
+            { b: B.DESERT, x: 3100, y: 1850 }
+        ],
+        snowPeak: { x: 760, y: 740, radius: 170 },
+        lakes: [
+            { x: 2550, y: 820, r: 150, name: 'Lac Radar' },
+            { x: 900, y: 2200, r: 130, name: 'Bassin Rouge' }
+        ],
+        towns: TOWNS_GUNGAME,
+        roadLinks: ROAD_LINKS_GUNGAME,
+        roadCurve: 0.16,
+        natureAttempts: 11500,
+        theme: GUNGAME_THEME
     },
     [DUEL_MAP_ID]: {
         width: 3000,

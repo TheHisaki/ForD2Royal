@@ -715,7 +715,7 @@ class NetworkManager {
 
     skipMatchmakingCountdown(mode) {
         if (!this.isAuthenticated() || !this.isAdmin) return false;
-        if (typeof mode !== 'string' || !/^(duel|solo|duo|trio|section)$/i.test(mode)) return false;
+        if (typeof mode !== 'string' || !/^(duel|solo|duo|trio|section|gungame)$/i.test(mode)) return false;
         this.send({ type: 'admin_skip_matchmaking_countdown', mode: mode.toLowerCase() });
         return true;
     }
@@ -1194,7 +1194,7 @@ class NetworkManager {
 
         // Sauvegarder la configuration de la partie dans sessionStorage ET localStorage pour game.html
         const teamSize = msg.mode === 'duo' ? 2 : msg.mode === 'trio' ? 3 : msg.mode === 'section' ? 4 : 1;
-        const mapId = msg.mapId || (msg.mode === 'duel' ? 'duel-two-towns' : 'default');
+        const mapId = msg.mapId || (msg.mode === 'duel' ? 'duel-two-towns' : msg.mode === 'gungame' ? 'gun-game-arena' : 'default');
         const roomPlayers = (Array.isArray(msg.players) && msg.players.length > 0) ? msg.players : this.roomPlayers;
         const localPlayer = roomPlayers.find(p => p?.id === this.getPlayerId());
         const isAdmin = localPlayer ? localPlayer.isAdmin === true : this.isAdmin === true;

@@ -38,7 +38,7 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/main.css?v=10">
-    <link rel="stylesheet" href="css/lobby.css?v=2">
+    <link rel="stylesheet" href="css/lobby.css?v=3">
     <link rel="stylesheet" href="css/settings.css">
     <link rel="stylesheet" href="css/store.css">
     <link rel="stylesheet" href="css/hub.css">
@@ -821,6 +821,28 @@
                     <div class="mode-card-lock"><span class="lock-text">🔒 Réservé à 1 joueur</span></div>
                 </div>
 
+                <!-- GUN GAME -->
+                <div class="mode-card" data-mode="gungame" tabindex="0" role="button" aria-pressed="false">
+                    <div class="mode-card-art">
+                        <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
+                            <ellipse class="op-glow" cx="100" cy="112" rx="92" ry="12"/>
+                            <circle class="op-glow" cx="100" cy="51" r="35"/>
+                            <path class="op-spark" d="M30 28l2.2 5.8L38 36l-5.8 2.2L30 44l-2.2-5.8L22 36l5.8-2.2z"/>
+                            <path class="op-spark" d="M170 24l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
+                            <path class="op-badge-body" d="M100 15l31 13v22c0 20-13 31-31 41-18-10-31-21-31-41V28z"/>
+                            <path class="op-badge-star" d="M100 28l6 12 14 2-10 10 2.5 14L100 59l-12.5 7 2.5-14-10-10 14-2z"/>
+                            <use class="op-figure op-c1" href="#op-bust" x="21" y="55" width="52" height="69"/>
+                            <use class="op-figure op-c4" href="#op-bust" x="127" y="55" width="52" height="69"/>
+                        </svg>
+                    </div>
+                    <div class="mode-card-body">
+                        <div class="mode-card-name">GUN GAME</div>
+                        <p class="mode-card-desc">15 joueurs, 20 paliers d'armes. Chaque élimination te fait progresser.</p>
+                        <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>15 joueurs max</span>
+                    </div>
+                    <div class="mode-card-lock"><span class="lock-text">🔒 Min. 1 joueur</span></div>
+                </div>
+
                 <!-- DUO -->
                 <div class="mode-card" data-mode="duo" tabindex="0" role="button" aria-pressed="false">
                     <div class="mode-card-art">
@@ -1095,9 +1117,9 @@
     <script type="module" src="js/lobby-hub.js?v=2"></script>
     <!-- Panneau administration (module ES) -->
     <script type="module" src="js/lobby-admin.js?v=2"></script>
-    <script src="js/network.js?v=11"></script>
+    <script src="js/network.js?v=12"></script>
     <script src="js/friends.js?v=4"></script>
-    <script src="js/lobby.js?v=11"></script>
+    <script src="js/lobby.js?v=12"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

@@ -30,6 +30,7 @@ import { itemArt } from '../item-art.js?v=10';
 import { InventoryUI } from './inventory-ui.js?v=9';
 import { EndScreen, Spectator } from './end-screen.js?v=9';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=9';
+import { GUNGAME_MAP_ID, GUNGAME_MAX_PLAYERS, GUNGAME_STAGE_COUNT, gunGameWeapon, isGunGameMode } from './gungame.js';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -258,6 +259,7 @@ function start() {
     // Règle de cohérence stricte : le duel est une équipe de 1, mais une partie de 2 combattants.
     const m = (gameConfig.mode || gameConfig.modeName || '').toLowerCase();
     const isDuel = m === 'duel' || m === '1v1';
+    const isGunGame = isGunGameMode(m);
     if (isDuel) gameConfig.teamSize = 1;
     else if (m.includes('duo')) gameConfig.teamSize = 2;
     else if (m.includes('trio')) gameConfig.teamSize = 3;
@@ -271,7 +273,7 @@ function start() {
         || 'Joueur 1';
     const teamSize = gameConfig.teamSize;
     const teamMode = teamSize > 1;
-    const mapId = gameConfig.mapId || (isDuel ? 'duel-two-towns' : 'default');
+    const mapId = gameConfig.mapId || (isDuel ? 'duel-two-towns' : isGunGame ? GUNGAME_MAP_ID : 'default');
     // État du Best of 3 (uniquement en 1V1, conservé dans l'URL entre les manches)
     let duelRound = Math.max(1, Math.min(3, Number(urlParams.get('duelRound')) || 1));
     let duelScore1 = Math.max(0, Math.min(2, Number(urlParams.get('duelScore1')) || 0));
@@ -326,6 +328,7 @@ function start() {
     player.name = String(storedPlayerName).slice(0, 16) || 'Joueur 1';
     player.phase = 'ship';
     player.team = 1;
+    player.gunStage = 0;
     player.squadSlot = gameConfig.mySlot || 1; // Joueur principal (slot assigné dans le salon)
 
     if (adminJoinParam) {
@@ -427,6 +430,154 @@ function start() {
     let gameOver = false;
     let playerDeathShown = false;
     let adminPanelOpen = false;
+
+    // État local du Gun Game : chaque élimination est dédupliquée par victime/tueur,
+    // puis tous les clients réappliquent le même palier et la même arme.
+    const gunKillEvents = new Set();
+    const gunRespawnTimers = new Map();
+    let gunGameOver = false;
+    let gunWinnerId = null;
+    let gunWinnerSent = false;
+
+    function applyGunGameLoadout(fighter, stageIndex) {
+        if (!isGunGame || !fighter) return false;
+        const index = Math.max(0, Math.min(GUNGAME_STAGE_COUNT - 1, Number(stageIndex) | 0));
+        const item = gunGameWeapon(index);
+        const weapon = WEAPONS[item.weaponId];
+        if (!weapon) return false;
+        const pickaxeSkin = fighter.inventory?.[0]?.pickaxeSkin || fighter.pickaxeSkin;
+        fighter.gunStage = index;
+        fighter.inventory = [
+            { kind: 'weapon', weaponId: 'pickaxe', rarity: 0, mag: 0, pickaxeSkin },
+            { kind: 'weapon', weaponId: item.weaponId, rarity: item.rarity, mag: weapon.magSize || 0 },
+            null, null, null, null
+        ];
+        fighter.slot = 1;
+        fighter.ammo = { light: 999, medium: 999, heavy: 999, shells: 999, bolts: 999 };
+        fighter.reloadTimer = 0;
+        fighter.usingItem = null;
+        return true;
+    }
+
+    function gunSpawnPoint(index = 0, avoid = []) {
+        const cx = world.width / 2;
+        const cy = world.height / 2;
+        const points = [];
+        for (let tries = 0; tries < 700; tries++) {
+            const a = (index % GUNGAME_MAX_PLAYERS) * (Math.PI * 2 / GUNGAME_MAX_PLAYERS) + tries * 0.37;
+            const radius = 250 + ((index * 97 + tries * 31) % 900);
+            const x = Math.max(100, Math.min(world.width - 100, cx + Math.cos(a) * radius));
+            const y = Math.max(100, Math.min(world.height - 100, cy + Math.sin(a) * radius));
+            const ground = world.sampleGround(x, y);
+            const blocked = isWater(ground.biome)
+                || world.buildings.some(b => x > b.x - 70 && x < b.x + b.w + 70 && y > b.y - 70 && y < b.y + b.h + 70)
+                || avoid.some(p => Math.hypot(p.x - x, p.y - y) < 110);
+            if (!blocked) return { x, y };
+        }
+        return { x: cx + (index % 5) * 90 - 180, y: cy + Math.floor(index / 5) * 90 - 90 };
+    }
+
+    function prepareGunGameCombatants() {
+        if (!isGunGame) return;
+        const placed = [];
+        const all = [player, ...(bots?.bots || [])];
+        all.forEach((fighter, index) => {
+            const point = gunSpawnPoint(index, placed);
+            fighter.x = point.x;
+            fighter.y = point.y;
+            fighter.phase = 'ground';
+            fighter.altitude = 0;
+            fighter.alive = true;
+            fighter.dbno = false;
+            fighter.health = 100;
+            fighter.shield = 0;
+            applyGunGameLoadout(fighter, fighter.gunStage || 0);
+            placed.push(fighter);
+        });
+        drop.ship.active = false;
+        drop.dist = drop.autoJumpAt;
+    }
+
+    function updateGunGameHud() {
+        if (!isGunGame) return;
+        const panel = document.getElementById('gunGameHud');
+        if (panel) panel.hidden = false;
+        const stageEl = document.getElementById('gunGameStage');
+        const weaponEl = document.getElementById('gunGameWeapon');
+        const leadEl = document.getElementById('gunGameLead');
+        const item = gunGameWeapon(player.gunStage || 0);
+        const rarity = RARITIES[item.rarity]?.name || 'Commun';
+        if (stageEl) stageEl.textContent = `${Math.min(GUNGAME_STAGE_COUNT, (player.gunStage || 0) + 1)} / ${GUNGAME_STAGE_COUNT}`;
+        if (weaponEl) weaponEl.textContent = `${WEAPONS[item.weaponId]?.short || item.weaponId} · ${rarity}`;
+        if (leadEl) {
+            const leader = fighters.reduce((best, f) => (f?.gunStage || 0) > (best?.gunStage || 0) ? f : best, player);
+            leadEl.textContent = leader ? `EN TÊTE : ${leader.name || 'Joueur'} · ${Math.min(GUNGAME_STAGE_COUNT, (leader.gunStage || 0) + 1)}/${GUNGAME_STAGE_COUNT}` : '';
+        }
+    }
+
+    function scheduleGunGameRespawn(victim) {
+        if (!isGunGame || !victim || gunGameOver || gunRespawnTimers.has(victim.id)) return;
+        const timer = setTimeout(() => {
+            gunRespawnTimers.delete(victim.id);
+            if (gunGameOver) return;
+            const point = gunSpawnPoint((Number(victim.id) || 0) + Math.floor(time * 10), fighters.filter(f => f.alive));
+            victim.x = point.x;
+            victim.y = point.y;
+            victim.vx = 0;
+            victim.vy = 0;
+            victim.phase = 'ground';
+            victim.altitude = 0;
+            victim.alive = true;
+            victim.dbno = false;
+            victim.health = 100;
+            victim.shield = 0;
+            victim.usingItem = null;
+            applyGunGameLoadout(victim, victim.gunStage || 0);
+            if (victim === player) {
+                spectator.stop?.();
+                combatHud?.killBanner('RÉAPPARITION !');
+                renderer?.follow(player, 0, true);
+            }
+        }, 1700);
+        gunRespawnTimers.set(victim.id, timer);
+    }
+
+    function declareGunGameWinner(winner) {
+        if (!isGunGame || !winner || gunGameOver) return;
+        gunGameOver = true;
+        gunWinnerId = winner.id;
+        if (!gunWinnerSent && winner === player) {
+            gunWinnerSent = true;
+            netSend({ type: 'gungame_winner', playerId: String(winner.id), stage: GUNGAME_STAGE_COUNT, killId: `winner:${winner.id}` });
+        }
+        setTimeout(() => {
+            if (endScreen.shown || endScreen.isOpen) return;
+            stats.place = winner === player ? 1 : 2;
+            stats.endT = time;
+            SFX.play(winner === player ? 'victory' : 'defeat');
+            endScreen.show(endResult(winner === player));
+            if (endScreen.el.kicker) endScreen.el.kicker.textContent = winner === player ? 'PALIER 20 ATTEINT' : 'GUN GAME TERMINÉ';
+            if (endScreen.el.title) endScreen.el.title.textContent = winner === player ? 'GUN GAME REMPORTÉ' : `${winner.name || 'Un joueur'} GAGNE`;
+            if (endScreen.el.frameText) endScreen.el.frameText.textContent = `Progression : ${Math.min(GUNGAME_STAGE_COUNT, player.gunStage || 0)} / ${GUNGAME_STAGE_COUNT}`;
+        }, VICTORY_DELAY);
+    }
+
+    function registerGunGameKill(killer, victim, forcedStage = null, eventId = '') {
+        if (!isGunGame || !killer || !victim || killer === victim || gunGameOver) return;
+        const key = eventId || `${killer.id}:${victim.id}`;
+        if (gunKillEvents.has(key)) return;
+        gunKillEvents.add(key);
+        const current = Math.max(0, Number(killer.gunStage) | 0);
+        const next = Number.isInteger(forcedStage) ? Math.max(current, Math.min(GUNGAME_STAGE_COUNT, forcedStage)) : current + 1;
+        killer.gunStage = Math.min(GUNGAME_STAGE_COUNT, next);
+        if (killer.gunStage < GUNGAME_STAGE_COUNT) applyGunGameLoadout(killer, killer.gunStage);
+        if (killer === player) {
+            combatHud?.killBanner(`PALIER ${Math.min(GUNGAME_STAGE_COUNT, (killer.gunStage || 0) + 1)}/${GUNGAME_STAGE_COUNT}`);
+            renderer?.shake(6);
+        }
+        updateGunGameHud();
+        if (killer.gunStage >= GUNGAME_STAGE_COUNT) declareGunGameWinner(killer);
+    }
 
     // Statistiques de la partie du joueur (écran de fin + XP enregistrée dans le profil)
     const stats = {
@@ -585,8 +736,13 @@ function start() {
         onKill(killer, victim, weaponId) {
             // Appelé seulement chez le propriétaire de la victime (voir Combat.owns)
             showDeath(killer, victim, weaponId);
-            loot.dropAll(victim); // les objets créés sont diffusés (loot.onSpawn)
-            if (isMultiplayer) netSend({ type: 'kill', v: victim.id, k: killer ? killer.id : null, w: weaponId || '' });
+            if (isGunGame) {
+                registerGunGameKill(killer, victim);
+                scheduleGunGameRespawn(victim);
+            } else {
+                loot.dropAll(victim); // les objets créés sont diffusés (loot.onSpawn)
+            }
+            if (isMultiplayer) netSend({ type: 'kill', v: victim.id, k: killer ? killer.id : null, w: weaponId || '', ...(isGunGame && killer ? { gg: killer.gunStage || 0 } : {}) });
         },
         onDBNO(victim, attacker, weaponId) {
             showDbno(victim, attacker);
@@ -641,7 +797,7 @@ function start() {
         if (canSeeFromHouse(victim)) effects.death(victim.x, victim.y, victim.colors);
         SFX.play('eliminate', { x: victim.x, y: victim.y });
         if (killer && killer !== victim && weaponId !== 'corruption') killerOf.set(victim, killer);
-        if (victim === player) {
+        if (victim === player && !isGunGame) {
             // Arme du tueur et sa rareté, lues AVANT que quoi que ce soit ne change
             stats.endT = time;
             stats.byCorruption = weaponId === 'corruption';
@@ -761,8 +917,10 @@ function start() {
             firstSlot: (t.humans || 1) + 1
         }))
         : [];
-    const humanSlots = teams.length * teamSize;
-    const maxFighters = isDuel ? 2 : MAX_FIGHTERS;
+    const humanSlots = isGunGame
+        ? teams.reduce((sum, t) => sum + Math.max(0, Number(t.humans) || 0), 0)
+        : teams.length * teamSize;
+    const maxFighters = isDuel ? 2 : isGunGame ? GUNGAME_MAX_PLAYERS : MAX_FIGHTERS;
     const enemyCount = fillMatch
         ? Math.max(0, Math.floor((maxFighters - humanSlots) / teamSize) * teamSize)
         : 0;
@@ -775,8 +933,10 @@ function start() {
         firstEnemyTeam: Math.max(...teams.map(t => t.team || 1)) + 1
     });
 
-    // Pas de ravitaillement en 1v1 (duel) ni en duo ; activé en solo, trio et escouade.
-    const supplyEnabled = !isDuel && !m.includes('duo');
+    if (isGunGame) prepareGunGameCombatants();
+
+    // Pas de ravitaillement en 1v1 ni en Gun Game ni en duo ; activé en solo, trio et escouade.
+    const supplyEnabled = !isDuel && !isGunGame && !m.includes('duo');
     const supplyDrops = supplyEnabled ? new SupplyDrops({
         world, loot, seed: gameSeed + duelRound * 101,
         isHost: () => isHost,
@@ -805,7 +965,7 @@ function start() {
 
     const canvas = document.getElementById('gameCanvas');
     renderer = new Renderer(canvas, world);
-    if (adminJoinParam) {
+    if (adminJoinParam || isGunGame) {
         renderer.follow(player, 0, true);
     } else {
         renderer.setFlightView(flightViewAt(1), 1, true); // caméra à la hauteur du vaisseau
@@ -841,10 +1001,12 @@ function start() {
     hud.setSupplyDrops(supplyDrops);
     combatHud = new CombatHud(player, fighters, loot);
     combatHud.setSupplyDrops(supplyDrops);
+    if (isGunGame) updateGunGameHud();
     if (isDuel) {
         combatHud.setAltitudeProfile(DUEL_DROP); // altimètre duel : repère à 100 m
         document.body.classList.add('is-duel'); // le lieu / les alertes descendent sous le tableau des scores
     }
+    if (isGunGame) document.body.classList.add('is-gungame');
     hud.setZone?.(corruption);
     renderer.setZone(corruption); // la carte elle-même devient violet / noir dans la corruption
     combatHud.setZone?.(corruption);
@@ -885,6 +1047,7 @@ function start() {
     // Ouvre un coffre / ramasse un objet ; une arme ramassée pioche en main est équipée tout de suite
     const interact = () => {
         if (!player.alive || player.dbno || player.phase !== 'ground') return;
+        if (isGunGame) return; // le palier impose l'arme : aucun pickup ne peut le contourner
         if (supplyDrops?.interact(player)) return;
         const before = player.inventory.slice();
         if (!loot.interact(player)) return;
@@ -1855,6 +2018,11 @@ function start() {
                 let mate = remotePlayersMap.get(msg.id);
                 if (!mate) mate = makeRemote({ id: msg.id, name: msg.n, slot: msg.ss, team: msg.tm });
                 if (msg.n && mate.name !== msg.n) mate.name = String(msg.n).slice(0, 16);
+                if (isGunGame && Number.isInteger(msg.gg)) {
+                    mate.gunStage = Math.max(mate.gunStage || 0, Math.min(GUNGAME_STAGE_COUNT - 1, msg.gg));
+                    applyGunGameLoadout(mate, mate.gunStage);
+                    updateGunGameHud();
+                }
                 applyRemoteState(mate, msg);
                 break;
             }
@@ -1907,6 +2075,31 @@ function start() {
                 victim.usingItem = null;
                 if (killer && killer !== victim) killer.kills = (killer.kills || 0) + 1;
                 showDeath(killer, victim, msg.w || '');
+                if (isGunGame) {
+                    registerGunGameKill(killer, victim, Number.isInteger(msg.gg) ? msg.gg : null, `kill:${victim.id}:${killer?.id || 'none'}`);
+                    scheduleGunGameRespawn(victim);
+                }
+                break;
+            }
+            case 'gungame_progress': {
+                if (!isGunGame) break;
+                const fighter = fighterById(msg.playerId);
+                const stage = Number(msg.stage);
+                if (fighter && Number.isInteger(stage) && stage >= 0 && stage <= GUNGAME_STAGE_COUNT) {
+                    fighter.gunStage = Math.max(fighter.gunStage || 0, stage);
+                    if (fighter.gunStage < GUNGAME_STAGE_COUNT) applyGunGameLoadout(fighter, fighter.gunStage);
+                    updateGunGameHud();
+                }
+                break;
+            }
+            case 'gungame_winner': {
+                if (!isGunGame) break;
+                const winner = fighterById(msg.playerId);
+                if (winner) {
+                    winner.gunStage = GUNGAME_STAGE_COUNT;
+                    gunWinnerId = winner.id;
+                    declareGunGameWinner(winner);
+                }
                 break;
             }
             case 'dbno': {
@@ -2304,6 +2497,15 @@ function start() {
 
     function checkEnd() {
         if (gameOver) return;
+        if (isGunGame) {
+            // Les éliminations ne terminent pas la partie : le joueur réapparaît avec son palier.
+            if (gunGameOver) return;
+            if (gunWinnerId) {
+                const winner = fighterById(gunWinnerId);
+                if (winner) declareGunGameWinner(winner);
+            }
+            return;
+        }
         if (isDuel) {
             checkDuelEnd();
             return;
@@ -2422,8 +2624,10 @@ function start() {
             byCorruption: stats.byCorruption,
             weaponId: stats.weaponId,
             weaponRarity: stats.weaponRarity,
-            weaponSkin: stats.weaponSkin || ''
-        };
+            weaponSkin: stats.weaponSkin || '',
+            gunGame: isGunGame,
+            gunStage: player.gunStage || 0,
+            gunWinner: gunWinnerId === player.id
     }
 
     /* ----- Sons d'ambiance (vaisseau, vent, compte à rebours, cœur, coffres, oiseaux) ----- */
@@ -3080,6 +3284,7 @@ function start() {
                 sh: Math.round(player.shield * 10) / 10,
                 sl: player.slot,
                 inv: player.inventory.map(netItem),
+                gg: isGunGame ? player.gunStage || 0 : undefined,
                 db: !!player.dbno,
                 dt: Math.round((player.dbnoTimer || 0) * 10) / 10,
                 al: player.alive,
@@ -3190,10 +3395,24 @@ function start() {
         if (player.phase === 'ground' && player.alive) {
             player.update(dt, input, world, aim.x, aim.y);
             // Munitions ramassées en passant dessus (désactivable dans les paramètres)
-            if (Settings.get('autoAmmo')) loot.autoPickupAmmo(player);
+            if (!isGunGame && Settings.get('autoAmmo')) loot.autoPickupAmmo(player);
             if (withInput) playerActions();
+            if (isGunGame) {
+                const expected = gunGameWeapon(player.gunStage || 0);
+                const held = player.inventory?.[1];
+                if (held?.weaponId !== expected.weaponId || held?.rarity !== expected.rarity) applyGunGameLoadout(player, player.gunStage || 0);
+                player.slot = 1;
+            }
         }
         bots.update(dt, time);
+        if (isGunGame) {
+            for (const bot of bots.bots) {
+                const expected = gunGameWeapon(bot.gunStage || 0);
+                const held = bot.inventory?.[1];
+                if (held?.weaponId !== expected.weaponId || held?.rarity !== expected.rarity) applyGunGameLoadout(bot, bot.gunStage || 0);
+                bot.slot = 1;
+            }
+        }
         combat.update(dt);
         corruption.update(dt, fighters, combat);
         loot.update(dt);

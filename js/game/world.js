@@ -335,6 +335,14 @@ const STYLES = {
         roofs: ['#c23b32', '#a8452e'],
         floor: '#b89468', wall: '#4a2f1f', plaza: '#a9855a', plazaEdge: '#7d6040', roofType: 'gable'
     },
+    arena: {
+        // Trois petites zones bâties servent de couvertures sans transformer la carte en labyrinthe.
+        houses: 3,
+        sizes: [[250, 170], [300, 190], [220, 180]],
+        roofs: ['#2878c8', '#e05a3f', '#e5b63d', '#45a88b'],
+        floor: '#b6c8c8', wall: '#263b58', plaza: '#a5bdc4', plazaEdge: '#405a70', roofType: 'flat',
+        pattern: 'tiles'
+    },
     // ----- Carte 1V1 (thème automne) -----
     // Hameau forestier : toits bordeaux / sapin / ardoise, place pavée, grand érable au centre
     maple: {

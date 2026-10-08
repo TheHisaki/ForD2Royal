@@ -10,9 +10,11 @@ const { INITIAL_MATCHMAKING_COUNTDOWN, isAdminName, parseMatchmakingCountdown } 
 
 const ROOM_CHARS = '23456789ABCDEFGHJKLMNPQRSTUVWXYZ';
 const MAX_PLAYERS_PER_ROOM = 4; // Escouade max par lobby
+const MAX_GUNGAME_PLAYERS = 15;
 const MAX_FIGHTERS = 24;        // places sur la carte (même valeur que js/game/main.js)
 const DUEL_MODE = 'duel';
-const MODE_TEAM_SIZES = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4 };
+const GUNGAME_MODE = 'gungame';
+const MODE_TEAM_SIZES = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4, gungame: 1 };
 const FLIGHT_DELAY = 6000;      // ms entre le lancement et le départ du vaisseau (chargement des pages)
 const PLAYER_GONE_DELAY = 10000; // ms sans connexion avant qu'un joueur soit éliminé (parti pour de bon)
 const EMOTE_MIN_GAP = 2500;      // ms minimum entre deux emotes d'un même joueur (anti-spam)
@@ -582,7 +584,7 @@ class RoomManager {
         }
 
         const mode = String(rawMode || '').trim().toLowerCase();
-        if (!/^(duel|solo|duo|trio|section)$/.test(mode)) {
+        if (!/^(duel|solo|duo|trio|section|gungame)$/.test(mode)) {
             return this.sendFriend(ws, {
                 type: 'account_error',
                 action: 'admin_countdown_skip',
@@ -871,11 +873,14 @@ class RoomManager {
         }
 
         if (!isAdminJoining) {
+            if (room.mode === GUNGAME_MODE && room.players.size >= MAX_GUNGAME_PLAYERS) {
+                return this.send(ws, { type: 'error', code: 'gungame_full', message: 'Cette partie Gun Game est complète (15 joueurs max).' });
+            }
             if (room.mode === DUEL_MODE && room.players.size >= 2) {
                 return this.send(ws, { type: 'error', code: 'duel_room_full', message: 'Une salle 1v1 ne peut accueillir que deux joueurs.' });
             }
 
-            if (room.players.size >= MAX_PLAYERS_PER_ROOM) {
+            if (room.mode !== GUNGAME_MODE && room.players.size >= MAX_PLAYERS_PER_ROOM) {
                 return this.send(ws, { type: 'error', code: 'room_full', message: 'La salle est complète (4 joueurs max).' });
             }
         }
@@ -917,17 +922,20 @@ class RoomManager {
         let modeChanged = false;
         if (room.state === 'lobby') {
             const count = room.players.size;
-            if (count >= 2 && (!room.mode || room.mode === 'solo' || room.mode === 'duel')) {
-                room.mode = 'duo';
-                modeChanged = true;
-            }
-            if (count >= 3 && (room.mode === 'solo' || room.mode === 'duo')) {
-                room.mode = 'trio';
-                modeChanged = true;
-            }
-            if (count >= 4 && room.mode !== 'section') {
-                room.mode = 'section';
-                modeChanged = true;
+            // Gun Game est un chacun-pour-soi : l'arrivée d'un joueur ne le transforme jamais en Duo.
+            if (room.mode !== GUNGAME_MODE) {
+                if (count >= 2 && (!room.mode || room.mode === 'solo' || room.mode === 'duel')) {
+                    room.mode = 'duo';
+                    modeChanged = true;
+                }
+                if (count >= 3 && (room.mode === 'solo' || room.mode === 'duo')) {
+                    room.mode = 'trio';
+                    modeChanged = true;
+                }
+                if (count >= 4 && room.mode !== 'section') {
+                    room.mode = 'section';
+                    modeChanged = true;
+                }
             }
         }
 
@@ -1016,7 +1024,7 @@ class RoomManager {
         }
 
         // Empêcher de choisir un mode avec moins de places que de joueurs réels dans le groupe
-        const modeHierarchy = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4 };
+        const modeHierarchy = { duel: 1, solo: 1, duo: 2, trio: 3, section: 4, gungame: 15 };
         if (data.mode && modeHierarchy[data.mode] && modeHierarchy[data.mode] < room.players.size) {
             const requiredName = room.players.size === 2 ? 'duo, trio ou section' : room.players.size === 3 ? 'trio ou section' : 'section';
             console.log(`[Multiplayer] Mode ${data.mode} rejeté : ${room.players.size} joueurs dans le groupe`);
@@ -1128,29 +1136,32 @@ class RoomManager {
         queue.rooms.add(room.code);
 
         const teamsCount = queue.rooms.size;
-        console.log(`[Matchmaking] File ${room.mode}: ${teamsCount} équipes en attente`);
+        const queuedPlayers = [...queue.rooms].reduce((sum, code) => sum + (this.rooms.get(code)?.players.size || 0), 0);
+        const gunGameQueue = room.mode === GUNGAME_MODE;
+        const queueReady = gunGameQueue ? queuedPlayers >= MAX_GUNGAME_PLAYERS : teamsCount >= 2;
+        console.log(`[Matchmaking] File ${room.mode}: ${teamsCount} équipes, ${queuedPlayers} joueurs en attente`);
 
-        if (teamsCount < 2) {
-            // 1 seule équipe : recherche d'adversaires
-            this.broadcastToRoom(room, {
+        if (!queueReady) {
+            // Gun Game attend 15 joueurs réels ; les autres modes attendent 2 équipes.
+            this.broadcastToQueue(queue, {
                 type: 'matchmaking_status',
                 state: 'searching',
-                teamsCount,
-                teamsNeeded: 2,
+                teamsCount: gunGameQueue ? queuedPlayers : teamsCount,
+                teamsNeeded: gunGameQueue ? MAX_GUNGAME_PLAYERS : 2,
                 mode: room.mode
             });
         } else {
-            // Au moins 2 équipes : lancer le compte à rebours configuré.
+            // Le nombre requis est atteint : lancer le compte à rebours configuré.
             if (!queue.timer) {
                 queue.secondsLeft = this.matchmakingCountdownSeconds;
-                console.log(`[Matchmaking] >= 2 équipes en ${room.mode} ! Début du chrono de ${queue.secondsLeft} secondes.`);
+                console.log(`[Matchmaking] Seuil atteint en ${room.mode} ! Début du chrono de ${queue.secondsLeft} secondes.`);
 
                 this.broadcastToQueue(queue, {
                     type: 'matchmaking_status',
                     state: 'countdown',
                     secondsLeft: queue.secondsLeft,
                     countdownDuration: this.matchmakingCountdownSeconds,
-                    teamsCount: queue.rooms.size,
+                    teamsCount: gunGameQueue ? queuedPlayers : queue.rooms.size,
                     mode: room.mode
                 });
 
@@ -1162,7 +1173,9 @@ class RoomManager {
                         state: 'countdown',
                         secondsLeft: queue.secondsLeft,
                         countdownDuration: this.matchmakingCountdownSeconds,
-                        teamsCount: queue.rooms.size,
+                        teamsCount: gunGameQueue
+                            ? [...queue.rooms].reduce((sum, code) => sum + (this.rooms.get(code)?.players.size || 0), 0)
+                            : queue.rooms.size,
                         mode: room.mode
                     });
 
@@ -1179,7 +1192,7 @@ class RoomManager {
                     state: 'countdown',
                     secondsLeft: queue.secondsLeft,
                     countdownDuration: this.matchmakingCountdownSeconds,
-                    teamsCount: queue.rooms.size,
+                    teamsCount: gunGameQueue ? queuedPlayers : queue.rooms.size,
                     mode: room.mode
                 });
             }
@@ -1200,7 +1213,9 @@ class RoomManager {
 
         console.log(`[Matchmaking] Salle ${room.code} retirée de la file ${mode}. Restant: ${queue.rooms.size}`);
 
-        if (queue.rooms.size < 2 && queue.timer) {
+        const queuedPlayers = [...queue.rooms].reduce((sum, code) => sum + (this.rooms.get(code)?.players.size || 0), 0);
+        const belowThreshold = mode === GUNGAME_MODE ? queuedPlayers < MAX_GUNGAME_PLAYERS : queue.rooms.size < 2;
+        if (belowThreshold && queue.timer) {
             clearInterval(queue.timer);
             queue.timer = null;
             queue.secondsLeft = this.matchmakingCountdownSeconds;
@@ -1209,8 +1224,8 @@ class RoomManager {
             this.broadcastToQueue(queue, {
                 type: 'matchmaking_status',
                 state: 'searching',
-                teamsCount: queue.rooms.size,
-                teamsNeeded: 2,
+                teamsCount: mode === GUNGAME_MODE ? queuedPlayers : queue.rooms.size,
+                teamsNeeded: mode === GUNGAME_MODE ? MAX_GUNGAME_PLAYERS : 2,
                 mode
             });
         }
@@ -1233,16 +1248,33 @@ class RoomManager {
         }
 
         let validRooms = roomCodes.map(code => this.rooms.get(code)).filter(r => r && r.state === 'lobby');
-        // Une équipe toute seule (les autres ont annulé) : elle continue d'attendre
-        if (validRooms.length < 2) {
+        // Une équipe toute seule attend, sauf Gun Game lorsqu'une salle unique contient déjà 15 joueurs.
+        const queuedPlayers = validRooms.reduce((sum, r) => sum + r.players.size, 0);
+        if ((mode !== GUNGAME_MODE && validRooms.length < 2) || (mode === GUNGAME_MODE && queuedPlayers < MAX_GUNGAME_PLAYERS)) {
             for (const r of validRooms) this.enqueueMatchmaking(r);
             return;
         }
-        // Pas plus d'équipes que la carte n'en accueille : les suivantes attendent la prochaine partie
+        // Pas plus de combattants que la carte n'en accueille. Gun Game est un FFA :
+        // chaque salle reste une file indépendante mais le match global est plafonné à 15.
         const teamSize = MODE_TEAM_SIZES[mode] || 2;
-        const maxTeams = mode === DUEL_MODE ? 2 : Math.max(2, Math.floor(MAX_FIGHTERS / teamSize));
-        const waiting = validRooms.slice(maxTeams);
-        validRooms = validRooms.slice(0, maxTeams);
+        const maxTeams = mode === DUEL_MODE ? 2 : mode === GUNGAME_MODE ? MAX_GUNGAME_PLAYERS : Math.max(2, Math.floor(MAX_FIGHTERS / teamSize));
+        let waiting;
+        if (mode === GUNGAME_MODE) {
+            let used = 0;
+            const selected = [];
+            for (const candidate of validRooms) {
+                const size = candidate.players.size;
+                if (selected.length && used + size > MAX_GUNGAME_PLAYERS) break;
+                selected.push(candidate);
+                used += size;
+                if (used >= MAX_GUNGAME_PLAYERS) break;
+            }
+            validRooms = selected;
+            waiting = roomCodes.map(code => this.rooms.get(code)).filter(r => r && r.state === 'lobby' && !validRooms.includes(r));
+        } else {
+            waiting = validRooms.slice(maxTeams);
+            validRooms = validRooms.slice(0, maxTeams);
+        }
         setTimeout(() => { for (const r of waiting) if (r.state === 'lobby') this.enqueueMatchmaking(r); }, 0);
 
         const sharedSeed = Math.floor(Math.random() * 1000000);
@@ -1290,7 +1322,7 @@ class RoomManager {
                 roomCode: r.code,
                 seed: sharedSeed,
                 mode: r.mode,
-                mapId: r.mode === DUEL_MODE ? 'duel-two-towns' : 'default',
+                mapId: r.mode === DUEL_MODE ? 'duel-two-towns' : r.mode === GUNGAME_MODE ? 'gun-game-arena' : 'default',
                 // Partie sans bots adverses : seulement les équipes de la file d'attente
                 botFill: false,
                 fillMatch: false,
@@ -1529,7 +1561,7 @@ class RoomManager {
             roomCode: room.code,
             seed: room.seed,
             mode: room.mode,
-            mapId: room.mode === DUEL_MODE ? 'duel-two-towns' : 'default',
+            mapId: room.mode === DUEL_MODE ? 'duel-two-towns' : room.mode === GUNGAME_MODE ? 'gun-game-arena' : 'default',
             ...this.fillInfo(room),
             myTeam: 1,
             authorityId: room.authorityId,
@@ -1743,6 +1775,14 @@ class RoomManager {
             }
         }
 
+        if (data.type === 'gungame_progress' || data.type === 'gungame_winner') {
+            const stage = Number(data.stage);
+            if (typeof data.playerId !== 'string' || data.playerId.length > 128 || !Number.isInteger(stage) || stage < 0 || stage > 20) return;
+            if (data.killId !== undefined && (typeof data.killId !== 'string' || data.killId.length > 160)) return;
+            data.playerId = data.playerId.slice(0, 128);
+            data.stage = stage;
+        }
+
         // Anti-spam des emotes : une toutes les 2,5 s au plus par joueur (le jeu en autorise une / 3 s)
         if (data.type === 'emote') {
             const now = Date.now();
@@ -1890,7 +1930,7 @@ class RoomManager {
                 games.push({
                     roomCode: code,
                     mode: r.mode,
-                    mapId: r.mode === DUEL_MODE ? 'duel-two-towns' : 'default',
+                    mapId: r.mode === DUEL_MODE ? 'duel-two-towns' : r.mode === GUNGAME_MODE ? 'gun-game-arena' : 'default',
                     seed: r.seed,
                     isBotGame,
                     botFill: !!r.botFill,

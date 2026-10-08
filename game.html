@@ -36,7 +36,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/game.css?v=19">
+    <link rel="stylesheet" href="css/game.css?v=20">
     <link rel="stylesheet" href="css/settings.css?v=6">
     <link rel="stylesheet" href="css/end-screen.css?v=6">
 </head>
@@ -109,6 +109,12 @@
             <div class="hud-stats">
                 <span class="stat" title="Joueurs restants"><span class="hud-ico" data-icon="alive" aria-hidden="true"></span> <span id="statAlive">1</span></span>
                 <span class="stat" title="Éliminations"><span class="hud-ico" data-icon="kills" aria-hidden="true"></span> <span id="statKills">0</span></span>
+            </div>
+            <div id="gunGameHud" hidden aria-live="polite">
+                <span class="gg-kicker">GUN GAME</span>
+                <strong id="gunGameStage">0 / 20</strong>
+                <span id="gunGameWeapon">Pistolet · Commun</span>
+                <span id="gunGameLead"></span>
             </div>
             <!-- Minuteur de la corruption (caché avant le début de la zone) -->
             <div id="zoneTimer" role="timer" aria-label="Corruption" hidden>
@@ -622,6 +628,6 @@
     })();
     </script>
 
-    <script type="module" src="js/game/main.js?v=40"></script>
+    <script type="module" src="js/game/main.js?v=41"></script>
 </body>
 </html>
