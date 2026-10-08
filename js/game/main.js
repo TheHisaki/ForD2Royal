@@ -546,16 +546,48 @@ function start() {
         if (!isGunGame) return;
         const panel = document.getElementById('gunGameHud');
         if (panel) panel.hidden = false;
+        const board = document.getElementById('gunGameScoreboard');
+        if (board) board.hidden = false;
         const stageEl = document.getElementById('gunGameStage');
-        const weaponEl = document.getElementById('gunGameWeapon');
-        const leadEl = document.getElementById('gunGameLead');
-        const item = gunGameWeapon(player.gunStage || 0);
-        const rarity = RARITIES[item.rarity]?.name || 'Commun';
-        if (stageEl) stageEl.textContent = `${Math.min(GUNGAME_STAGE_COUNT, (player.gunStage || 0) + 1)} / ${GUNGAME_STAGE_COUNT}`;
-        if (weaponEl) weaponEl.textContent = `${WEAPONS[item.weaponId]?.short || item.weaponId} · ${rarity}`;
-        if (leadEl) {
-            const leader = fighters.reduce((best, f) => (f?.gunStage || 0) > (best?.gunStage || 0) ? f : best, player);
-            leadEl.textContent = leader ? `EN TÊTE : ${leader.name || 'Joueur'} · ${Math.min(GUNGAME_STAGE_COUNT, (leader.gunStage || 0) + 1)}/${GUNGAME_STAGE_COUNT}` : '';
+        const topEl = document.getElementById('gunGameTop');
+        const selfEl = document.getElementById('gunGameSelf');
+        const stage = Math.min(GUNGAME_STAGE_COUNT, Math.max(0, Number(player.gunStage) || 0));
+        if (stageEl) stageEl.textContent = `PALIER ${Math.min(GUNGAME_STAGE_COUNT, stage + 1)} / ${GUNGAME_STAGE_COUNT}`;
+
+        // Classement individuel : palier atteint, puis éliminations en cas d'égalité.
+        const ranked = fighters
+            .filter(Boolean)
+            .map((fighter, index) => ({
+                fighter,
+                stage: Math.min(GUNGAME_STAGE_COUNT, Math.max(0, Number(fighter.gunStage) || 0)),
+                kills: Math.max(0, Number(fighter.kills) || 0),
+                index
+            }))
+            .sort((a, b) => b.stage - a.stage || b.kills - a.kills || a.index - b.index);
+        const position = Math.max(1, ranked.findIndex(entry => entry.fighter === player) + 1);
+
+        if (topEl) {
+            topEl.replaceChildren();
+            ranked.slice(0, 3).forEach((entry, index) => {
+                const row = document.createElement('li');
+                row.className = `gg-score-row rank-${index + 1}${entry.fighter === player ? ' is-self' : ''}`;
+                const rank = document.createElement('span');
+                rank.className = 'gg-score-rank';
+                rank.textContent = `${index + 1}`;
+                const name = document.createElement('span');
+                name.className = 'gg-score-name';
+                name.textContent = entry.fighter.name || (entry.fighter === player ? 'Toi' : 'Joueur');
+                const progress = document.createElement('span');
+                progress.className = 'gg-score-progress';
+                const shownStage = entry.stage >= GUNGAME_STAGE_COUNT ? GUNGAME_STAGE_COUNT : entry.stage + 1;
+                progress.textContent = `${shownStage} / ${GUNGAME_STAGE_COUNT}`;
+                row.append(rank, name, progress);
+                topEl.append(row);
+            });
+        }
+        if (selfEl) {
+            selfEl.textContent = `TA POSITION : ${position}${position === 1 ? 'er' : 'e'} / ${ranked.length}`;
+            selfEl.classList.toggle('is-first', position === 1);
         }
     }
 
@@ -1969,7 +2001,7 @@ function start() {
         const seen = new Set();
         for (const e of list) {
             if (!Array.isArray(e)) continue;
-            const [id, x, y, a, hp, sh, ph, db, alt, wId, wR] = e;
+            const [id, x, y, a, hp, sh, ph, db, alt, wId, wR, gg] = e;
             const b = fighterById(id);
             if (!b || !b.isBot) continue;
             seen.add(b);
@@ -1985,6 +2017,11 @@ function start() {
             if (Number.isFinite(alt)) b._targetAlt = alt;
             b.health = hp;
             b.shield = sh;
+            if (isGunGame && Number.isFinite(gg)) {
+                b.gunStage = Math.max(b.gunStage || 0, Math.min(GUNGAME_STAGE_COUNT - 1, Number(gg)));
+                applyGunGameLoadout(b, b.gunStage);
+                updateGunGameHud();
+            }
             if (db && !b.dbno) { b.dbno = true; b.dbnoTimer = 35; }
             else if (!db && b.dbno) b.dbno = false;
             if (wId) {
@@ -3360,7 +3397,8 @@ function start() {
                     b.id, Math.round(b.x), Math.round(b.y), Math.round(b.angle * 100) / 100,
                     Math.round(b.health), Math.round(b.shield), b.phase, b.dbno ? 1 : 0,
                     Math.round((b.altitude || 0) * 100) / 100,
-                    held?.kind === 'weapon' ? held.weaponId : '', held?.rarity || 0
+                    held?.kind === 'weapon' ? held.weaponId : '', held?.rarity || 0,
+                    isGunGame ? (b.gunStage || 0) : null
                 ]);
             }
             netSend({ type: 'b_sync', bots: list });

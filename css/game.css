@@ -3534,27 +3534,106 @@ html.touch-ui #fullMapClose { width: 48px; height: 48px; top: -8px; right: -8px;
     left: 50%;
     transform: translateX(-50%);
     display: flex;
-    align-items: baseline;
-    gap: 9px;
-    padding: 5px 12px 6px;
+    align-items: center;
+    gap: 10px;
+    padding: 7px 14px 8px;
     border: 1px solid rgba(255, 196, 80, .62);
     border-radius: 8px;
     background: linear-gradient(180deg, rgba(10, 28, 72, .94), rgba(6, 14, 38, .94));
     box-shadow: 0 5px 16px rgba(0, 0, 0, .38), 0 0 18px rgba(255, 145, 32, .2);
     pointer-events: none;
     white-space: nowrap;
-    z-index: 4;
+    z-index: 15;
 }
 #gunGameHud[hidden] { display: none; }
 #gunGameHud .gg-kicker { color: #ffbd39; font: 800 9px var(--font-body); letter-spacing: 1.8px; }
 #gunGameHud strong { color: #fff; font: 400 25px/1 var(--font-display); letter-spacing: 1px; }
-#gunGameHud #gunGameWeapon { color: #dbe8ff; font: 600 11px var(--font-body); }
-#gunGameHud #gunGameLead { color: #9db4db; font: 600 10px var(--font-body); }
+
+/* Classement à droite, sous la minimap */
+#gunGameScoreboard {
+    width: min(260px, var(--minimap));
+    padding: 7px 9px 8px;
+    border: 1px solid rgba(120, 180, 255, 0.25);
+    border-radius: 8px;
+    background: linear-gradient(180deg, rgba(10, 28, 72, .94), rgba(6, 14, 38, .96));
+    box-shadow: 0 5px 16px rgba(0, 0, 0, .32), 0 0 16px rgba(45, 123, 255, .12);
+    box-sizing: border-box;
+    pointer-events: none;
+}
+#gunGameScoreboard[hidden] { display: none; }
+.gg-score-head,
+.gg-score-row,
+.gg-score-self {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 6px;
+}
+.gg-score-head {
+    grid-template-columns: 20px minmax(0, 1fr) auto;
+    padding: 0 2px 5px;
+    color: #8fa8cf;
+    font: 800 8px var(--font-body);
+    letter-spacing: 1.4px;
+}
+.gg-score-head span:last-child { text-align: right; }
+.gg-score-list {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.gg-score-row {
+    min-height: 22px;
+    padding: 2px 4px;
+    border-radius: 4px;
+    background: rgba(255, 255, 255, .055);
+    color: #dbe8ff;
+    font-size: 11px;
+}
+.gg-score-row.is-self { background: rgba(255, 196, 80, .15); }
+.gg-score-rank {
+    color: #8fa8cf;
+    font: 800 12px var(--font-display);
+    text-align: center;
+}
+.rank-1 .gg-score-rank { color: #ffd34f; }
+.rank-2 .gg-score-rank { color: #d9e3ed; }
+.rank-3 .gg-score-rank { color: #d9976e; }
+.gg-score-name {
+    min-width: 0;
+    overflow: hidden;
+    color: #fff;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.gg-score-progress {
+    color: #9db4db;
+    font: 700 10px var(--font-body);
+    white-space: nowrap;
+}
+.gg-score-self {
+    display: block;
+    margin-top: 6px;
+    padding: 5px 6px 1px;
+    border-top: 1px solid rgba(120, 180, 255, .18);
+    color: #ffcf54;
+    font: 800 10px var(--font-body);
+    letter-spacing: .8px;
+    text-align: right;
+}
+.gg-score-self.is-first { color: #7fffc2; }
+
 @media (max-width: 760px), (max-height: 520px) {
-    #gunGameHud { top: calc(var(--edge-t) + 2px); gap: 5px; padding: 4px 7px; }
+    #gunGameHud { top: calc(var(--edge-t) + 2px); gap: 6px; padding: 5px 9px 6px; }
     #gunGameHud strong { font-size: 20px; }
-    #gunGameHud #gunGameWeapon { font-size: 9px; }
-    #gunGameHud #gunGameLead { display: none; }
+    #gunGameHud .gg-kicker { font-size: 8px; }
+    #gunGameScoreboard { width: min(220px, var(--minimap)); padding: 5px 6px 6px; }
+    .gg-score-row { min-height: 19px; font-size: 10px; }
+    .gg-score-self { font-size: 9px; }
 }
 
 body.is-gungame #hudLocation { top: calc(var(--gap) + 54px); }

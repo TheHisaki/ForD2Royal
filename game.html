@@ -100,15 +100,13 @@
             <span class="loc-biome"></span>
         </div>
 
-        <!-- Haut centre (Gun Game) : palier d'arme en cours -->
+        <!-- Haut centre (Gun Game) : uniquement le palier d'arme en cours -->
         <div id="gunGameHud" hidden aria-live="polite">
             <span class="gg-kicker">GUN GAME</span>
-            <strong id="gunGameStage">0 / 20</strong>
-            <span id="gunGameWeapon">Pistolet · Commun</span>
-            <span id="gunGameLead"></span>
+            <strong id="gunGameStage">PALIER 1 / 20</strong>
         </div>
 
-        <!-- Haut droite : minimap + stats -->
+        <!-- Haut droite : minimap + scoreboard Gun Game + stats -->
         <div class="hud-top-right">
             <button id="minimapBtn" type="button" aria-label="Ouvrir la carte (M)" title="Ouvrir la carte (M)">
                 <canvas id="minimap"></canvas>
@@ -118,6 +116,14 @@
                 <span class="stat" title="Joueurs restants"><span class="hud-ico" data-icon="alive" aria-hidden="true"></span> <span id="statAlive">1</span></span>
                 <span class="stat" title="Éliminations"><span class="hud-ico" data-icon="kills" aria-hidden="true"></span> <span id="statKills">0</span></span>
             </div>
+            <section id="gunGameScoreboard" hidden aria-label="Classement Gun Game">
+                <div class="gg-score-head">
+                    <span>CLASSEMENT</span>
+                    <span>PALIER</span>
+                </div>
+                <ol id="gunGameTop" class="gg-score-list"></ol>
+                <div id="gunGameSelf" class="gg-score-self"></div>
+            </section>
             <!-- Minuteur de la corruption (caché avant le début de la zone) -->
             <div id="zoneTimer" role="timer" aria-label="Corruption" hidden>
                 <span class="zt-icon hud-ico" data-icon="corruption" aria-hidden="true"></span>
@@ -630,6 +636,6 @@
     })();
     </script>
 
-    <script type="module" src="js/game/main.js?v=42"></script>
+    <script type="module" src="js/game/main.js?v=43"></script>
 </body>
 </html>
