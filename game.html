@@ -36,7 +36,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/game.css?v=20">
+    <link rel="stylesheet" href="css/game.css?v=21">
     <link rel="stylesheet" href="css/settings.css?v=6">
     <link rel="stylesheet" href="css/end-screen.css?v=6">
 </head>
@@ -86,6 +86,7 @@
             </button>
             <button class="hud-btn" id="soundBtn" type="button" aria-label="Couper le son" title="Couper le son (N)" aria-pressed="false"><span class="hud-ico" data-icon="sound-on" aria-hidden="true"></span></button>
             <button class="hud-btn" id="settingsBtn" type="button" aria-label="Paramètres" title="Paramètres (P)" aria-haspopup="dialog" aria-controls="settingsPanel"><span class="hud-ico" data-icon="gear" aria-hidden="true"></span></button>
+            <button class="hud-btn hud-btn-help" id="shortcutsBtn" type="button" aria-label="Afficher les raccourcis" title="Raccourcis" aria-haspopup="dialog" aria-controls="shortcutsPanel" aria-expanded="false"><span class="hud-ico" data-icon="help" aria-hidden="true"></span></button>
         </div>
 
         <!-- Escouade / Coéquipiers -->
@@ -251,8 +252,26 @@
             </div>
         </div>
 
-        <!-- Bas centre : aide -->
-        <div id="hudHelp">ZQSD : bouger · Clic : tirer · Maintenir clic droit : emotes · R : recharger · E : ouvrir / ramasser · 1-6 : armes / objets · Tab : carte · Molette (clic) / I : inventaire · N : son · P : paramètres</div>
+        <!-- Haut centre : attente avant le départ (vaisseau) ou l'ouverture des capsules (Gun Game) -->
+        <div id="flightWait" hidden role="status" aria-live="polite"></div>
+
+        <div id="capsuleHud" hidden role="status" aria-live="polite">
+            <span class="cap-icon" aria-hidden="true">
+                <svg viewBox="0 0 48 48" focusable="false">
+                    <circle class="cap-ico-rim" cx="24" cy="24" r="20"/>
+                    <circle class="cap-ico-glass" cx="24" cy="24" r="14"/>
+                    <path class="cap-ico-shine" d="M15 19a10 10 0 0 1 7-6"/>
+                    <path class="cap-ico-seam" d="M24 4v6M24 38v6M4 24h6M38 24h6"/>
+                    <circle class="cap-ico-core" cx="24" cy="24" r="4.5"/>
+                </svg>
+            </span>
+            <span class="cap-body">
+                <span class="cap-kicker">Gun Game</span>
+                <strong class="cap-title">Ouverture des capsules</strong>
+                <span class="cap-bar" aria-hidden="true"><span class="cap-bar-fill"></span></span>
+            </span>
+            <span class="cap-count"><span class="cap-num">5</span><span class="cap-unit">s</span></span>
+        </div>
 
         <!-- Fil des éliminations -->
         <div id="killFeed" aria-live="polite"></div>
@@ -559,6 +578,26 @@
         </div>
     </div>
 
+    <!-- ================= RACCOURCIS (bouton ? à côté des paramètres) ================= -->
+    <div id="shortcutsPanel" hidden role="dialog" aria-modal="false" aria-labelledby="shortcutsTitle">
+        <div class="sc-head">
+            <h2 id="shortcutsTitle">Raccourcis</h2>
+            <button type="button" class="sc-close" id="shortcutsClose" aria-label="Fermer les raccourcis" title="Fermer (Échap)"><span class="hud-ico" data-icon="close" aria-hidden="true"></span></button>
+        </div>
+        <dl class="sc-list">
+            <div class="sc-row"><dt><kbd>Z</kbd><kbd>Q</kbd><kbd>S</kbd><kbd>D</kbd></dt><dd>Se déplacer</dd></div>
+            <div class="sc-row"><dt><kbd>Clic gauche</kbd></dt><dd>Tirer / frapper</dd></div>
+            <div class="sc-row"><dt><kbd>Clic droit</kbd> maintenu</dt><dd>Roue des emotes</dd></div>
+            <div class="sc-row"><dt><kbd>R</kbd></dt><dd>Recharger</dd></div>
+            <div class="sc-row"><dt><kbd>E</kbd></dt><dd>Ouvrir / ramasser</dd></div>
+            <div class="sc-row"><dt><kbd>1</kbd> à <kbd>6</kbd></dt><dd>Armes et objets</dd></div>
+            <div class="sc-row"><dt><kbd>Tab</kbd> / <kbd>M</kbd></dt><dd>Carte</dd></div>
+            <div class="sc-row"><dt><kbd>I</kbd> / <kbd>Molette</kbd></dt><dd>Inventaire</dd></div>
+            <div class="sc-row"><dt><kbd>N</kbd></dt><dd>Couper le son</dd></div>
+            <div class="sc-row"><dt><kbd>P</kbd></dt><dd>Paramètres</dd></div>
+        </dl>
+    </div>
+
     <!-- ================= CARTE PLEIN ÉCRAN ================= -->
     <div id="fullMap" hidden role="dialog" aria-modal="true" aria-label="Carte de l'île">
         <div class="full-map-inner">
@@ -636,6 +675,6 @@
     })();
     </script>
 
-    <script type="module" src="js/game/main.js?v=44"></script>
+    <script type="module" src="js/game/main.js?v=45"></script>
 </body>
 </html>

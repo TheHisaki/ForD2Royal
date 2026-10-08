@@ -8,7 +8,7 @@ import { generateWorld, surfaceAt } from './world.js?v=12';
 import { isWater, BIOME_NAMES } from './config.js';
 import { Player } from './player.js?v=15';
 import { Renderer } from './renderer.js?v=14';
-import { Hud } from './hud.js?v=16';
+import { Hud } from './hud.js?v=17';
 import { Input } from './input.js?v=12';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
@@ -29,8 +29,9 @@ import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=9';
 import { itemArt } from '../item-art.js?v=10';
 import { InventoryUI } from './inventory-ui.js?v=9';
 import { EndScreen, Spectator } from './end-screen.js?v=9';
-import { mountHudIcons, setHudIcon } from './hud-icons.js?v=9';
+import { mountHudIcons, setHudIcon } from './hud-icons.js?v=10';
 import { GUNGAME_MAP_ID, GUNGAME_MAX_PLAYERS, GUNGAME_STAGE_COUNT, gunGameWeapon, isGunGameMode } from './gungame.js?v=2';
+import { drawCapsuleBase, drawCapsuleDome } from './capsules.js?v=1';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -485,12 +486,13 @@ function start() {
 
     // Point au hasard sur toute la carte, le plus loin possible des combattants à éviter :
     // on exige d'abord 1000 de distance, puis on relâche progressivement si la carte est chargée.
-    function gunSpawnPoint(avoid = []) {
+    // clearance : place libre autour du point (plus grande au départ, pour la capsule)
+    function gunSpawnPoint(avoid = [], clearance = 46) {
         for (const minDist of [1000, 760, 540, 340, 180, 0]) {
             for (let tries = 0; tries < 70; tries++) {
                 const x = 200 + Math.random() * (world.width - 400);
                 const y = 200 + Math.random() * (world.height - 400);
-                if (!gunSpotFree(x, y)) continue;
+                if (!gunSpotFree(x, y, clearance)) continue;
                 if (avoid.every(p => Math.hypot(p.x - x, p.y - y) >= minDist)) return { x, y };
             }
         }
@@ -510,7 +512,8 @@ function start() {
         if (!roomIds.includes(player.id)) roomIds.unshift(player.id);
         const botList = bots?.bots || [];
         const points = [];
-        for (let i = 0; i < roomIds.length + botList.length; i++) points.push(gunSpawnPoint(points));
+        // 90 : la capsule de départ (rayon 62 + socle) ne chevauche aucun obstacle
+        for (let i = 0; i < roomIds.length + botList.length; i++) points.push(gunSpawnPoint(points, 90));
 
         const place = (fighter, point) => {
             fighter.x = point.x;
@@ -1587,6 +1590,29 @@ function start() {
         }
     }
     settingsBtn?.addEventListener('click', () => toggleSettings());
+
+    /* ----- Raccourcis : jamais affichés d'office, bouton « ? » à droite des paramètres ----- */
+    const shortcutsBtn = document.getElementById('shortcutsBtn');
+    const shortcutsPanel = document.getElementById('shortcutsPanel');
+    let shortcutsOpen = false;
+    function toggleShortcuts(force) {
+        if (!shortcutsPanel) return;
+        const open = typeof force === 'boolean' ? force : !shortcutsOpen;
+        if (open === shortcutsOpen) return;
+        shortcutsOpen = open;
+        shortcutsPanel.hidden = !open;
+        shortcutsBtn?.setAttribute('aria-expanded', String(open));
+        shortcutsBtn?.classList.toggle('is-active', open);
+        SFX.play('click');
+        if (open) document.getElementById('shortcutsClose')?.focus();
+        else if (shortcutsPanel.contains(document.activeElement)) shortcutsBtn?.focus();
+    }
+    shortcutsBtn?.addEventListener('click', () => toggleShortcuts());
+    document.getElementById('shortcutsClose')?.addEventListener('click', () => toggleShortcuts(false));
+    window.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape' && shortcutsOpen) toggleShortcuts(false);
+    });
+
     settingsPanel?.addEventListener('click', (e) => {
         // Clic sur le fond sombre ou sur la croix : fermeture
         if (e.target === settingsPanel || e.target.closest('[data-settings-close]')) toggleSettings(false);
@@ -3057,11 +3083,26 @@ function start() {
                 if (c.fighter && !canSeeFromHouse(c.fighter)) continue;
                 drawDying(ctx, c, time);
             }
+            // Gun Game : socle des capsules sous les personnages, dôme par-dessus
+            const capsules = isGunGame && capsuleOpenT < CAPSULE_OPEN_TIME;
+            const open = capsuleLeft > 0 ? 0 : capsuleOpenT / CAPSULE_OPEN_TIME;
+            const visible = (f) => f.alive && !f.adminInvisible && f.phase === 'ground' && canSeeFromHouse(f) &&
+                f.x > v.minX - 160 && f.x < v.maxX + 160 && f.y > v.minY - 160 && f.y < v.maxY + 160;
+            if (capsules) {
+                for (const f of fighters) {
+                    if (visible(f)) drawCapsuleBase(ctx, f.x, f.y, open, f === player ? '#4fd8ff' : '#ff9a3c');
+                }
+            }
             for (const f of fighters) {
                 if (!f.alive || f.adminInvisible || f.phase !== 'ground') continue;
                 if (!canSeeFromHouse(f)) continue;
                 if (f.x < v.minX - 80 || f.x > v.maxX + 80 || f.y < v.minY - 80 || f.y > v.maxY + 80) continue;
                 drawPlayer(ctx, f, time);
+            }
+            if (capsules) {
+                for (const f of fighters) {
+                    if (visible(f)) drawCapsuleDome(ctx, f.x, f.y, open, f === player ? '#4fd8ff' : '#ff9a3c', capsuleCountdown(), time);
+                }
             }
             combat.draw(ctx);
         },
@@ -3114,24 +3155,88 @@ function start() {
     // Serveur muet (ancien serveur, coupure) : on ne bloque pas la partie
     if (isMultiplayer) setTimeout(() => { if (clockBase === null) clockBase = performance.now(); }, 10000);
 
-    // Petit compte à rebours avant le départ du vaisseau (le temps que tout le monde charge)
-    let waitEl = null;
+    /*
+       Attente avant le départ (le temps que tout le monde charge). Élément du HUD
+       (game.html) : il passe sous la carte plein écran comme le reste du HUD.
+       Gun Game : pas de vaisseau, le panneau des capsules prend le relais.
+    */
+    const flightWaitEl = document.getElementById('flightWait');
+    let waitEl = null; // élément affiché (null = rien), garde le test « if (waitEl) » de la boucle
     function showFlightWait(sec) {
+        if (isGunGame) {
+            // Attente réseau + 5 s de capsules : un seul compte à rebours continu
+            waitEl = sec === null ? null : capsuleHudEl;
+            capsuleWait = sec === null ? null : sec > 0 ? sec + GUNGAME_CAPSULE_TIME : GUNGAME_CAPSULE_TIME;
+            if (sec !== null) updateCapsuleHud(sec > 0 ? sec + GUNGAME_CAPSULE_TIME : null);
+            return;
+        }
+        if (!flightWaitEl) return;
         if (sec === null) {
-            waitEl?.remove();
+            flightWaitEl.hidden = true;
             waitEl = null;
             return;
         }
-        if (!waitEl) {
-            waitEl = document.createElement('div');
-            waitEl.setAttribute('role', 'status');
-            waitEl.style.cssText = 'position:fixed;left:50%;top:18%;transform:translateX(-50%);z-index:30;' +
-                'padding:10px 22px;border-radius:8px;background:rgba(4,10,32,.8);border:2px solid #ffe03d;' +
-                'color:#fff;font:400 26px "Bebas Neue",Impact,sans-serif;letter-spacing:2px;pointer-events:none';
-            document.body.appendChild(waitEl);
-        }
+        waitEl = flightWaitEl;
+        flightWaitEl.hidden = false;
         const txt = sec > 0 ? `Départ du vaisseau dans ${sec}…` : 'En attente des autres joueurs…';
-        if (waitEl.textContent !== txt) waitEl.textContent = txt;
+        if (flightWaitEl.textContent !== txt) flightWaitEl.textContent = txt;
+    }
+
+    /*
+       Gun Game : chaque combattant démarre enfermé dans une capsule pendant 5 s.
+       Le compte à rebours avance avec la simulation (même horloge sur toutes les machines),
+       puis les capsules s'ouvrent (petite animation) et tout le monde est libéré.
+    */
+    const GUNGAME_CAPSULE_TIME = 5;
+    const CAPSULE_OPEN_TIME = 0.75;
+    let capsuleLeft = isGunGame ? GUNGAME_CAPSULE_TIME : 0;
+    let capsuleOpenT = isGunGame ? 0 : CAPSULE_OPEN_TIME; // temps écoulé depuis l'ouverture
+    const capsuleHudEl = document.getElementById('capsuleHud');
+    const capsuleNumEl = capsuleHudEl?.querySelector('.cap-num');
+    const capsuleUnitEl = capsuleHudEl?.querySelector('.cap-unit');
+    const capsuleTitleEl = capsuleHudEl?.querySelector('.cap-title');
+    const capsuleBarEl = capsuleHudEl?.querySelector('.cap-bar-fill');
+    let capsuleShown = '';
+    let capsuleWait = null; // secondes affichées pendant l'attente réseau (avant le départ commun)
+    const capsulesLocked = () => isGunGame && capsuleLeft > 0;
+    // Secondes restantes vues par les voyants : attente réseau comprise
+    const capsuleCountdown = () => (capsuleWait !== null ? capsuleWait : capsuleLeft);
+
+    function openCapsules() {
+        for (const f of fighters) {
+            if (f.alive && f.phase === 'ground' && canSeeFromHouse(f)) effects.landing(f.x, f.y);
+        }
+        SFX.play('land', { x: player.x, y: player.y });
+        renderer?.shake(5);
+    }
+
+    // seconds = secondes restantes avant l'ouverture (null = en attente des autres joueurs)
+    function updateCapsuleHud(seconds) {
+        if (!capsuleHudEl) return;
+        if (seconds !== null && seconds <= 0) {
+            if (!capsuleHudEl.hidden) capsuleHudEl.classList.add('is-opening');
+            if (capsuleOpenT >= CAPSULE_OPEN_TIME) capsuleHudEl.hidden = true;
+            return;
+        }
+        capsuleHudEl.hidden = false;
+        capsuleHudEl.classList.remove('is-opening');
+        const whole = seconds === null ? '' : String(Math.ceil(seconds));
+        const key = seconds === null ? 'wait' : whole;
+        if (key !== capsuleShown) {
+            capsuleShown = key;
+            if (capsuleTitleEl) capsuleTitleEl.textContent = seconds === null ? 'En attente des joueurs' : 'Ouverture des capsules dans';
+            if (capsuleNumEl) capsuleNumEl.textContent = seconds === null ? '…' : whole;
+            if (capsuleUnitEl) capsuleUnitEl.hidden = seconds === null;
+            capsuleHudEl.classList.toggle('is-final', seconds !== null && seconds <= 3);
+            capsuleNumEl?.classList.remove('tick');
+            void capsuleNumEl?.offsetWidth;
+            capsuleNumEl?.classList.add('tick');
+            if (seconds !== null && seconds <= 3) SFX.play('click');
+        }
+        if (capsuleBarEl) {
+            const k = seconds === null ? 0 : Math.max(0, Math.min(1, 1 - seconds / GUNGAME_CAPSULE_TIME));
+            capsuleBarEl.style.transform = `scaleX(${k.toFixed(3)})`;
+        }
     }
 
     /*
@@ -3533,7 +3638,25 @@ function start() {
             }
         }
 
-        if (player.phase === 'ground' && player.alive) {
+        // Gun Game : capsules fermées pendant 5 s, puis ouverture
+        if (isGunGame && capsuleOpenT < CAPSULE_OPEN_TIME) {
+            if (capsuleLeft > 0) {
+                capsuleLeft = Math.max(0, capsuleLeft - dt);
+                if (capsuleLeft === 0) openCapsules();
+            } else {
+                capsuleOpenT += dt;
+            }
+            updateCapsuleHud(capsuleLeft);
+        }
+
+        if (capsulesLocked()) {
+            // Enfermé : on peut seulement viser (le personnage tourne), ni bouger ni tirer
+            if (player.alive && player.phase === 'ground') {
+                player.vx = 0;
+                player.vy = 0;
+                player.angle = Math.atan2(aim.y - player.y, aim.x - player.x);
+            }
+        } else if (player.phase === 'ground' && player.alive) {
             player.update(dt, input, world, aim.x, aim.y);
             // Munitions ramassées en passant dessus (désactivable dans les paramètres)
             if (!isGunGame && Settings.get('autoAmmo')) loot.autoPickupAmmo(player);
@@ -3545,7 +3668,7 @@ function start() {
                 player.slot = 1;
             }
         }
-        bots.update(dt, time);
+        if (!capsulesLocked()) bots.update(dt, time);
         if (isGunGame) {
             for (const bot of bots.bots) {
                 const expected = gunGameWeapon(bot.gunStage || 0);

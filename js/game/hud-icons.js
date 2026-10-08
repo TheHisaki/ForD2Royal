@@ -159,6 +159,13 @@ const ICONS = {
         `<circle cx="12" cy="12" r="3.3" fill="#26335e" stroke-width="1.8"/>` +
         shine('M10.6 13.2 A1.8 1.8 0 0 1 10.9 10.8', 1, 0.35),
 
+    // Raccourcis clavier : pastille bleue avec un point d'interrogation
+    help: () =>
+        `<circle cx="12" cy="12" r="9.6" fill="${C.blue}" stroke-width="1.8"/>` +
+        shine('M6.2 9.4 A6.6 6.6 0 0 1 9.6 5.6', 1.5, 0.6) +
+        thick('M9.1 9.6 A2.95 2.95 0 1 1 13.5 12.2 C12.5 12.8 12 13.3 12 14.5', C.white, 2.3, 1.8) +
+        `<circle cx="12" cy="17.6" r="1.45" fill="${C.white}" stroke-width="1.1"/>`,
+
     // Joueurs restants : buste
     alive: () => bust(C.blue),
 

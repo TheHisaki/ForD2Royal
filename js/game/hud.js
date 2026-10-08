@@ -21,7 +21,6 @@ const MINIMAP_STEP = 1 / 20;        // minimap : 20 fois par seconde au plus
 const FULLMAP_STEP = 1 / 30;        // carte plein écran : 30 fois par seconde (cercle qui pulse)
 const LOCATION_STEP = 0.15;         // recherche du lieu survolé
 const COORDS_STEP = 0.1;            // coordonnées affichées
-const HELP_TIME = 10;               // secondes d'affichage de la ligne d'aide
 
 // Corruption (zone qui rétrécit) sur les cartes
 const CORRUPT_FILL = 'rgba(30, 0, 52, 0.72)';     // hors zone : violet sombre (comme la carte en jeu)
@@ -393,7 +392,6 @@ export class Hud {
             fullMap: $('fullMap'),
             fullMapClose: $('fullMapClose'),
             fullscreenBtn: $('fullscreenBtn'),
-            help: $('hudHelp'),
             shieldFill: $('shieldFill'),
             shieldText: $('shieldText'),
             healthFill: $('healthFill'),
@@ -453,12 +451,7 @@ export class Hud {
             else document.documentElement.requestFullscreen?.().catch(() => {});
         });
         this.slots.forEach((btn, i) => btn.addEventListener('click', () => this.selectSlot(i)));
-
-        // Ligne d'aide : 10 s d'affichage, comptées seulement quand elle est vraiment visible
-        // (elle s'efface quand un message du centre s'affiche : vaisseau, corruption, élimination)
-        this._helpLeft = HELP_TIME;
-        this._helpShown = null;
-        this._helpBlockers = ['dropPrompt', 'zoneAlert', 'killBanner'].map(id => $(id)).filter(Boolean);
+        // Les raccourcis ne s'affichent plus d'eux-mêmes : bouton « ? » (voir main.js)
 
         this.resize();
     }
@@ -512,6 +505,8 @@ export class Hud {
         if (this.mapOpen === was) return; // rien à faire si l'état ne change pas
         SFX.play('map', { open: this.mapOpen });
         this.el.fullMap.hidden = !this.mapOpen;
+        // Tous les messages flottants passent sous la carte tant qu'elle est ouverte (game.css)
+        document.body.classList.toggle('map-open', this.mapOpen);
         if (this.mapOpen) {
             this.resizeFullMap();
             this.drawFullMap(this.time); // tout de suite : pas d'image vide à l'ouverture
@@ -723,21 +718,9 @@ export class Hud {
         }
     }
 
-    updateHelp(dt) {
-        if (this._helpLeft <= 0) return;
-        const p = this.player;
-        const blocked = !p.alive || p.phase === 'ship' || this._helpBlockers.some(el => !el.hidden);
-        if (!blocked) this._helpLeft -= dt;
-        const show = !blocked && this._helpLeft > 0;
-        if (show === this._helpShown) return;
-        this._helpShown = show;
-        this.el.help.classList.toggle('hidden', !show);
-    }
-
     update(dt, time) {
         this.time = time || 0;
         this.updateDropPrompt();
-        this.updateHelp(dt);
 
         this._locT += dt;
         if (this._locT >= LOCATION_STEP) {
