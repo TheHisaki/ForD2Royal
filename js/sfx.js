@@ -50,7 +50,7 @@ const MIN_GAP = {
 
 // Sons musicaux : pas de variation de hauteur
 const NO_JITTER = new Set([
-    'killConfirm', 'victory', 'defeat', 'jumpReady', 'tick', 'ready', 'unready', 'healDone',
+    'killConfirm', 'victory', 'defeat', 'jumpReady', 'tick', 'capsuleTick', 'capsuleOpen', 'ready', 'unready', 'healDone',
     'zoneWarn', 'zoneShrink', 'xpLine', 'levelUp'
 ]);
 
@@ -982,6 +982,39 @@ const SOUNDS = {
         } else {
             tone(c, { type: 'sine', f0: 1046.5, dur: 0.09, vol: 0.1 });
         }
+    },
+
+    // Gun Game : bip de capsule à chaque seconde (o.n = secondes restantes, plus aigu à la fin)
+    capsuleTick(c, o) {
+        const n = Math.max(1, Math.min(5, o.n || 5));
+        const f = n <= 3 ? 1318.5 + (3 - n) * 174 : 880;
+        // Bip électronique doux + petit « blip » de servomoteur
+        tone(c, { type: 'square', f0: f, dur: 0.07, vol: 0.035, attack: 0.003,
+            filter: { type: 'lowpass', f: f * 2.5, q: 0.8 } });
+        tone(c, { type: 'sine', f0: f, dur: 0.16, vol: 0.12, attack: 0.003 });
+        tone(c, { type: 'sine', f0: f * 1.5, dur: 0.08, vol: 0.04, delay: 0.05 });
+        if (n <= 3) metalClick(c, 0.02, 0.06, 1800);
+    },
+
+    // Gun Game : ouverture des capsules (verrous, détente hydraulique, verre, carillon)
+    capsuleOpen(c) {
+        // Les 4 verrous sautent
+        for (let i = 0; i < 4; i++) metalClick(c, i * 0.035, 0.14, 1500 - i * 120);
+        // Détente pneumatique
+        noise(c, { type: 'highpass', f0: 2500, f1: 900, dur: 0.45, vol: 0.2, attack: 0.01, delay: 0.1 });
+        noise(c, { type: 'lowpass', f0: 1400, f1: 300, dur: 0.35, vol: 0.18, delay: 0.1 });
+        // Segments qui s'écartent : glissement métallique grave
+        tone(c, { type: 'sawtooth', f0: 140, f1: 70, dur: 0.32, vol: 0.05, delay: 0.12,
+            filter: { type: 'lowpass', f: 700 } });
+        tone(c, { type: 'sine', f0: 95, f1: 45, dur: 0.3, vol: 0.32, delay: 0.14 });
+        // Dôme de verre qui se dissipe
+        for (let i = 0; i < 5; i++) {
+            tone(c, { type: 'sine', f0: rand(2600, 4200), dur: 0.12, vol: 0.025, delay: 0.16 + i * 0.03 });
+        }
+        // Carillon « GO »
+        bell(c, 659.25, 0.26, 0.45, 0.12);
+        bell(c, 987.77, 0.36, 0.55, 0.12);
+        bell(c, 1318.5, 0.46, 0.7, 0.11);
     },
 
     map(c, o) {

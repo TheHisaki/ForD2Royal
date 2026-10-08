@@ -23,7 +23,7 @@ import { Effects } from './effects.js?v=14';
 import { HEALS, WEAPONS, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=11';
 import { drawPlayer, drawDying } from './draw.js?v=11';
 import { iconCanvas } from './icons.js';
-import { SFX } from '../sfx.js?v=15';
+import { SFX } from '../sfx.js?v=16';
 import { Settings } from '../settings.js?v=9';
 import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=9';
 import { itemArt } from '../item-art.js?v=10';
@@ -3197,6 +3197,10 @@ function start() {
     const capsuleTitleEl = capsuleHudEl?.querySelector('.cap-title');
     const capsuleBarEl = capsuleHudEl?.querySelector('.cap-bar-fill');
     let capsuleShown = '';
+    // Audio démarré dès le chargement (autorisé par le navigateur après les clics du lobby) :
+    // le bip des capsules s'entend même si le joueur n'a encore rien touché. Sinon, le premier
+    // geste le déverrouille comme avant.
+    if (isGunGame) SFX.unlock?.();
     let capsuleWait = null; // secondes affichées pendant l'attente réseau (avant le départ commun)
     const capsulesLocked = () => isGunGame && capsuleLeft > 0;
     // Secondes restantes vues par les voyants : attente réseau comprise
@@ -3206,7 +3210,7 @@ function start() {
         for (const f of fighters) {
             if (f.alive && f.phase === 'ground' && canSeeFromHouse(f)) effects.landing(f.x, f.y);
         }
-        SFX.play('land', { x: player.x, y: player.y });
+        SFX.play('capsuleOpen');
         renderer?.shake(5);
     }
 
@@ -3231,7 +3235,9 @@ function start() {
             capsuleNumEl?.classList.remove('tick');
             void capsuleNumEl?.offsetWidth;
             capsuleNumEl?.classList.add('tick');
-            if (seconds !== null && seconds <= 3) SFX.play('click');
+            // Un bip par seconde du compte à rebours des capsules (5 → 1), plus aigu à la fin
+            const n = Number(whole);
+            if (seconds !== null && n >= 1 && n <= GUNGAME_CAPSULE_TIME) SFX.play('capsuleTick', { n });
         }
         if (capsuleBarEl) {
             const k = seconds === null ? 0 : Math.max(0, Math.min(1, 1 - seconds / GUNGAME_CAPSULE_TIME));
