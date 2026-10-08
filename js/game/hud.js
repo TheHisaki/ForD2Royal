@@ -286,6 +286,20 @@ export function buildMapImage(world, size = 1024) {
         ctx.strokeRect(b.x, b.y, b.w, b.h);
     }
 
+    // Couvertures (carte Gun Game) : conteneurs colorés, caisses, barrières
+    for (const o of world.objects) {
+        if (!o.cover) continue;
+        const x0 = o.x - o.w / 2;
+        const y0 = o.y - o.h / 2;
+        ctx.fillStyle = 'rgba(10, 18, 30, 0.3)';
+        ctx.fillRect(x0 + 1.5 * px, y0 + 2 * px, o.w, o.h);
+        ctx.fillStyle = o.type === 'barrier' ? '#d6dbe0' : o.base;
+        ctx.fillRect(x0, y0, o.w, o.h);
+        ctx.strokeStyle = 'rgba(11, 20, 40, 0.75)';
+        ctx.lineWidth = 0.9 * px;
+        ctx.strokeRect(x0, y0, o.w, o.h);
+    }
+
     // Fontaine, puits
     for (const o of world.objects) {
         if (o.type !== 'fountain' && o.type !== 'well') continue;

@@ -38,11 +38,11 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="css/main.css?v=10">
-    <link rel="stylesheet" href="css/lobby.css?v=3">
+    <link rel="stylesheet" href="css/lobby.css?v=4">
     <link rel="stylesheet" href="css/settings.css">
     <link rel="stylesheet" href="css/store.css">
     <link rel="stylesheet" href="css/hub.css">
-    <link rel="stylesheet" href="css/mode-selector.css">
+    <link rel="stylesheet" href="css/mode-selector.css?v=2">
     <link rel="stylesheet" href="css/welcome.css">
 </head>
 <body>
@@ -775,138 +775,172 @@
             <div class="mode-panel-head">
                 <div>
                     <h2 class="mode-panel-title" id="modePanelTitle">Choisir un mode</h2>
-                    <p class="mode-panel-sub">Battle Royale · Sélectionne ton mode de jeu</p>
+                    <p class="mode-panel-sub">Battle Royale classique ou mode arcade : à toi de choisir</p>
                 </div>
                 <button type="button" class="mode-close-btn" id="modeCloseBtn" aria-label="Fermer" title="Fermer (Échap)">
                     <span class="hud-ico" data-icon="close" aria-hidden="true"></span>
                 </button>
             </div>
 
-            <div class="mode-grid" id="modeGrid">
-                <!-- SOLO -->
-                <div class="mode-card is-selected" data-mode="solo" tabindex="0" role="button" aria-pressed="true">
-                    <div class="mode-card-art">
-                        <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
-                            <ellipse class="op-glow" cx="100" cy="112" rx="62" ry="12"/>
-                            <path class="op-spark" d="M38 30l2.2 5.8L46 38l-5.8 2.2L38 46l-2.2-5.8L30 38l5.8-2.2z"/>
-                            <path class="op-spark" d="M166 50l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
-                            <use class="op-figure op-c1" href="#op-bust" x="67" y="36" width="66" height="88"/>
-                        </svg>
-                    </div>
-                    <div class="mode-card-body">
-                        <div class="mode-card-name">SOLO</div>
-                        <p class="mode-card-desc">Seul contre tous. Sois le dernier debout sur l'île.</p>
-                        <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i></span>1 joueur</span>
-                    </div>
-                    <div class="mode-card-lock"><span class="lock-text">🔒 Min. 2 joueurs</span></div>
-                </div>
+            <div class="mode-groups" id="modeGrid">
+                <!-- ===== BATTLE ROYALE ===== -->
+                <section class="mode-group" aria-labelledby="modeGroupBr">
+                    <header class="mode-group-head">
+                        <h3 class="mode-group-title" id="modeGroupBr">Battle Royale</h3>
+                        <span class="mode-group-hint">Île complète · corruption · dernier debout</span>
+                    </header>
+                    <div class="mode-grid mode-grid-br">
+                        <!-- SOLO -->
+                        <div class="mode-card is-selected" data-mode="solo" tabindex="0" role="button" aria-pressed="true">
+                            <div class="mode-card-art">
+                                <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
+                                    <ellipse class="op-glow" cx="100" cy="112" rx="62" ry="12"/>
+                                    <path class="op-spark" d="M38 30l2.2 5.8L46 38l-5.8 2.2L38 46l-2.2-5.8L30 38l5.8-2.2z"/>
+                                    <path class="op-spark" d="M166 50l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
+                                    <use class="op-figure op-c1" href="#op-bust" x="67" y="36" width="66" height="88"/>
+                                </svg>
+                            </div>
+                            <div class="mode-card-body">
+                                <div class="mode-card-name">SOLO</div>
+                                <p class="mode-card-desc">Seul contre tous.</p>
+                                <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i></span>1 joueur</span>
+                            </div>
+                            <div class="mode-card-lock"><span class="lock-text">🔒 Min. 2 joueurs</span></div>
+                        </div>
 
-                <!-- 1V1 -->
-                <div class="mode-card" data-mode="duel" tabindex="0" role="button" aria-pressed="false">
-                    <div class="mode-card-art">
-                        <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
-                            <ellipse class="op-glow" cx="100" cy="112" rx="82" ry="12"/>
-                            <path class="op-spark" d="M28 30l2.2 5.8L36 38l-5.8 2.2L28 46l-2.2-5.8L20 38l5.8-2.2z"/>
-                            <path class="op-spark" d="M172 34l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
-                            <use class="op-figure op-c1" href="#op-bust" x="30" y="40" width="63" height="84"/>
-                            <use class="op-figure op-c4" href="#op-bust" x="107" y="40" width="63" height="84"/>
-                            <path class="op-spark" d="M100 25v19M90.5 34.5h19"/>
-                        </svg>
-                    </div>
-                    <div class="mode-card-body">
-                        <div class="mode-card-name">1V1</div>
-                        <p class="mode-card-desc">Duel sur l'Île Jumelle d'automne. Deux rives, deux villes, une victoire.</p>
-                        <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i></span>1 joueur + 1 adversaire</span>
-                    </div>
-                    <div class="mode-card-lock"><span class="lock-text">🔒 Réservé à 1 joueur</span></div>
-                </div>
+                        <!-- DUO -->
+                        <div class="mode-card" data-mode="duo" tabindex="0" role="button" aria-pressed="false">
+                            <div class="mode-card-art">
+                                <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
+                                    <ellipse class="op-glow" cx="100" cy="112" rx="78" ry="12"/>
+                                    <path class="op-spark" d="M22 34l2.2 5.8L30 42l-5.8 2.2L22 50l-2.2-5.8L14 42l5.8-2.2z"/>
+                                    <path class="op-spark" d="M176 24l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
+                                    <use class="op-figure op-c1" href="#op-bust" x="38" y="40" width="63" height="84"/>
+                                    <use class="op-figure op-late op-c2" href="#op-bust" x="99" y="40" width="63" height="84"/>
+                                </svg>
+                            </div>
+                            <div class="mode-card-body">
+                                <div class="mode-card-name">DUO</div>
+                                <p class="mode-card-desc">Couvre ton partenaire.</p>
+                                <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i><i></i></span>2 joueurs</span>
+                            </div>
+                            <div class="mode-card-lock"><span class="lock-text">🔒 Min. 3 joueurs</span></div>
+                        </div>
 
-                <!-- GUN GAME -->
-                <div class="mode-card" data-mode="gungame" tabindex="0" role="button" aria-pressed="false">
-                    <div class="mode-card-art">
-                        <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
-                            <ellipse class="op-glow" cx="100" cy="112" rx="92" ry="12"/>
-                            <circle class="op-glow" cx="100" cy="51" r="35"/>
-                            <path class="op-spark" d="M30 28l2.2 5.8L38 36l-5.8 2.2L30 44l-2.2-5.8L22 36l5.8-2.2z"/>
-                            <path class="op-spark" d="M170 24l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
-                            <path class="op-badge-body" d="M100 15l31 13v22c0 20-13 31-31 41-18-10-31-21-31-41V28z"/>
-                            <path class="op-badge-star" d="M100 28l6 12 14 2-10 10 2.5 14L100 59l-12.5 7 2.5-14-10-10 14-2z"/>
-                            <use class="op-figure op-c1" href="#op-bust" x="21" y="55" width="52" height="69"/>
-                            <use class="op-figure op-c4" href="#op-bust" x="127" y="55" width="52" height="69"/>
-                        </svg>
-                    </div>
-                    <div class="mode-card-body">
-                        <div class="mode-card-name">GUN GAME</div>
-                        <p class="mode-card-desc">15 joueurs, 20 paliers d'armes. Chaque élimination te fait progresser.</p>
-                        <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>15 joueurs max</span>
-                    </div>
-                    <div class="mode-card-lock"><span class="lock-text">🔒 Min. 1 joueur</span></div>
-                </div>
+                        <!-- TRIO -->
+                        <div class="mode-card" data-mode="trio" tabindex="0" role="button" aria-pressed="false">
+                            <div class="mode-card-art">
+                                <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
+                                    <ellipse class="op-glow" cx="100" cy="112" rx="90" ry="12"/>
+                                    <path class="op-spark" d="M20 24l2.2 5.8L28 32l-5.8 2.2L20 40l-2.2-5.8L12 32l5.8-2.2z"/>
+                                    <path class="op-spark" d="M178 36l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
+                                    <use class="op-figure op-late op-c2" href="#op-bust" x="20" y="55" width="52" height="69"/>
+                                    <use class="op-figure op-late op-c3" href="#op-bust" x="128" y="55" width="52" height="69"/>
+                                    <use class="op-figure op-c1" href="#op-bust" x="68" y="40" width="63" height="84"/>
+                                </svg>
+                            </div>
+                            <div class="mode-card-body">
+                                <div class="mode-card-name">TRIO</div>
+                                <p class="mode-card-desc">Coordination à trois.</p>
+                                <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i><i></i><i></i></span>3 joueurs</span>
+                            </div>
+                            <div class="mode-card-lock"><span class="lock-text">🔒 Min. 4 joueurs</span></div>
+                        </div>
 
-                <!-- DUO -->
-                <div class="mode-card" data-mode="duo" tabindex="0" role="button" aria-pressed="false">
-                    <div class="mode-card-art">
-                        <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
-                            <ellipse class="op-glow" cx="100" cy="112" rx="78" ry="12"/>
-                            <path class="op-spark" d="M22 34l2.2 5.8L30 42l-5.8 2.2L22 50l-2.2-5.8L14 42l5.8-2.2z"/>
-                            <path class="op-spark" d="M176 24l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
-                            <use class="op-figure op-c1" href="#op-bust" x="38" y="40" width="63" height="84"/>
-                            <use class="op-figure op-late op-c2" href="#op-bust" x="99" y="40" width="63" height="84"/>
-                        </svg>
+                        <!-- SECTION (Escouade / Squad) -->
+                        <div class="mode-card" data-mode="section" tabindex="0" role="button" aria-pressed="false">
+                            <div class="mode-card-art">
+                                <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
+                                    <ellipse class="op-glow" cx="100" cy="112" rx="94" ry="12"/>
+                                    <circle class="op-glow" cx="100" cy="20" r="20"/>
+                                    <path class="op-spark" d="M24 28l2.2 5.8L32 36l-5.8 2.2L24 44l-2.2-5.8L16 36l5.8-2.2z"/>
+                                    <path class="op-spark" d="M174 30l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
+                                    <use class="op-figure op-late op-c1" href="#op-bust" x="14" y="62" width="47" height="62"/>
+                                    <use class="op-figure op-late op-c4" href="#op-bust" x="139" y="62" width="47" height="62"/>
+                                    <use class="op-figure op-c2" href="#op-bust" x="42" y="48" width="57" height="76"/>
+                                    <use class="op-figure op-c3" href="#op-bust" x="101" y="48" width="57" height="76"/>
+                                    <g class="op-badge" transform="translate(86 4)">
+                                        <path class="op-badge-body" d="M14 1l13 4.5v9.5c0 7.5-5.5 12.5-13 15.5C6.500 27.500 1 22.500 1 15V5.500z"/>
+                                        <path class="op-badge-star" d="M14 8.500l2.300 4.700 5.100.7-3.700 3.600.9 5.100-4.600-2.400-4.600 2.400.9-5.100-3.700-3.600 5.100-.7z"/>
+                                    </g>
+                                </svg>
+                            </div>
+                            <div class="mode-card-body">
+                                <div class="mode-card-name">SECTION</div>
+                                <p class="mode-card-desc">Escouade complète de 4.</p>
+                                <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i><i></i><i></i><i></i></span>4 joueurs</span>
+                            </div>
+                            <div class="mode-card-lock"><span class="lock-text">🔒 Verrouillé</span></div>
+                        </div>
                     </div>
-                    <div class="mode-card-body">
-                        <div class="mode-card-name">DUO</div>
-                        <p class="mode-card-desc">En équipe de 2. Couvre ton partenaire.</p>
-                        <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i><i></i></span>2 joueurs</span>
-                    </div>
-                    <div class="mode-card-lock"><span class="lock-text">🔒 Min. 3 joueurs</span></div>
-                </div>
+                </section>
 
-                <!-- TRIO -->
-                <div class="mode-card" data-mode="trio" tabindex="0" role="button" aria-pressed="false">
-                    <div class="mode-card-art">
-                        <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
-                            <ellipse class="op-glow" cx="100" cy="112" rx="90" ry="12"/>
-                            <path class="op-spark" d="M20 24l2.2 5.8L28 32l-5.8 2.2L20 40l-2.2-5.8L12 32l5.8-2.2z"/>
-                            <path class="op-spark" d="M178 36l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
-                            <use class="op-figure op-late op-c2" href="#op-bust" x="20" y="55" width="52" height="69"/>
-                            <use class="op-figure op-late op-c3" href="#op-bust" x="128" y="55" width="52" height="69"/>
-                            <use class="op-figure op-c1" href="#op-bust" x="68" y="40" width="63" height="84"/>
-                        </svg>
-                    </div>
-                    <div class="mode-card-body">
-                        <div class="mode-card-name">TRIO</div>
-                        <p class="mode-card-desc">Escouade de 3. Coordination et stratégie.</p>
-                        <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i><i></i><i></i></span>3 joueurs</span>
-                    </div>
-                    <div class="mode-card-lock"><span class="lock-text">🔒 Min. 4 joueurs</span></div>
-                </div>
+                <!-- ===== MODES ARCADE ===== -->
+                <section class="mode-group mode-group-arcade" aria-labelledby="modeGroupArcade">
+                    <header class="mode-group-head">
+                        <h3 class="mode-group-title" id="modeGroupArcade">Modes arcade</h3>
+                        <span class="mode-new-tag">Nouveau</span>
+                        <span class="mode-group-hint">Cartes dédiées · parties rapides</span>
+                    </header>
+                    <div class="mode-grid mode-grid-arcade">
+                        <!-- 1V1 -->
+                        <div class="mode-card mode-card-wide" data-mode="duel" tabindex="0" role="button" aria-pressed="false">
+                            <div class="mode-card-art">
+                                <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
+                                    <ellipse class="op-glow" cx="100" cy="112" rx="82" ry="12"/>
+                                    <path class="op-spark" d="M28 30l2.2 5.8L36 38l-5.8 2.2L28 46l-2.2-5.8L20 38l5.8-2.2z"/>
+                                    <path class="op-spark" d="M172 34l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
+                                    <use class="op-figure op-c1" href="#op-bust" x="30" y="40" width="63" height="84"/>
+                                    <use class="op-figure op-c4" href="#op-bust" x="107" y="40" width="63" height="84"/>
+                                    <path class="op-spark" d="M100 25v19M90.5 34.5h19"/>
+                                </svg>
+                            </div>
+                            <div class="mode-card-body">
+                                <div class="mode-card-name">1V1</div>
+                                <p class="mode-card-desc">Duel sur l'Île Jumelle : deux rives, deux villes, une victoire.</p>
+                                <ul class="mode-tags" aria-label="Particularités">
+                                    <li>Best of 3</li>
+                                    <li>Île Jumelle</li>
+                                </ul>
+                                <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i></span>1 contre 1</span>
+                            </div>
+                            <div class="mode-card-lock"><span class="lock-text">🔒 Réservé à 1 joueur</span></div>
+                        </div>
 
-                <!-- SECTION (Escouade / Squad) -->
-                <div class="mode-card" data-mode="section" tabindex="0" role="button" aria-pressed="false">
-                    <div class="mode-card-art">
-                        <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
-                            <ellipse class="op-glow" cx="100" cy="112" rx="94" ry="12"/>
-                            <circle class="op-glow" cx="100" cy="20" r="20"/>
-                            <path class="op-spark" d="M24 28l2.2 5.8L32 36l-5.8 2.2L24 44l-2.2-5.8L16 36l5.8-2.2z"/>
-                            <path class="op-spark" d="M174 30l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
-                            <use class="op-figure op-late op-c1" href="#op-bust" x="14" y="62" width="47" height="62"/>
-                            <use class="op-figure op-late op-c4" href="#op-bust" x="139" y="62" width="47" height="62"/>
-                            <use class="op-figure op-c2" href="#op-bust" x="42" y="48" width="57" height="76"/>
-                            <use class="op-figure op-c3" href="#op-bust" x="101" y="48" width="57" height="76"/>
-                            <g class="op-badge" transform="translate(86 4)">
-                                <path class="op-badge-body" d="M14 1l13 4.5v9.5c0 7.5-5.5 12.5-13 15.5C6.500 27.500 1 22.500 1 15V5.500z"/>
-                                <path class="op-badge-star" d="M14 8.500l2.300 4.700 5.100.7-3.700 3.600.9 5.100-4.600-2.400-4.600 2.400.9-5.100-3.700-3.600 5.100-.7z"/>
-                            </g>
-                        </svg>
+                        <!-- GUN GAME -->
+                        <div class="mode-card mode-card-wide" data-mode="gungame" tabindex="0" role="button" aria-pressed="false">
+                            <div class="mode-card-art">
+                                <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
+                                    <ellipse class="op-glow" cx="100" cy="112" rx="92" ry="12"/>
+                                    <rect class="gg-bar" x="20" y="92" width="14" height="18" rx="3"/>
+                                    <rect class="gg-bar" x="40" y="80" width="14" height="30" rx="3"/>
+                                    <rect class="gg-bar" x="60" y="68" width="14" height="42" rx="3"/>
+                                    <rect class="gg-bar" x="80" y="56" width="14" height="54" rx="3"/>
+                                    <rect class="gg-bar gg-bar-top" x="100" y="42" width="14" height="68" rx="3"/>
+                                    <path class="gg-trend" d="M18 78L46 60l18 6 36-38"/>
+                                    <path class="gg-trend-head" d="M89 25l16-3-3 16z"/>
+                                    <use class="op-figure op-c2" href="#op-bust" x="118" y="44" width="60" height="80"/>
+                                    <g class="gg-cross" transform="translate(170 28)">
+                                        <circle r="13"/>
+                                        <path d="M0-19v9M0 10v9M-19 0h9M10 0h9"/>
+                                        <circle class="gg-cross-dot" r="2.6"/>
+                                    </g>
+                                </svg>
+                            </div>
+                            <div class="mode-card-body">
+                                <div class="mode-card-name">GUN GAME</div>
+                                <p class="mode-card-desc">Chaque élimination te donne l'arme suivante. Le premier à finir les 20 paliers gagne.</p>
+                                <ul class="mode-tags" aria-label="Particularités">
+                                    <li>20 paliers</li>
+                                    <li>Réapparition</li>
+                                    <li>Baie Cargo</li>
+                                </ul>
+                                <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>15 joueurs max</span>
+                            </div>
+                            <div class="mode-card-lock"><span class="lock-text">🔒 Min. 1 joueur</span></div>
+                        </div>
                     </div>
-                    <div class="mode-card-body">
-                        <div class="mode-card-name">SECTION</div>
-                        <p class="mode-card-desc">Escouade complète de 4. Force maximale.</p>
-                        <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i><i></i><i></i><i></i></span>4 joueurs</span>
-                    </div>
-                    <div class="mode-card-lock"><span class="lock-text">🔒 Verrouillé</span></div>
-                </div>
+                </section>
             </div>
 
             <!-- Options dynamiques (bots, etc.) -->

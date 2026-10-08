@@ -114,28 +114,47 @@ export const ROAD_LINKS = [
 */
 export const DUEL_MAP_ID = 'duel-two-towns';
 export const GUNGAME_MAP_ID = 'gun-game-arena';
+/*
+   Carte Gun Game « Baie Cargo » (4500 x 4500, 75 % de la largeur classique).
+   Île presque carrée aux bords francs, port de commerce en plein été :
+   - au centre, le Plateau Central (dalle de béton peinte, ceinture de barrières) ;
+   - deux parcs à conteneurs en diagonale (Docks Rouges, Terminal Bleu) ;
+   - les Hangars Nord et les Cabanes du Lagon dans les deux autres coins ;
+   - entre les zones : prairie fleurie ouverte, quelques bosquets, caisses et barrières.
+   Routes en béton presque droites : de longues lignes de tir entre les zones.
+*/
 export const GUNGAME_THEME = {
-    id: 'gun-game',
+    id: 'cargo',
     colors: [
-        [20, 73, 132], [40, 130, 190], [224, 202, 133], [82, 164, 102],
-        [44, 122, 73], [191, 119, 60], [107, 112, 141], [226, 232, 246], [47, 145, 182]
+        [18, 92, 140],    // océan : bleu port
+        [38, 168, 190],   // lagon turquoise
+        [240, 222, 172],  // sable clair
+        [104, 176, 122],  // prairie menthe
+        [52, 128, 98],    // bosquets vert sapin
+        [222, 176, 112],  // sable chaud (sol des parcs à conteneurs)
+        [126, 128, 140],  // rochers
+        [236, 240, 246],  // neige (absente)
+        [44, 168, 196]    // bassins
     ],
-    oceanDeep: 'rgb(20, 73, 132)',
-    haze: '#c5e9ff',
-    grid: 'rgba(20, 48, 94, 0.08)',
-    biomeNames: ['Océan', 'Canal', 'Plage', 'Prairie', 'Pinède', 'Terre rouge', 'Falaises', 'Neige', 'Lac'],
-    road: { edge: '#263c5f', fill: '#8298ad', cobble: 'rgba(16, 30, 54, 0.2)' },
-    mapRoad: { edge: 'rgba(24, 42, 70, 0.92)', fill: '#b3c8d7', dash: 'rgba(255, 255, 255, 0.7)' }
+    oceanDeep: 'rgb(18, 92, 140)',
+    haze: '#d6f1ff',
+    grid: 'rgba(10, 50, 60, 0.07)',
+    biomeNames: ['Océan', 'Lagon', 'Plage', 'Prairie', 'Bosquet', 'Sable chaud', 'Rochers', 'Neige', 'Bassin'],
+    // Routes en béton avec marquage central
+    road: { edge: '#4b5767', fill: '#a7b1ba', dash: 'rgba(255, 255, 255, 0.55)' },
+    mapRoad: { edge: 'rgba(40, 52, 66, 0.92)', fill: '#c7d0d8', dash: 'rgba(255, 255, 255, 0.85)' }
 };
 
 export const TOWNS_GUNGAME = [
-    { id: 'nexus', name: 'Nexus Central', x: 2250, y: 2250, radius: 480, style: 'arena', biome: B.PLAINE },
-    { id: 'redline', name: 'Redline Yard', x: 950, y: 3450, radius: 430, style: 'arena', biome: B.DESERT },
-    { id: 'skyport', name: 'Skyport', x: 3550, y: 1050, radius: 430, style: 'arena', biome: B.FORET }
+    { id: 'plateau',  name: 'Plateau Central',  x: 2250, y: 2250, radius: 500, style: 'plateau', biome: B.PLAINE },
+    { id: 'docks',    name: 'Docks Rouges',     x: 1080, y: 1120, radius: 470, style: 'yard',    biome: B.DESERT },
+    { id: 'terminal', name: 'Terminal Bleu',    x: 3420, y: 3380, radius: 470, style: 'yard',    biome: B.DESERT },
+    { id: 'hangars',  name: 'Hangars Nord',     x: 3400, y: 1100, radius: 430, style: 'hangar',  biome: B.PLAINE },
+    { id: 'cabanes',  name: 'Cabanes du Lagon', x: 1100, y: 3400, radius: 420, style: 'shack',   biome: B.PLAINE }
 ];
-export const ROAD_LINKS_GUNGAME = [['nexus', 'redline'], ['nexus', 'skyport']];
-
-/* Thème Gun Game : grands espaces, couleurs de stade et lignes de vue dégagées. */
+export const ROAD_LINKS_GUNGAME = [
+    ['plateau', 'docks'], ['plateau', 'terminal'], ['plateau', 'hangars'], ['plateau', 'cabanes']
+];
 
 export const TOWNS_DUEL = [
     { id: 'erables',  name: 'Hameau des Érables', x: 1040, y: 960,  radius: 440, style: 'maple', biome: B.FORET },
@@ -187,25 +206,31 @@ export const MAP_PRESETS = {
         width: 4500,
         height: 4500,
         terrainSeed: 428731,
-        // Carte compacte en carré arrondi : 75 % de la largeur originale, sans goulot central.
+        // Île presque carrée (super-ellipse) : grande surface jouable, côte peu découpée
+        shape: { type: 'superellipse', power: 7, noise: 0.06 },
         regionSeeds: [
             { b: B.PLAINE, x: 2250, y: 2250 },
-            { b: B.FORET, x: 3550, y: 1050 },
-            { b: B.DESERT, x: 950, y: 3450 },
-            { b: B.MONTAGNE, x: 850, y: 800 },
-            { b: B.PLAINE, x: 3500, y: 3500 },
-            { b: B.FORET, x: 1700, y: 1050 },
-            { b: B.DESERT, x: 3100, y: 1850 }
+            { b: B.PLAINE, x: 2250, y: 650 },
+            { b: B.PLAINE, x: 650, y: 2250 },
+            { b: B.PLAINE, x: 3850, y: 2250 },
+            { b: B.PLAINE, x: 2250, y: 3850 },
+            { b: B.DESERT, x: 1080, y: 1120 },
+            { b: B.DESERT, x: 3420, y: 3380 },
+            { b: B.FORET, x: 2950, y: 1700 },
+            { b: B.FORET, x: 1550, y: 2800 },
+            { b: B.FORET, x: 3700, y: 2650 },
+            { b: B.FORET, x: 800, y: 1850 }
         ],
-        snowPeak: { x: 760, y: 740, radius: 170 },
+        snowPeak: { x: -10000, y: -10000, radius: 1 },   // pas de sommet enneigé
         lakes: [
-            { x: 2550, y: 820, r: 150, name: 'Lac Radar' },
-            { x: 900, y: 2200, r: 130, name: 'Bassin Rouge' }
+            { x: 1700, y: 3000, r: 110, name: 'Bassin Sud' },
+            { x: 2850, y: 1500, r: 100, name: 'Bassin Nord' }
         ],
         towns: TOWNS_GUNGAME,
         roadLinks: ROAD_LINKS_GUNGAME,
-        roadCurve: 0.16,
-        natureAttempts: 11500,
+        roadCurve: 0.08,     // routes presque droites : de longues lignes de tir
+        natureAttempts: 9000,
+        openCovers: 46,      // caisses et barrières posées dans les espaces ouverts
         theme: GUNGAME_THEME
     },
     [DUEL_MAP_ID]: {

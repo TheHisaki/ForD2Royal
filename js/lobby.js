@@ -1426,6 +1426,9 @@ class LobbyManager {
         const mode = this.currentGameMode === 'ESCOUADE'
             ? 'section'
             : String(this.currentGameMode || 'SOLO').toLowerCase();
+        // Étiquette au-dessus du nom : famille du mode (Battle Royale ou arcade)
+        const label = document.querySelector('.game-mode-section .mode-label');
+        if (label) label.textContent = mode === 'duel' || mode === 'gungame' ? 'Mode arcade' : 'Battle Royale';
         const source = document.querySelector(`.mode-card[data-mode="${mode}"] .mode-card-scene`);
         if (!source) return;
         if (art.dataset.mode === mode && host.querySelector('.mode-main-scene')) return;

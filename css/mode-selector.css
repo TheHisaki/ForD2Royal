@@ -27,7 +27,7 @@
 /* ===== PANNEAU PRINCIPAL ===== */
 .mode-panel {
     position: relative;
-    width: min(94vw, 920px);
+    width: min(94vw, 880px);
     max-height: 92vh;
     overflow-y: auto;
     background:
@@ -90,12 +90,61 @@
     transform: rotate(90deg);
 }
 
-/* ===== GRILLE DES MODES ===== */
+/* ===== GROUPES DE MODES ===== */
+.mode-groups {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 18px 28px 20px;
+}
+
+.mode-group-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 10px;
+}
+
+.mode-group-title {
+    font-family: var(--font-display);
+    font-weight: 400;
+    font-size: 20px;
+    letter-spacing: 1.5px;
+    line-height: 1;
+    color: #fff;
+    text-transform: uppercase;
+}
+
+.mode-group-hint {
+    margin-left: auto;
+    font-size: 12px;
+    color: var(--text-secondary);
+}
+
+.mode-new-tag {
+    padding: 3px 8px 2px;
+    font-family: var(--font-display);
+    font-size: 13px;
+    letter-spacing: 1px;
+    line-height: 1;
+    color: #3a1600;
+    background: linear-gradient(180deg, #ffd27a, #ff9a3c);
+    border-radius: 4px;
+    box-shadow: 0 0 12px rgba(255, 154, 60, 0.45);
+}
+
+/* ===== GRILLES ===== */
 .mode-grid {
     display: grid;
-    grid-template-columns: repeat(5, minmax(0, 1fr));
-    gap: 14px;
-    padding: 24px 28px;
+    gap: 12px;
+}
+
+.mode-grid-br {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.mode-grid-arcade {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 /* ===== CARTE DE MODE ===== */
@@ -152,7 +201,7 @@
 /* --- Illustration du mode --- */
 .mode-card-art {
     position: relative;
-    height: 120px;
+    height: 88px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -166,6 +215,10 @@
 
 .mode-card[data-mode="duel"] .mode-card-art {
     background: linear-gradient(135deg, #075985 0%, #0891b2 58%, #67e8f9 100%);
+}
+
+.mode-card[data-mode="gungame"] .mode-card-art {
+    background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 55%, #fb923c 100%);
 }
 
 .mode-card[data-mode="duo"] .mode-card-art {
@@ -226,6 +279,17 @@
 .op-glow  { fill: #fff; opacity: 0.18; }
 .op-spark { fill: #fff; opacity: 0.6; }
 
+/* Gun Game : paliers qui montent, flèche de progression, viseur */
+.gg-bar        { fill: #fff; opacity: 0.32; stroke: #0b1430; stroke-width: 1.5; }
+.gg-bar:nth-of-type(2) { opacity: 0.44; }
+.gg-bar:nth-of-type(3) { opacity: 0.56; }
+.gg-bar:nth-of-type(4) { opacity: 0.7; }
+.gg-bar-top    { fill: #ffd21e; opacity: 1; }
+.gg-trend      { fill: none; stroke: #fff; stroke-width: 5; stroke-linecap: round; stroke-linejoin: round; }
+.gg-trend-head { fill: #fff; }
+.gg-cross      { fill: none; stroke: #ffd21e; stroke-width: 3.2; stroke-linecap: round; }
+.gg-cross-dot  { fill: #ffd21e; stroke: none; }
+
 /* Petit balancement du groupe au survol ou quand le mode est choisi */
 @keyframes opBob {
     0%, 100% { transform: translateY(0); }
@@ -266,7 +330,7 @@
 
 /* --- Corps de la carte --- */
 .mode-card-body {
-    padding: 14px 16px 16px;
+    padding: 10px 12px 12px;
     flex: 1;
     display: flex;
     flex-direction: column;
@@ -274,17 +338,69 @@
 
 .mode-card-name {
     font-family: var(--font-display);
-    font-size: 28px;
-    letter-spacing: 2px;
+    font-size: 24px;
+    letter-spacing: 1.5px;
     line-height: 1;
-    margin-bottom: 4px;
+    margin-bottom: 3px;
 }
 
 .mode-card-desc {
     font-size: 12px;
     color: var(--text-secondary);
-    line-height: 1.4;
+    line-height: 1.35;
     margin-bottom: 8px;
+}
+
+/* --- Cartes arcade : illustration à gauche, texte à droite --- */
+.mode-card-wide {
+    flex-direction: row;
+    min-height: 132px;
+}
+
+.mode-card-wide .mode-card-art {
+    flex: 0 0 42%;
+    height: auto;
+}
+
+.mode-card-wide .mode-card-art::after {
+    top: 0;
+    left: auto;
+    width: 30%;
+    height: auto;
+    background: linear-gradient(90deg, transparent, rgba(10, 20, 55, 0.55));
+}
+
+.mode-card-wide .mode-card-body {
+    padding: 12px 14px;
+}
+
+.mode-card-wide .mode-card-name {
+    font-size: 26px;
+}
+
+.mode-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    margin: 0 0 8px;
+    padding: 0;
+    list-style: none;
+}
+
+.mode-tags li {
+    padding: 2px 7px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #dbe8ff;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 4px;
+}
+
+.mode-card[data-mode="gungame"] .mode-tags li:first-child {
+    color: #ffd27a;
+    border-color: rgba(255, 196, 80, 0.45);
+    background: rgba(255, 154, 60, 0.12);
 }
 
 .mode-card-players {
@@ -292,9 +408,9 @@
     align-items: center;
     gap: 6px;
     margin-top: auto;
-    padding: 4px 10px;
+    padding: 3px 9px;
     font-family: var(--font-display);
-    font-size: 14px;
+    font-size: 13px;
     letter-spacing: 1px;
     color: var(--accent-cyan);
     background: rgba(79, 216, 255, 0.1);
@@ -496,40 +612,54 @@
 }
 
 /* ===== RESPONSIVE ===== */
+@media (max-height: 760px) {
+    .mode-card-art { height: 72px; }
+    .mode-card-wide { min-height: 116px; }
+    .mode-groups { gap: 14px; padding-top: 14px; }
+}
+
 @media (max-width: 800px) {
-    .mode-grid {
+    .mode-grid-br {
         grid-template-columns: repeat(2, 1fr);
+    }
+
+    .mode-grid-arcade {
+        grid-template-columns: 1fr;
     }
 
     .mode-panel {
         width: min(96vw, 600px);
     }
 
-    .mode-card-art { height: 100px; }
+    .mode-group-hint { display: none; }
 }
 
 @media (max-width: 500px) {
-    .mode-grid {
+    .mode-groups {
+        gap: 14px;
+        padding: 14px 16px;
+    }
+
+    .mode-grid-br {
         grid-template-columns: 1fr;
-        gap: 10px;
-        padding: 16px;
+        gap: 8px;
     }
 
     .mode-card {
         flex-direction: row;
     }
 
-    .mode-card-art {
-        width: 100px;
+    .mode-card-art,
+    .mode-card-wide .mode-card-art {
+        flex: 0 0 96px;
+        width: 96px;
         height: auto;
-        min-height: 90px;
+        min-height: 80px;
     }
 
-    .mode-card-body {
-        padding: 12px;
-    }
-
-    .mode-card-name { font-size: 24px; }
+    .mode-card-wide { min-height: 0; }
+    .mode-card-name,
+    .mode-card-wide .mode-card-name { font-size: 22px; }
 
     .mode-panel-head { padding: 16px; }
     .mode-options { padding: 0 16px 16px; }

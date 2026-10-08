@@ -32,6 +32,7 @@ function createGroundSampler(profile, result = { biome: B.PLAINE, edge: 0, shade
     const lakes = profile.lakes;
     const peak = profile.snowPeak;
     const twin = profile.shape?.type === 'twin' ? profile.shape : null;
+    const superEllipse = profile.shape?.type === 'superellipse' ? profile.shape : null;
 
     return function sampleProfileGround(x, y) {
         result.edge = 0;
@@ -51,6 +52,13 @@ function createGroundSampler(profile, result = { biome: B.PLAINE, edge: 0, shade
             for (const s of twin.islets) sd = Math.min(sd, Math.hypot(x - s.x, y - s.y) - s.r);
             sd += (fbm(nx * 0.0011, ny * 0.0011, terrainSeed + 1, 3) - 0.5) * twin.coastNoise;
             d = 0.86 + sd / twin.coastScale;
+        } else if (superEllipse) {
+            // Île presque carrée aux bords francs (puissance élevée), côte légèrement ondulée
+            const p = superEllipse.power || 6;
+            const dx = Math.abs((x - profile.width / 2) / (profile.width / 2));
+            const dy = Math.abs((y - profile.height / 2) / (profile.height / 2));
+            d = Math.pow(Math.pow(dx, p) + Math.pow(dy, p), 1 / p);
+            d += (fbm(nx * 0.0011, ny * 0.0011, terrainSeed + 1, 3) - 0.5) * (superEllipse.noise ?? 0.06);
         } else {
             // Forme de l'île : un carré aux coins arrondis, avec une côte irrégulière.
             const halfX = profile.width / 2;
@@ -245,6 +253,7 @@ export function generateWorld({ mapId = 'default' } = {}) {
     // Les routes, villes et la nature consultent tous le même sampler de profil.
     buildRoads(world, rng, profile.roadLinks, profile.roadCurve ?? 0.32);
     for (const town of world.towns) buildTown(world, town, rng);
+    if (profile.openCovers) scatterCovers(world, rng, profile.openCovers);
     scatterNature(world, rng, profile.natureAttempts);
     return world;
 }
@@ -289,7 +298,7 @@ function buildRoads(world, rng, roadLinks, curve = 0.32) {
             bbox: { minX: minX - m, minY: minY - m, maxX: maxX + m, maxY: maxY + m }
         };
         // Thème : couleurs de la route (pavés) ; sinon chemin de terre classique
-        if (look) Object.assign(road, { edge: look.edge, fill: look.fill, cobble: look.cobble });
+        if (look) Object.assign(road, { edge: look.edge, fill: look.fill, cobble: look.cobble, dash: look.dash });
         world.roads.push(road);
 
         for (let i = 0; i < points.length - 2; i += 2) {
@@ -335,13 +344,38 @@ const STYLES = {
         roofs: ['#c23b32', '#a8452e'],
         floor: '#b89468', wall: '#4a2f1f', plaza: '#a9855a', plazaEdge: '#7d6040', roofType: 'gable'
     },
-    arena: {
-        // Trois petites zones bâties servent de couvertures sans transformer la carte en labyrinthe.
+    // ----- Carte Gun Game « Baie Cargo » -----
+    // Plateau central : grande dalle peinte, aucune maison, ceinture de barrières
+    plateau: {
+        houses: 0,
+        sizes: [[200, 160]],
+        roofs: ['#8796a8'],
+        floor: '#c9d2d6', wall: '#2c3a4a', plaza: '#b7c1c8', plazaEdge: '#4f5d6b', roofType: 'flat',
+        pattern: 'arena', plazaScale: 0.46
+    },
+    // Parc à conteneurs : sol en asphalte, allées entre les conteneurs
+    yard: {
+        houses: 0,
+        sizes: [[200, 160]],
+        roofs: ['#8796a8'],
+        floor: '#c9d2d6', wall: '#2c3a4a', plaza: '#5d6772', plazaEdge: '#f0c23a', roofType: 'flat',
+        pattern: 'lanes', plazaScale: 0.26
+    },
+    // Hangars : grands bâtiments en tôle à toit plat
+    hangar: {
         houses: 3,
-        sizes: [[250, 170], [300, 190], [220, 180]],
-        roofs: ['#2878c8', '#e05a3f', '#e5b63d', '#45a88b'],
-        floor: '#b6c8c8', wall: '#263b58', plaza: '#a5bdc4', plazaEdge: '#405a70', roofType: 'flat',
+        sizes: [[340, 230], [300, 220], [360, 250]],
+        roofs: ['#8796a8', '#6f8aa3', '#b7c4cf'],
+        floor: '#b8c0c6', wall: '#323c48', plaza: '#aab4bc', plazaEdge: '#5a6672', roofType: 'flat',
         pattern: 'tiles'
+    },
+    // Cabanes de plage colorées autour d'une petite place en bois
+    shack: {
+        houses: 4,
+        sizes: [[200, 170], [220, 180], [190, 190]],
+        roofs: ['#e9725a', '#3fb7c4', '#f2c14e', '#7ccf8a'],
+        floor: '#d9b98a', wall: '#5a3d2a', plaza: '#e7d3a6', plazaEdge: '#b89462', roofType: 'gable',
+        pattern: 'rings'
     },
     // ----- Carte 1V1 (thème automne) -----
     // Hameau forestier : toits bordeaux / sapin / ardoise, place pavée, grand érable au centre
@@ -364,7 +398,7 @@ const STYLES = {
 
 function buildTown(world, town, rng) {
     const st = STYLES[town.style];
-    town.plazaR = Math.round(town.radius * 0.3);
+    town.plazaR = Math.round(town.radius * (st.plazaScale || 0.3));
     town.plaza = st.plaza;
     town.plazaEdge = st.plazaEdge;
     if (st.pattern) town.pattern = st.pattern;
@@ -390,6 +424,9 @@ function buildTown(world, town, rng) {
         const r = placeRect(world, town, w, h, taken, rng, true);
         if (r) addBuilding(world, town, st, r, rng, {});
     }
+
+    // Couvertures de la carte Gun Game (conteneurs, caisses, barrières)
+    if (COVER_TOWNS[town.style]) COVER_TOWNS[town.style](world, town, rng, taken);
 
     // Bottes de foin autour de la ferme
     if (town.style === 'farm') {
@@ -543,6 +580,191 @@ function addGreatMaple(world, town, rng) {
     });
 }
 
+/* ----- Couvertures (carte Gun Game) -----
+   Objets rectangulaires alignés sur les axes : ils bloquent les déplacements, les tirs et la
+   vue des bots (collision 'rect', comme les murs) et sont cuits dans le sol (couche 'ground'). */
+
+const CONTAINER_COLORS = ['#d8473c', '#2f7fd6', '#f08a24', '#1fa38a', '#e8b630', '#7b5bd6'];
+const CRATE_COLORS = ['#b98544', '#a8743a', '#c89452'];
+const METAL_CRATE = '#6f8193';
+const BARRIER_COLOR = '#c5cbd0';
+const CRATE_SIZE = 58;
+// Formes des tas de caisses (colonne, ligne), éventuellement transposées
+const CRATE_LAYOUTS = [
+    [[0, 0], [1, 0]],
+    [[0, 0], [1, 0], [0, 1]],
+    [[0, 0], [1, 0], [1, 1]],
+    [[0, 0], [1, 0], [2, 0]],
+    [[0, 0], [1, 0], [0, 1], [1, 1]]
+];
+
+function addCover(world, type, rect, base, extra = {}) {
+    const o = {
+        type, x: rect.x + rect.w / 2, y: rect.y + rect.h / 2, w: rect.w, h: rect.h,
+        r: Math.hypot(rect.w, rect.h) / 2, cr: 0, layer: 'ground', nature: false, cover: true,
+        base, dark: shadeHex(base, -0.38), light: shadeHex(base, 0.24), ...extra
+    };
+    addObject(world, o);
+    world.collide.insert({ kind: 'rect', x: rect.x, y: rect.y, w: rect.w, h: rect.h },
+        rect.x, rect.y, rect.x + rect.w, rect.y + rect.h);
+    (world._coverRects || (world._coverRects = [])).push(rect);
+    return o;
+}
+
+// Rectangle libre : hors routes, eau, plage, bâtiments, places (sauf autorisation) et autres couvertures
+function coverFree(world, r, taken, { margin = 60, plaza = false } = {}) {
+    if (r.x < 140 || r.y < 140 || r.x + r.w > world.width - 140 || r.y + r.h > world.height - 140) return false;
+    if (taken.some(t => rectsOverlap(t, r, margin))) return false;
+    if (world._coverRects && world._coverRects.some(t => rectsOverlap(t, r, Math.min(margin, 60)))) return false;
+    if (world.buildings.some(b => rectsOverlap(b, r, 50))) return false;
+    if (!plaza) {
+        for (const t of world.towns) if (t.plazaR && rectPointDist(r, t.x, t.y) < t.plazaR + 20) return false;
+    }
+    if (rectNearRoad(world, r, ROAD_WIDTH / 2 + 30)) return false;
+    if (rectTouchesWater(world, r)) return false;
+    return true;
+}
+
+// Petit tas de 2 à 4 caisses en bois (parfois métalliques)
+function placeCrates(world, cx, cy, rng, taken, opts) {
+    const flip = rng() < 0.5;
+    const cells = pick(rng, CRATE_LAYOUTS).map(([a, b]) => (flip ? [b, a] : [a, b]));
+    const cols = Math.max(...cells.map(c => c[0])) + 1;
+    const rows = Math.max(...cells.map(c => c[1])) + 1;
+    const gap = 2;
+    const W = cols * CRATE_SIZE + (cols - 1) * gap;
+    const H = rows * CRATE_SIZE + (rows - 1) * gap;
+    const box = { x: Math.round(cx - W / 2), y: Math.round(cy - H / 2), w: W, h: H };
+    if (!coverFree(world, box, taken, opts)) return false;
+    taken.push(box);
+    const wood = pick(rng, CRATE_COLORS);
+    for (const [c, r] of cells) {
+        const metal = rng() < 0.22;
+        addCover(world, 'crate', {
+            x: box.x + c * (CRATE_SIZE + gap), y: box.y + r * (CRATE_SIZE + gap), w: CRATE_SIZE, h: CRATE_SIZE
+        }, metal ? METAL_CRATE : wood, { metal });
+    }
+    return true;
+}
+
+// Barrière en béton (type « jersey »), horizontale ou verticale
+function placeBarrier(world, cx, cy, vertical, taken, opts, len = 150) {
+    const w = vertical ? 34 : len;
+    const h = vertical ? len : 34;
+    const rect = { x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w, h };
+    if (!coverFree(world, rect, taken, opts)) return false;
+    taken.push(rect);
+    addCover(world, 'barrier', rect, BARRIER_COLOR);
+    return true;
+}
+
+// Conteneur maritime (240 x 96), porte d'un côté
+function placeContainer(world, cx, cy, vertical, rng, taken, opts = { margin: 80 }) {
+    const w = vertical ? 96 : 240;
+    const h = vertical ? 240 : 96;
+    const rect = { x: Math.round(cx - w / 2), y: Math.round(cy - h / 2), w, h };
+    if (!coverFree(world, rect, taken, opts)) return false;
+    taken.push(rect);
+    addCover(world, 'container', rect, pick(rng, CONTAINER_COLORS), { door: rng() < 0.5 ? 1 : -1 });
+    return true;
+}
+
+// Point au hasard dans l'anneau constructible d'une zone
+function townRingPoint(town, rng, extra = 60) {
+    const a = rng() * Math.PI * 2;
+    const d = town.plazaR + extra + rng() * Math.max(40, town.radius - town.plazaR);
+    return { x: town.x + Math.cos(a) * d, y: town.y + Math.sin(a) * d };
+}
+
+const COVER_TOWNS = {
+    plateau(world, town, rng, taken) {
+        // Ceinture de 8 barrières autour de la dalle, entre les routes (en diagonale)
+        const ring = town.plazaR + 120;
+        for (let i = 0; i < 8; i++) {
+            const a = (i / 8) * Math.PI * 2 + Math.PI / 8;
+            const vertical = Math.abs(Math.cos(a)) > Math.abs(Math.sin(a));
+            placeBarrier(world, town.x + Math.cos(a) * ring, town.y + Math.sin(a) * ring, vertical, taken, { margin: 30 });
+        }
+        // Quatre petits tas de caisses sur la dalle : on peut se couvrir au cœur de l'arène
+        for (let i = 0; i < 4; i++) {
+            const a = (i / 4) * Math.PI * 2;
+            const d = town.plazaR * 0.55;
+            placeCrates(world, town.x + Math.cos(a) * d, town.y + Math.sin(a) * d, rng, taken, { margin: 40, plaza: true });
+        }
+        // Puis des caisses plus loin, hors de la ceinture
+        for (let i = 0, placed = 0; i < 60 && placed < 5; i++) {
+            const p = townRingPoint(town, rng, 200);
+            if (placeCrates(world, p.x, p.y, rng, taken, { margin: 90 })) placed++;
+        }
+    },
+    yard(world, town, rng, taken) {
+        // Conteneurs en désordre autour de l'aire d'asphalte (allées d'au moins 80)
+        let placed = 0;
+        for (let i = 0; i < 320 && placed < 11; i++) {
+            const p = townRingPoint(town, rng, 70);
+            if (placeContainer(world, p.x, p.y, rng() < 0.5, rng, taken)) placed++;
+        }
+        for (let i = 0, crates = 0; i < 60 && crates < 4; i++) {
+            const p = townRingPoint(town, rng, 50);
+            if (placeCrates(world, p.x, p.y, rng, taken, { margin: 70 })) crates++;
+        }
+    },
+    hangar(world, town, rng, taken) {
+        for (let i = 0, n = 0; i < 80 && n < 2; i++) {
+            const p = townRingPoint(town, rng, 80);
+            if (placeContainer(world, p.x, p.y, rng() < 0.5, rng, taken)) n++;
+        }
+        for (let i = 0, n = 0; i < 80 && n < 5; i++) {
+            const p = townRingPoint(town, rng, 40);
+            if (placeCrates(world, p.x, p.y, rng, taken, { margin: 70 })) n++;
+        }
+        for (let i = 0, n = 0; i < 60 && n < 2; i++) {
+            const p = townRingPoint(town, rng, 60);
+            if (placeBarrier(world, p.x, p.y, rng() < 0.5, taken, { margin: 70 })) n++;
+        }
+    },
+    shack(world, town, rng, taken) {
+        for (let i = 0, n = 0; i < 80 && n < 4; i++) {
+            const p = townRingPoint(town, rng, 40);
+            if (placeCrates(world, p.x, p.y, rng, taken, { margin: 70 })) n++;
+        }
+    }
+};
+
+// Couvertures dans les espaces ouverts : tas de caisses, barrières (parfois en L), conteneurs isolés
+function scatterCovers(world, rng, count) {
+    const taken = [];
+    const spread = { margin: 240 };   // bien espacées : la carte reste ouverte
+    let placed = 0;
+    for (let i = 0; i < count * 40 && placed < count; i++) {
+        const x = 260 + rng() * (world.width - 520);
+        const y = 260 + rng() * (world.height - 520);
+        if (townAt(world, x, y, 110)) continue;
+        const b = world.sampleGround(x, y).biome;
+        if (b !== B.PLAINE && b !== B.FORET && b !== B.DESERT) continue;
+        const roll = rng();
+        let ok = false;
+        if (roll < 0.48) {
+            ok = placeCrates(world, x, y, rng, taken, spread);
+        } else if (roll < 0.86) {
+            const vertical = rng() < 0.5;
+            ok = placeBarrier(world, x, y, vertical, taken, spread);
+            // Une fois sur deux, une 2e barrière perpendiculaire forme un coin en L
+            if (ok && rng() < 0.5) {
+                const sx = rng() < 0.5 ? -1 : 1;
+                const sy = rng() < 0.5 ? -1 : 1;
+                // Accolée au bout de la première (bord contre bord, sans chevauchement)
+                const lx = vertical ? x + sx * 72 : x + sx * 58;
+                const ly = vertical ? y + sy * 58 : y + sy * 72;
+                placeBarrier(world, lx, ly, !vertical, [], { margin: 0 }, 110);
+            }
+        } else {
+            ok = placeContainer(world, x, y, rng() < 0.5, rng, taken, spread);
+        }
+        if (ok) placed++;
+    }
+}
+
 /* ----- Végétation et rochers ----- */
 
 const NATURE = {
@@ -586,6 +808,30 @@ const NATURE_THEMES = {
         deadbush: '#7a4f35',
         stump: '#7d4f33',
         leaves: [['#e07b2f', '#f2b04a'], ['#c23b2e', '#e3683f'], ['#e3a72f', '#f6cf63']]
+    },
+    // Carte Gun Game : prairie fleurie très ouverte, quelques bosquets pour casser les lignes de vue
+    cargo: {
+        rules: {
+            [B.FORET]:    { rate: 0.5,   pick: r => (r < 0.5 ? 'tree' : r < 0.72 ? 'bush' : r < 0.93 ? 'leaves' : 'rock') },
+            [B.PLAINE]:   { rate: 0.06,  pick: r => (r < 0.14 ? 'tree' : r < 0.36 ? 'bush' : r < 0.92 ? 'leaves' : 'rock') },
+            [B.DESERT]:   { rate: 0.035, pick: r => (r < 0.5 ? 'rock' : r < 0.85 ? 'deadbush' : 'cactus') },
+            [B.MONTAGNE]: { rate: 0.2,   pick: r => (r < 0.7 ? 'rock' : 'pine') },
+            [B.NEIGE]:    { rate: 0.1,   pick: () => 'rock' },
+            [B.BEACH]:    { rate: 0.025, pick: r => (r < 0.6 ? 'rock' : 'deadbush') }
+        },
+        trees: {
+            [B.FORET]: ['#2f8f6f', '#3aa37c', '#287a63', '#45b08a'],
+            [B.PLAINE]: ['#5db86f', '#4aa865', '#7cc46b']
+        },
+        bush: { [B.FORET]: '#2f8a62', default: '#5aa95d' },
+        pine: '#2b6b5c',
+        rock: { [B.DESERT]: '#c08a5a', [B.BEACH]: '#cdbb98', default: '#9aa4ad' },
+        bigRock: [B.DESERT],
+        cactus: '#5f9a55',
+        deadbush: '#8a6a45',
+        stump: '#7d5a3a',
+        // Taches de fleurs sauvages (même dessin que les feuilles mortes de la carte 1V1)
+        leaves: [['#f2c94c', '#fbe38a'], ['#e86a8a', '#f5a3b8'], ['#ffffff', '#dfe8ff'], ['#9b7cf0', '#c9b8ff']]
     }
 };
 

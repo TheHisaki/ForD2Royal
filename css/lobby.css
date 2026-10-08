@@ -1196,6 +1196,14 @@
     background: linear-gradient(135deg, #1a3a8f 0%, #2d7bff 60%, #4fd8ff 100%);
 }
 
+.mode-art[data-mode="duel"] {
+    background: linear-gradient(135deg, #075985 0%, #0891b2 58%, #67e8f9 100%);
+}
+
+.mode-art[data-mode="gungame"] {
+    background: linear-gradient(135deg, #7f1d1d 0%, #dc2626 55%, #fb923c 100%);
+}
+
 .mode-art[data-mode="duo"] {
     background: linear-gradient(135deg, #6a2dff 0%, #a855f7 60%, #d946ef 100%);
 }

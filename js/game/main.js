@@ -305,7 +305,8 @@ function start() {
     }
 
     const world = generateWorld({ mapId });
-    const loot = new Loot(world, gameSeed); // coffres (ajoutés aux obstacles) + butin au sol
+    // Coffres (ajoutés aux obstacles) + butin au sol ; aucun en Gun Game (l'arme vient du palier)
+    const loot = new Loot(world, gameSeed, { empty: isGunGame });
     const duelBoundary = isDuel ? createDuelBoundary(world) : null;
     let duelBoundaryAge = 0;
     world.duelBarrier = duelBoundary; // lu par Player, Combat et les bots (null hors 1V1)
@@ -459,32 +460,61 @@ function start() {
         return true;
     }
 
-    function gunSpawnPoint(index = 0, avoid = []) {
-        const cx = world.width / 2;
-        const cy = world.height / 2;
-        const points = [];
-        for (let tries = 0; tries < 700; tries++) {
-            const a = (index % GUNGAME_MAX_PLAYERS) * (Math.PI * 2 / GUNGAME_MAX_PLAYERS) + tries * 0.37;
-            const radius = 250 + ((index * 97 + tries * 31) % 900);
-            const x = Math.max(100, Math.min(world.width - 100, cx + Math.cos(a) * radius));
-            const y = Math.max(100, Math.min(world.height - 100, cy + Math.sin(a) * radius));
-            const ground = world.sampleGround(x, y);
-            const blocked = isWater(ground.biome)
-                || world.buildings.some(b => x > b.x - 70 && x < b.x + b.w + 70 && y > b.y - 70 && y < b.y + b.h + 70)
-                || avoid.some(p => Math.hypot(p.x - x, p.y - y) < 110);
-            if (!blocked) return { x, y };
+    // Endroit libre pour apparaître : terre ferme, hors bâtiments, conteneurs, caisses, barrières et rochers
+    const _gunNear = [];
+    function gunSpotFree(x, y, r = 46) {
+        if (x < 160 || y < 160 || x > world.width - 160 || y > world.height - 160) return false;
+        if (isWater(world.sampleGround(x, y).biome)) return false;
+        for (const b of world.buildings) {
+            if (x > b.x - r && x < b.x + b.w + r && y > b.y - r && y < b.y + b.h + r) return false;
         }
-        return { x: cx + (index % 5) * 90 - 180, y: cy + Math.floor(index / 5) * 90 - 90 };
+        const near = world.collide.query(x - r, y - r, x + r, y + r, _gunNear);
+        for (const c of near) {
+            if (c.kind === 'circle') {
+                if (Math.hypot(x - c.x, y - c.y) < r + c.r) return false;
+            } else {
+                const dx = Math.max(c.x - x, 0, x - (c.x + c.w));
+                const dy = Math.max(c.y - y, 0, y - (c.y + c.h));
+                if (Math.hypot(dx, dy) < r) return false;
+            }
+        }
+        return true;
     }
 
+    // Point au hasard sur toute la carte, le plus loin possible des combattants à éviter :
+    // on exige d'abord 1000 de distance, puis on relâche progressivement si la carte est chargée.
+    function gunSpawnPoint(avoid = []) {
+        for (const minDist of [1000, 760, 540, 340, 180, 0]) {
+            for (let tries = 0; tries < 70; tries++) {
+                const x = 200 + Math.random() * (world.width - 400);
+                const y = 200 + Math.random() * (world.height - 400);
+                if (!gunSpotFree(x, y)) continue;
+                if (avoid.every(p => Math.hypot(p.x - x, p.y - y) >= minDist)) return { x, y };
+            }
+        }
+        return { x: world.width / 2, y: world.height / 2 };
+    }
+
+    /*
+       Placement initial. Appelé pendant que Math.random est encore le générateur du seed :
+       toutes les machines calculent la même liste de points. Chaque vrai joueur prend le point
+       de son rang dans la salle (ordre du serveur), les bots prennent les suivants.
+    */
     function prepareGunGameCombatants() {
         if (!isGunGame) return;
-        const placed = [];
-        const all = [player, ...(bots?.bots || [])];
-        all.forEach((fighter, index) => {
-            const point = gunSpawnPoint(index, placed);
+        const roomIds = isMultiplayer && Array.isArray(gameConfig.roomPlayers)
+            ? gameConfig.roomPlayers.filter(rp => rp && rp.id).map(rp => rp.id)
+            : [];
+        if (!roomIds.includes(player.id)) roomIds.unshift(player.id);
+        const botList = bots?.bots || [];
+        const points = [];
+        for (let i = 0; i < roomIds.length + botList.length; i++) points.push(gunSpawnPoint(points));
+
+        const place = (fighter, point) => {
             fighter.x = point.x;
             fighter.y = point.y;
+            fighter.vx = 0;
+            fighter.vy = 0;
             fighter.phase = 'ground';
             fighter.altitude = 0;
             fighter.alive = true;
@@ -492,7 +522,21 @@ function start() {
             fighter.health = 100;
             fighter.shield = 0;
             applyGunGameLoadout(fighter, fighter.gunStage || 0);
-            placed.push(fighter);
+        };
+        // Les autres vrais joueurs se placent eux-mêmes (position reçue par le réseau)
+        place(player, points[roomIds.indexOf(player.id)]);
+        botList.forEach((bot, i) => {
+            const point = points[roomIds.length + i];
+            place(bot, point);
+            const br = bot.brain;
+            if (br) {
+                br.land = { x: point.x, y: point.y };
+                br.roamGoal = { x: point.x, y: point.y };
+                br.goal = null;
+                br.state = 'roam';
+                br.target = null;
+                br.lootTarget = null;
+            }
         });
         drop.ship.active = false;
         drop.dist = drop.autoJumpAt;
@@ -520,7 +564,8 @@ function start() {
         const timer = setTimeout(() => {
             gunRespawnTimers.delete(victim.id);
             if (gunGameOver) return;
-            const point = gunSpawnPoint((Number(victim.id) || 0) + Math.floor(time * 10), fighters.filter(f => f.alive));
+            // Loin des combattants encore en vie : pas de réapparition sous le nez d'un ennemi
+            const point = gunSpawnPoint(fighters.filter(f => f.alive && f !== victim));
             victim.x = point.x;
             victim.y = point.y;
             victim.vx = 0;
@@ -533,6 +578,12 @@ function start() {
             victim.shield = 0;
             victim.usingItem = null;
             applyGunGameLoadout(victim, victim.gunStage || 0);
+            if (victim.brain) {
+                victim.brain.roamGoal = { x: point.x, y: point.y };
+                victim.brain.goal = null;
+                victim.brain.state = 'roam';
+                victim.brain.target = null;
+            }
             if (victim === player) {
                 spectator.stop?.();
                 combatHud?.killBanner('RÉAPPARITION !');
@@ -2628,6 +2679,7 @@ function start() {
             gunGame: isGunGame,
             gunStage: player.gunStage || 0,
             gunWinner: gunWinnerId === player.id
+        };
     }
 
     /* ----- Sons d'ambiance (vaisseau, vent, compte à rebours, cœur, coffres, oiseaux) ----- */
@@ -3351,7 +3403,8 @@ function start() {
         if (player.phase === 'ship' && (drop.dist >= drop.autoJumpAt || !drop.ship.active)) drop.jump(player, true);
 
         // Corruption : démarrée par l'hôte (les autres se calent sur world_sync)
-        if (corruption.state === 'idle' && isHost && (!drop.ship.active || player.phase === 'ground' ||
+        // Gun Game : pas de corruption, toute la carte reste jouable
+        if (!isGunGame && corruption.state === 'idle' && isHost && (!drop.ship.active || player.phase === 'ground' ||
             (isMultiplayer && bots.bots.every(b => b.phase !== 'ship')))) {
             corruption.start();
             lastWorldSync = 0; // annonce tout de suite

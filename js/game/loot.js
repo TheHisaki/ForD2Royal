@@ -176,7 +176,7 @@ class PointGrid {
 /* ===================== BUTIN ===================== */
 
 export class Loot {
-    constructor(world, seed = null) {
+    constructor(world, seed = null, opts = {}) {
         this.world = world;
         this.seed = seed;
         this.chests = [];
@@ -205,6 +205,9 @@ export class Loot {
         this._styles = new Map();
         this._chestGlow = null;
         this._chestLid = null;
+
+        // Gun Game : ni coffres ni butin, l'arme est imposée par le palier
+        if (opts.empty) return;
 
         // 1 coffre par bâtiment, 2 dans les grands (placés en diagonale)
         for (const b of world.buildings) {

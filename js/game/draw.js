@@ -87,6 +87,18 @@ export function drawRoads(ctx, roads, extra = 0) {
         ctx.setLineDash([]);
         ctx.lineCap = 'round';
     }
+    // Routes bétonnées (thème) : marquage central blanc en tirets
+    for (const r of roads) {
+        if (!r.dash) continue;
+        ctx.strokeStyle = r.dash;
+        ctx.lineCap = 'butt';
+        ctx.lineWidth = 5;
+        ctx.setLineDash([26, 22]);
+        roadPath(ctx, r.points);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.lineCap = 'round';
+    }
     ctx.restore();
 }
 
@@ -117,6 +129,63 @@ export function drawPlaza(ctx, town) {
             }
         }
         ctx.stroke();
+        ctx.restore();
+    }
+
+    if (town.pattern === 'arena') {
+        // Dalle centrale : grandes dalles claires, anneaux de marquage et rond central
+        ctx.save();
+        ctx.clip();
+        ctx.strokeStyle = 'rgba(40, 55, 70, 0.13)';
+        ctx.lineWidth = 3;
+        ctx.beginPath();
+        for (let v = -R; v <= R; v += 64) {
+            ctx.moveTo(town.x + v, town.y - R);
+            ctx.lineTo(town.x + v, town.y + R);
+            ctx.moveTo(town.x - R, town.y + v);
+            ctx.lineTo(town.x + R, town.y + v);
+        }
+        ctx.stroke();
+        ctx.restore();
+        ctx.save();
+        ctx.lineCap = 'butt';
+        ctx.strokeStyle = '#f0c23a';
+        ctx.lineWidth = 12;
+        ctx.beginPath();
+        ctx.arc(town.x, town.y, R * 0.72, 0, TAU);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(255,255,255,0.75)';
+        ctx.lineWidth = 6;
+        ctx.setLineDash([30, 24]);
+        ctx.beginPath();
+        ctx.arc(town.x, town.y, R * 0.88, 0, TAU);
+        ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.beginPath();
+        ctx.arc(town.x, town.y, R * 0.16, 0, TAU);
+        ctx.fillStyle = 'rgba(240,194,58,0.9)';
+        ctx.fill();
+        ctx.strokeStyle = '#ffffff';
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        ctx.restore();
+    }
+
+    if (town.pattern === 'lanes') {
+        // Aire d'asphalte : marquages blancs en tirets
+        ctx.save();
+        ctx.clip();
+        ctx.strokeStyle = 'rgba(255,255,255,0.32)';
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'butt';
+        ctx.setLineDash([34, 26]);
+        ctx.beginPath();
+        for (let v = -R + 35; v < R; v += 70) {
+            ctx.moveTo(town.x + v, town.y - R);
+            ctx.lineTo(town.x + v, town.y + R);
+        }
+        ctx.stroke();
+        ctx.setLineDash([]);
         ctx.restore();
     }
 
@@ -504,6 +573,14 @@ export function castsShadow(o) {
 }
 
 export function drawShadow(ctx, o) {
+    if (o.w) {
+        // Couvertures rectangulaires : ombre portée décalée
+        ctx.fillStyle = 'rgba(12,24,40,0.22)';
+        const off = o.type === 'barrier' ? 7 : 12;
+        roundRectPath(ctx, o.x - o.w / 2 + off, o.y - o.h / 2 + off * 1.3, o.w, o.h, 6);
+        ctx.fill();
+        return;
+    }
     const rr = o.layer === 'top' ? o.r * 0.95 : o.r;
     ctx.fillStyle = 'rgba(12,24,40,0.18)';
     ctx.beginPath();
@@ -580,6 +657,199 @@ function fillStroke(ctx, fill, stroke, lw) {
     ctx.stroke();
 }
 
+/* ----- Couvertures de la carte Gun Game (vues de dessus) ----- */
+
+// Conteneur maritime : tôle ondulée, bande claire, portes à un bout, coins en fonte
+function drawContainer(ctx, o) {
+    const x0 = o.x - o.w / 2;
+    const y0 = o.y - o.h / 2;
+    const horiz = o.w >= o.h;
+    const L = horiz ? o.w : o.h;
+    const S = horiz ? o.h : o.w;
+    ctx.save();
+    roundRectPath(ctx, x0, y0, o.w, o.h, 5);
+    ctx.fillStyle = o.base;
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    // Bande claire le long d'un grand côté (lumière venant du haut à gauche)
+    ctx.fillStyle = o.light;
+    if (horiz) ctx.fillRect(x0, y0, o.w, S * 0.2);
+    else ctx.fillRect(x0, y0, S * 0.2, o.h);
+    // Ondulations perpendiculaires au grand axe
+    ctx.lineCap = 'butt';
+    ctx.lineWidth = 4;
+    ctx.strokeStyle = 'rgba(0,0,0,0.2)';
+    ctx.beginPath();
+    for (let d = 14; d < L - 10; d += 14) {
+        if (horiz) {
+            ctx.moveTo(x0 + d, y0 + 6);
+            ctx.lineTo(x0 + d, y0 + o.h - 6);
+        } else {
+            ctx.moveTo(x0 + 6, y0 + d);
+            ctx.lineTo(x0 + o.w - 6, y0 + d);
+        }
+    }
+    ctx.stroke();
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    for (let d = 18; d < L - 10; d += 14) {
+        if (horiz) {
+            ctx.moveTo(x0 + d, y0 + 6);
+            ctx.lineTo(x0 + d, y0 + o.h - 6);
+        } else {
+            ctx.moveTo(x0 + 6, y0 + d);
+            ctx.lineTo(x0 + o.w - 6, y0 + d);
+        }
+    }
+    ctx.stroke();
+    // Portes à un bout : bande sombre + barres de verrouillage
+    const band = 18;
+    const atEnd = o.door === 1;
+    ctx.fillStyle = o.dark;
+    if (horiz) ctx.fillRect(atEnd ? x0 + o.w - band : x0, y0, band, o.h);
+    else ctx.fillRect(x0, atEnd ? y0 + o.h - band : y0, o.w, band);
+    ctx.strokeStyle = o.light;
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    for (const k of [0.33, 0.67]) {
+        if (horiz) {
+            const bx = atEnd ? x0 + o.w - band : x0;
+            ctx.moveTo(bx + 4, y0 + o.h * k);
+            ctx.lineTo(bx + band - 4, y0 + o.h * k);
+        } else {
+            const by = atEnd ? y0 + o.h - band : y0;
+            ctx.moveTo(x0 + o.w * k, by + 4);
+            ctx.lineTo(x0 + o.w * k, by + band - 4);
+        }
+    }
+    ctx.stroke();
+    ctx.restore();
+    // Contour
+    roundRectPath(ctx, x0, y0, o.w, o.h, 5);
+    ctx.strokeStyle = o.dark;
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    // Coins en fonte
+    ctx.fillStyle = '#2a3038';
+    const c = 13;
+    for (const [cx, cy] of [[x0, y0], [x0 + o.w - c, y0], [x0, y0 + o.h - c], [x0 + o.w - c, y0 + o.h - c]]) {
+        ctx.fillRect(cx, cy, c, c);
+    }
+    ctx.restore();
+}
+
+// Caisse : bois (planches + croisillon) ou métal (panneau + rivets)
+function drawCrate(ctx, o) {
+    const x0 = o.x - o.w / 2;
+    const y0 = o.y - o.h / 2;
+    const { w, h } = o;
+    const m = 7;
+    ctx.save();
+    ctx.lineCap = 'butt';
+    roundRectPath(ctx, x0, y0, w, h, 4);
+    ctx.fillStyle = o.base;
+    ctx.fill();
+    if (o.metal) {
+        // Panneau central embouti + rivets aux coins
+        roundRectPath(ctx, x0 + m + 3, y0 + m + 3, w - 2 * (m + 3), h - 2 * (m + 3), 3);
+        ctx.fillStyle = o.light;
+        ctx.fill();
+        ctx.strokeStyle = 'rgba(0,0,0,0.25)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        ctx.moveTo(o.x, y0 + m + 6);
+        ctx.lineTo(o.x, y0 + h - m - 6);
+        ctx.moveTo(x0 + m + 6, o.y);
+        ctx.lineTo(x0 + w - m - 6, o.y);
+        ctx.stroke();
+        ctx.fillStyle = o.dark;
+        for (const [rx, ry] of [[x0 + 6, y0 + 6], [x0 + w - 6, y0 + 6], [x0 + 6, y0 + h - 6], [x0 + w - 6, y0 + h - 6]]) {
+            circle(ctx, rx, ry, 2.6);
+            ctx.fill();
+        }
+    } else {
+        // Planches
+        ctx.strokeStyle = 'rgba(60,30,10,0.28)';
+        ctx.lineWidth = 2;
+        ctx.beginPath();
+        for (const k of [1 / 3, 2 / 3]) {
+            ctx.moveTo(x0 + m, y0 + h * k);
+            ctx.lineTo(x0 + w - m, y0 + h * k);
+        }
+        ctx.stroke();
+        // Cadre intérieur
+        ctx.strokeStyle = o.light;
+        ctx.lineWidth = 5;
+        ctx.strokeRect(x0 + m / 2 + 1, y0 + m / 2 + 1, w - m - 2, h - m - 2);
+        // Croisillon
+        ctx.lineWidth = 6;
+        ctx.beginPath();
+        ctx.moveTo(x0 + m, y0 + m);
+        ctx.lineTo(x0 + w - m, y0 + h - m);
+        ctx.moveTo(x0 + w - m, y0 + m);
+        ctx.lineTo(x0 + m, y0 + h - m);
+        ctx.stroke();
+        ctx.strokeStyle = 'rgba(60,30,10,0.3)';
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+    }
+    roundRectPath(ctx, x0, y0, w, h, 4);
+    ctx.strokeStyle = o.dark;
+    ctx.lineWidth = 3.5;
+    ctx.stroke();
+    ctx.restore();
+}
+
+// Barrière en béton : arête claire au sommet, bouts rayés jaune et noir
+function drawBarrier(ctx, o) {
+    const x0 = o.x - o.w / 2;
+    const y0 = o.y - o.h / 2;
+    const horiz = o.w >= o.h;
+    const S = horiz ? o.h : o.w;
+    const rad = S * 0.32;
+    ctx.save();
+    roundRectPath(ctx, x0, y0, o.w, o.h, rad);
+    ctx.fillStyle = o.base;
+    ctx.fill();
+    ctx.save();
+    ctx.clip();
+    // Bouts de signalisation
+    const end = 20;
+    const ends = horiz
+        ? [[x0, y0, end, o.h], [x0 + o.w - end, y0, end, o.h]]
+        : [[x0, y0, o.w, end], [x0, y0 + o.h - end, o.w, end]];
+    for (const [ex, ey, ew, eh] of ends) {
+        ctx.fillStyle = '#f2c230';
+        ctx.fillRect(ex, ey, ew, eh);
+        ctx.save();
+        ctx.beginPath();
+        ctx.rect(ex, ey, ew, eh);
+        ctx.clip();
+        ctx.strokeStyle = '#2a2a2a';
+        ctx.lineWidth = 5;
+        ctx.lineCap = 'butt';
+        ctx.beginPath();
+        for (let d = -40; d < 60; d += 12) {
+            ctx.moveTo(ex + d, ey);
+            ctx.lineTo(ex + d + 30, ey + 30);
+        }
+        ctx.stroke();
+        ctx.restore();
+    }
+    // Arête supérieure
+    ctx.fillStyle = o.light;
+    if (horiz) ctx.fillRect(x0 + end, o.y - S * 0.16, o.w - 2 * end, S * 0.32);
+    else ctx.fillRect(o.x - S * 0.16, y0 + end, S * 0.32, o.h - 2 * end);
+    ctx.restore();
+    roundRectPath(ctx, x0, y0, o.w, o.h, rad);
+    ctx.strokeStyle = o.dark;
+    ctx.lineWidth = 4;
+    ctx.stroke();
+    ctx.restore();
+}
+
 // Ne touche pas à globalAlpha (réglé par l'appelant)
 export function drawObject(ctx, o) {
     const { x, y, r } = o;
@@ -588,6 +858,15 @@ export function drawObject(ctx, o) {
     ctx.lineCap = 'round';
 
     switch (o.type) {
+        case 'container':
+            drawContainer(ctx, o);
+            break;
+        case 'crate':
+            drawCrate(ctx, o);
+            break;
+        case 'barrier':
+            drawBarrier(ctx, o);
+            break;
         case 'tree':
         case 'bush': {
             fillStrokeShape(ctx, polyShape(ctx, o, 0, x, y, o.pts), o.base, o.dark, lw);
