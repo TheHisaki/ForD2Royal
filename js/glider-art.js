@@ -4,6 +4,8 @@
    - en jeu, au-dessus du joueur qui plane (js/game/drop.js),
    - dans le casier / la boutique (js/item-art.js, converti en image).
    Les planeurs classiques (aile en chevron) restent dessinés par drop.js.
+   Styles : saucer, dragon, leaf, blimp, beetle, grimoire, origami, balloon,
+   kite, pizza, manta, carpet, phoenix.
 
    Repère : vue de dessus, +x = avant (le nez), y = envergure.
    Toutes les tailles sont en « rayons » du personnage (r ≈ 26 unités).
@@ -663,6 +665,578 @@ Object.assign(GLIDER_ART, {
             ctx.closePath();
             ctx.fillStyle = '#ffffff';
             ctx.fill();
+        }
+    }
+});
+
+/* ----- Nouveaux planeurs : un par rareté, de plus en plus travaillés ----- */
+
+// Couleur #rrggbb -> rgba avec opacité (pour les dégradés qui s'effacent)
+function rgba(hex, a) {
+    const n = /^#[0-9a-f]{6}$/i.test(hex) ? parseInt(hex.slice(1), 16) : 0xffffff;
+    return `rgba(${n >> 16}, ${(n >> 8) & 255}, ${n & 255}, ${a})`;
+}
+
+// Étincelle à 4 branches (sous-chemin courant remplacé)
+function sparkle(ctx, x, y, s) {
+    ctx.beginPath();
+    ctx.moveTo(x, y - s);
+    ctx.quadraticCurveTo(x, y, x + s, y);
+    ctx.quadraticCurveTo(x, y, x, y + s);
+    ctx.quadraticCurveTo(x, y, x - s, y);
+    ctx.quadraticCurveTo(x, y, x, y - s);
+    ctx.closePath();
+}
+
+// Plume pointue partant de (bx, by) dans la direction ang, dégradé de la base à la pointe
+function feather(ctx, bx, by, ang, len, wid, colors, W) {
+    ctx.save();
+    ctx.translate(bx, by);
+    ctx.rotate(ang);
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.quadraticCurveTo(len * 0.45, -wid, len, 0);
+    ctx.quadraticCurveTo(len * 0.45, wid, 0, 0);
+    ctx.closePath();
+    ink(ctx, lin(ctx, 0, 0, len, 0, colors), W);
+    ctx.beginPath();
+    ctx.moveTo(len * 0.1, 0);
+    ctx.lineTo(len * 0.85, 0);
+    ctx.strokeStyle = 'rgba(255, 255, 255, 0.45)';
+    ctx.lineWidth = 1.2;
+    ctx.stroke();
+    ctx.restore();
+}
+
+Object.assign(GLIDER_ART, {
+    // Cerf-Volant (commun) : losange en 4 triangles, baguettes en croix, queue à nœuds qui ondule
+    kite: {
+        anchors: [[0.35, 0.95], [-0.55, 0.65]],
+        tip: [0.3, 1.5],
+        shadow: [0.1, 1.9, 1.5],
+        draw(ctx, r, [c1, c2], t, W) {
+            const tail = (u) => [-r * (1.3 + u * 2.1), Math.sin(u * 7 - t * 6) * r * 0.3 * u];
+            ctx.beginPath();
+            for (let i = 0; i <= 24; i++) {
+                const [x, y] = tail(i / 24);
+                if (i) ctx.lineTo(x, y);
+                else ctx.moveTo(x, y);
+            }
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = 3.4;
+            ctx.stroke();
+            ctx.strokeStyle = '#f4f6fb';
+            ctx.lineWidth = 1.4;
+            ctx.stroke();
+            for (let k = 1; k <= 4; k++) {
+                const [x, y] = tail(k / 4.4);
+                const b = r * 0.22;
+                ctx.beginPath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x - b * 0.5, y - b);
+                ctx.lineTo(x + b * 0.5, y - b);
+                ctx.closePath();
+                ctx.moveTo(x, y);
+                ctx.lineTo(x + b * 0.5, y + b);
+                ctx.lineTo(x - b * 0.5, y + b);
+                ctx.closePath();
+                ink(ctx, k % 2 ? c1 : c2, W * 0.6);
+            }
+            const N = [r * 1.6, 0];
+            const L = [r * 0.3, -r * 1.5];
+            const R = [r * 0.3, r * 1.5];
+            const B = [-r * 1.3, 0];
+            const C = [r * 0.3, 0];
+            const tri = (a, b, fill) => {
+                ctx.beginPath();
+                ctx.moveTo(C[0], C[1]);
+                ctx.lineTo(a[0], a[1]);
+                ctx.lineTo(b[0], b[1]);
+                ctx.closePath();
+                ctx.fillStyle = fill;
+                ctx.fill();
+            };
+            tri(N, R, c1);
+            tri(R, B, c2);
+            tri(B, L, c1);
+            tri(L, N, c2);
+            // La toile se gonfle : reflet sur un quart
+            ctx.beginPath();
+            ctx.moveTo(C[0], C[1]);
+            ctx.lineTo(N[0], N[1]);
+            ctx.lineTo(L[0], L[1]);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.25)';
+            ctx.fill();
+            ctx.beginPath();
+            ctx.moveTo(N[0], N[1]);
+            ctx.lineTo(R[0], R[1]);
+            ctx.lineTo(B[0], B[1]);
+            ctx.lineTo(L[0], L[1]);
+            ctx.closePath();
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = W;
+            ctx.stroke();
+            bone(ctx, [N[0] - r * 0.1, 0, B[0] + r * 0.12, 0], 1.8, '#c08a4a');
+            bone(ctx, [C[0], L[1] + r * 0.14, C[0], R[1] - r * 0.14], 1.8, '#c08a4a');
+            circle(ctx, C[0], 0, r * 0.12);
+            ink(ctx, '#ffffff', W * 0.5);
+        }
+    },
+
+    // Part Volante (peu commun) : sauce, fromage qui coule, pepperoni, basilic, croûte dorée, vapeur
+    pizza: {
+        anchors: [[0.55, 0.55], [-0.7, 1.15]],
+        tip: [-1.25, 1.75],
+        shadow: [0.2, 1.8, 1.75],
+        draw(ctx, r, [cheese, pep], t, W) {
+            const TX = r * 1.9;
+            const R = r * 3.3;
+            const A = 0.55;
+            const crust = '#d9a05b';
+            ctx.save();
+            ctx.lineCap = 'round';
+            // Gouttes de fromage qui pendent des côtés (sous la part)
+            for (const s of [1, -1]) {
+                const nx = Math.sin(A);
+                const ny = s * Math.cos(A);
+                for (const u of [0.38, 0.64, 0.86]) {
+                    const px = TX - Math.cos(A) * R * u;
+                    const py = s * Math.sin(A) * R * u;
+                    const len = r * (0.22 + 0.13 * Math.sin(t * 2 + u * 9));
+                    bone(ctx, [px - nx * r * 0.1, py - ny * r * 0.1, px + nx * len, py + ny * len], r * 0.16, cheese);
+                    circle(ctx, px + nx * len, py + ny * len, r * 0.11);
+                    ink(ctx, cheese, W * 0.5);
+                }
+            }
+            // Sauce (part entière)
+            ctx.beginPath();
+            ctx.moveTo(TX, 0);
+            ctx.arc(TX, 0, R, Math.PI - A, Math.PI + A);
+            ctx.closePath();
+            ink(ctx, '#c4302b', W);
+            // Fromage : un peu plus petit, bord ondulé côté croûte
+            ctx.beginPath();
+            ctx.moveTo(TX - r * 0.14, 0);
+            for (let i = 0; i <= 18; i++) {
+                const a = Math.PI - A * 0.92 + (2 * A * 0.92 * i) / 18;
+                const rad = R * 0.86 + Math.sin(i * 1.7) * r * 0.08;
+                ctx.lineTo(TX + Math.cos(a) * rad, Math.sin(a) * rad);
+            }
+            ctx.closePath();
+            ctx.fillStyle = lin(ctx, TX, 0, TX - R, 0, [shade(cheese, 0.4), cheese, shade(cheese, -0.08)]);
+            ctx.fill();
+            // Pepperoni
+            for (const [u, v] of [[0.3, 0], [0.55, 0.42], [0.55, -0.42], [0.78, 0.05], [0.8, 0.62], [0.82, -0.6]]) {
+                const dist = R * 0.85 * u;
+                const x = TX - dist;
+                const y = v * dist * Math.tan(A) * 0.8;
+                const pr = r * (0.2 + 0.08 * u);
+                circle(ctx, x, y, pr);
+                ink(ctx, orb(ctx, x, y, pr, [shade(pep, 0.35), pep, shade(pep, -0.35)]), W * 0.6);
+                ctx.fillStyle = shade(pep, -0.45);
+                for (const [dx, dy] of [[0.3, -0.2], [-0.25, 0.3], [-0.1, -0.4]]) {
+                    circle(ctx, x + dx * pr, y + dy * pr, pr * 0.12);
+                    ctx.fill();
+                }
+            }
+            // Basilic
+            for (const [x, y, a] of [[-0.25, 0.75, 0.7], [0.75, -0.2, -0.5]]) {
+                ellipse(ctx, r * x, r * y, r * 0.24, r * 0.12, a);
+                ink(ctx, '#3fbf4a', W * 0.5);
+                ctx.beginPath();
+                ctx.moveTo(r * x - Math.cos(a) * r * 0.18, r * y - Math.sin(a) * r * 0.18);
+                ctx.lineTo(r * x + Math.cos(a) * r * 0.18, r * y + Math.sin(a) * r * 0.18);
+                ctx.strokeStyle = '#1f8f3a';
+                ctx.lineWidth = 1.2;
+                ctx.stroke();
+            }
+            // Croûte dorée (recouvre le bord arrière) + brûlures
+            ctx.beginPath();
+            ctx.arc(TX, 0, R - r * 0.12, Math.PI - A, Math.PI + A);
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = r * 0.5 + W * 2;
+            ctx.stroke();
+            ctx.strokeStyle = lin(ctx, TX - R - r * 0.3, 0, TX - R + r * 0.3, 0, [shade(crust, -0.25), crust, shade(crust, 0.25)]);
+            ctx.lineWidth = r * 0.5;
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.arc(TX, 0, R - r * 0.04, Math.PI - A * 0.94, Math.PI + A * 0.94);
+            ctx.strokeStyle = 'rgba(255, 240, 200, 0.55)';
+            ctx.lineWidth = r * 0.08;
+            ctx.stroke();
+            ctx.fillStyle = shade(crust, -0.4);
+            for (let i = 0; i < 6; i++) {
+                const a = Math.PI - A * 0.8 + (A * 1.6 * i) / 5;
+                ellipse(ctx, TX + Math.cos(a) * (R - r * 0.18), Math.sin(a) * (R - r * 0.18), r * 0.07, r * 0.04, a);
+                ctx.fill();
+            }
+            // Vapeur qui monte
+            const ga = ctx.globalAlpha;
+            for (let k = 0; k < 2; k++) {
+                const ph = (t * 0.6 + k * 0.5) % 1;
+                ctx.globalAlpha = ga * 0.35 * (1 - ph);
+                circle(ctx, TX - R * (0.35 + k * 0.25), (k ? -1 : 1) * r * 0.35, r * (0.15 + 0.35 * ph));
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+            }
+            ctx.restore();
+        }
+    },
+
+    // Raie des Abysses (rare) : ailes qui ondulent, taches lumineuses qui s'allument en vague,
+    // bord d'attaque phosphorescent, queue fouet, bulles
+    manta: {
+        anchors: [[0.55, 0.95], [-0.45, 1.15]],
+        tip: [-0.15, 2.5],
+        shadow: [0.0, 1.7, 2.5],
+        draw(ctx, r, [body, glow], t, W) {
+            const wave = Math.sin(t * 2.2);
+            const tipX = -r * (0.15 - 0.2 * wave);
+            const tipY = r * (2.45 + 0.07 * wave);
+            const ga = ctx.globalAlpha;
+            // Halo
+            ctx.globalAlpha = ga * (0.14 + 0.06 * Math.sin(t * 3));
+            ellipse(ctx, 0, 0, r * 1.9, r * 2.75);
+            ctx.fillStyle = glow;
+            ctx.fill();
+            ctx.globalAlpha = ga;
+            // Queue fouet
+            const tw = Math.sin(t * 3) * r * 0.3;
+            bone(ctx, [-r * 0.8, 0, -r * 1.6, tw * 0.4, -r * 2.4, tw, -r * 2.9, tw * 0.6], 1.8, shade(body, -0.2));
+            // Bulles qui s'éloignent
+            for (let k = 0; k < 4; k++) {
+                const ph = (t * 0.8 + k / 4) % 1;
+                ctx.globalAlpha = ga * (1 - ph) * 0.8;
+                circle(ctx, -r * (1.0 + ph * 1.8), Math.sin(k * 2.1) * r * 1.2, r * 0.09 * (1 - ph * 0.4));
+                ctx.strokeStyle = '#d6fbff';
+                ctx.lineWidth = 1.3;
+                ctx.stroke();
+            }
+            ctx.globalAlpha = ga;
+            const shape = () => {
+                ctx.beginPath();
+                ctx.moveTo(r * 1.05, 0);
+                ctx.quadraticCurveTo(r * 1.35, r * 0.05, r * 1.55, r * 0.3);
+                ctx.quadraticCurveTo(r * 1.45, r * 0.5, r * 1.0, r * 0.45);
+                ctx.quadraticCurveTo(r * 0.75, r * (1.7 + 0.1 * wave), tipX, tipY);
+                ctx.quadraticCurveTo(-r * 0.35, r * 1.25, -r * 0.85, r * 0.32);
+                ctx.lineTo(-r * 0.95, 0);
+                ctx.lineTo(-r * 0.85, -r * 0.32);
+                ctx.quadraticCurveTo(-r * 0.35, -r * 1.25, tipX, -tipY);
+                ctx.quadraticCurveTo(r * 0.75, -r * (1.7 + 0.1 * wave), r * 1.0, -r * 0.45);
+                ctx.quadraticCurveTo(r * 1.45, -r * 0.5, r * 1.55, -r * 0.3);
+                ctx.quadraticCurveTo(r * 1.35, -r * 0.05, r * 1.05, 0);
+                ctx.closePath();
+            };
+            shape();
+            const g = ctx.createRadialGradient(r * 0.2, 0, r * 0.3, r * 0.2, 0, r * 2.6);
+            g.addColorStop(0, shade(body, -0.3));
+            g.addColorStop(0.55, body);
+            g.addColorStop(1, shade(body, 0.35));
+            ctx.fillStyle = g;
+            ctx.fill();
+            ctx.save();
+            ctx.clip();
+            // Dos plus sombre, marques claires des épaules
+            ellipse(ctx, 0, 0, r * 1.05, r * 0.5);
+            ctx.fillStyle = 'rgba(5, 10, 30, 0.3)';
+            ctx.fill();
+            for (const s of [1, -1]) {
+                ellipse(ctx, r * 0.2, r * 0.95 * s, r * 0.55, r * 0.24, s * 0.55);
+                ctx.fillStyle = 'rgba(255, 255, 255, 0.16)';
+                ctx.fill();
+            }
+            // Taches bioluminescentes : la lumière parcourt l'aile en vague
+            for (const s of [1, -1]) {
+                for (let j = 0; j < 3; j++) {
+                    for (let k = 0; k < 5 - j; k++) {
+                        const u = 0.3 + k * 0.14;
+                        const x = r * 0.35 + (tipX - r * 0.35) * u - j * r * 0.28;
+                        const y = s * (tipY * u * 0.92 - j * r * 0.06);
+                        const on = 0.35 + 0.65 * Math.max(0, Math.sin(t * 3 - u * 6 - j));
+                        const sr = r * (0.1 - u * 0.03);
+                        ctx.globalAlpha = ga * on * 0.35;
+                        circle(ctx, x, y, sr * 2.2);
+                        ctx.fillStyle = glow;
+                        ctx.fill();
+                        ctx.globalAlpha = ga * (0.5 + 0.5 * on);
+                        circle(ctx, x, y, sr);
+                        ctx.fillStyle = on > 0.8 ? '#ffffff' : glow;
+                        ctx.fill();
+                    }
+                }
+            }
+            ctx.globalAlpha = ga;
+            ctx.restore();
+            shape();
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = W;
+            ctx.stroke();
+            // Bord d'attaque phosphorescent + arête du dos
+            ctx.beginPath();
+            for (const s of [1, -1]) {
+                ctx.moveTo(r * 0.95, r * 0.5 * s);
+                ctx.quadraticCurveTo(r * 0.68, r * (1.62 + 0.1 * wave) * s, tipX - r * 0.04, (tipY - r * 0.1) * s);
+            }
+            ctx.strokeStyle = glow;
+            ctx.globalAlpha = ga * (0.6 + 0.3 * Math.sin(t * 3));
+            ctx.lineWidth = 1.8;
+            ctx.stroke();
+            ctx.globalAlpha = ga;
+            ctx.beginPath();
+            ctx.moveTo(r * 0.9, 0);
+            ctx.lineTo(-r * 0.85, 0);
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.22)';
+            ctx.lineWidth = 1.6;
+            ctx.stroke();
+            for (const s of [1, -1]) {
+                circle(ctx, r * 1.02, r * 0.38 * s, r * 0.07);
+                ctx.fillStyle = glow;
+                ctx.fill();
+            }
+        }
+    },
+
+    // Tapis des Mille Nuits (épique) : tapis qui ondule, bordures dorées, médaillon, franges
+    // qui se balancent et poussière d'étoiles dans son sillage
+    carpet: {
+        anchors: [[0.95, 1.55], [-0.95, 1.55]],
+        tip: [0.0, 2.15],
+        shadow: [0.0, 1.45, 2.2],
+        draw(ctx, r, [main, trim], t, W) {
+            const X = r * 1.25;
+            const Y = r * 2.1;
+            const ga = ctx.globalAlpha;
+            const wy = (x) => Math.sin((x / r) * 2.4 - t * 4) * r * 0.08;
+            // Poussière d'étoiles derrière
+            for (let k = 0; k < 7; k++) {
+                const ph = (t * 0.7 + k / 7) % 1;
+                ctx.globalAlpha = ga * (1 - ph);
+                sparkle(ctx, -X - r * 0.4 - ph * r * 1.5, Math.sin(k * 2.7) * Y * 0.8 + Math.sin(t * 2 + k) * r * 0.15, r * 0.2 * (1 - ph * 0.6));
+                ctx.fillStyle = k % 3 ? trim : '#ffffff';
+                ctx.fill();
+            }
+            ctx.globalAlpha = ga;
+            // Franges (devant et derrière)
+            for (const sx of [1, -1]) {
+                for (let i = 0; i <= 9; i++) {
+                    const y = -Y + r * 0.1 + ((2 * Y - r * 0.2) * i) / 9;
+                    const sway = Math.sin(t * 5 + i * 0.8 + sx) * r * 0.07;
+                    const yy = y + wy(sx * X);
+                    bone(ctx, [sx * X, yy, sx * (X + r * 0.3), yy + sway], 1.3, trim);
+                    circle(ctx, sx * (X + r * 0.36), yy + sway, r * 0.075);
+                    ink(ctx, shade(trim, -0.15), W * 0.4);
+                }
+            }
+            const path = (ins) => {
+                ctx.beginPath();
+                const N = 16;
+                for (let i = 0; i <= N; i++) {
+                    const x = X - ins - (2 * (X - ins) * i) / N;
+                    const y = Y - ins + wy(x);
+                    if (i) ctx.lineTo(x, y);
+                    else ctx.moveTo(x, y);
+                }
+                for (let i = 0; i <= N; i++) {
+                    const x = -X + ins + (2 * (X - ins) * i) / N;
+                    ctx.lineTo(x, -(Y - ins) + wy(x));
+                }
+                ctx.closePath();
+            };
+            path(0);
+            ink(ctx, main, W);
+            ctx.save();
+            path(0);
+            ctx.clip();
+            // Bordures : or puis sombre, frise de losanges
+            path(r * 0.18);
+            ctx.strokeStyle = trim;
+            ctx.lineWidth = r * 0.16;
+            ctx.stroke();
+            path(r * 0.4);
+            ctx.strokeStyle = shade(main, -0.45);
+            ctx.lineWidth = r * 0.16;
+            ctx.stroke();
+            ctx.fillStyle = trim;
+            for (const sx of [1, -1]) {
+                for (let i = 0; i < 9; i++) {
+                    const x = sx * (X - r * 0.4);
+                    const y = -Y + r * 0.6 + ((2 * Y - r * 1.2) * i) / 8 + wy(x);
+                    ctx.beginPath();
+                    ctx.moveTo(x, y - r * 0.08);
+                    ctx.lineTo(x + r * 0.06, y);
+                    ctx.lineTo(x, y + r * 0.08);
+                    ctx.lineTo(x - r * 0.06, y);
+                    ctx.closePath();
+                    ctx.fill();
+                }
+            }
+            // Médaillon central (losange à 3 niveaux) + fleur
+            const diamond = (k, fill, lw) => {
+                ctx.beginPath();
+                ctx.moveTo(r * 0.8 * k, wy(r * 0.8 * k));
+                ctx.lineTo(0, r * 1.35 * k + wy(0));
+                ctx.lineTo(-r * 0.8 * k, wy(-r * 0.8 * k));
+                ctx.lineTo(0, -r * 1.35 * k + wy(0));
+                ctx.closePath();
+                ink(ctx, fill, lw);
+            };
+            diamond(1, shade(main, -0.3), W * 0.6);
+            diamond(0.68, trim, W * 0.5);
+            diamond(0.4, shade(main, 0.15), W * 0.5);
+            for (let i = 0; i < 6; i++) {
+                const a = (i / 6) * TAU + t * 0.5;
+                ellipse(ctx, Math.cos(a) * r * 0.16, Math.sin(a) * r * 0.16 + wy(0), r * 0.1, r * 0.05, a);
+                ctx.fillStyle = trim;
+                ctx.fill();
+            }
+            circle(ctx, 0, wy(0), r * 0.08);
+            ctx.fillStyle = '#ffffff';
+            ctx.fill();
+            // Petits motifs dans les coins
+            for (const [cx, cy] of [[0.72, 1.55], [0.72, -1.55], [-0.72, 1.55], [-0.72, -1.55]]) {
+                const x = r * cx;
+                const y = r * cy + wy(x);
+                ctx.beginPath();
+                ctx.moveTo(x, y - r * 0.17);
+                ctx.lineTo(x + r * 0.13, y);
+                ctx.lineTo(x, y + r * 0.17);
+                ctx.lineTo(x - r * 0.13, y);
+                ctx.closePath();
+                ink(ctx, trim, W * 0.4);
+            }
+            // Ondulation : bandes claires / sombres qui avancent vers l'arrière
+            for (let i = 0; i < 12; i++) {
+                const x0 = -X + (2 * X * i) / 12;
+                const k = Math.sin(((x0 + X / 12) / r) * 2.4 - t * 4 + 1.2);
+                ctx.globalAlpha = ga * Math.abs(k) * (k > 0 ? 0.16 : 0.22);
+                ctx.fillStyle = k > 0 ? '#ffffff' : OUTLINE;
+                ctx.fillRect(x0, -Y - r, (2 * X) / 12 + 0.5, 2 * Y + 2 * r);
+            }
+            ctx.globalAlpha = ga;
+            ctx.restore();
+            path(0);
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = W;
+            ctx.stroke();
+        }
+    },
+
+    // Phénix Solaire (légendaire) : halo solaire, 3 couches de plumes par aile qui battent,
+    // longues plumes de queue à ocelle, flammèches qui s'envolent, crête, braises en orbite
+    phoenix: {
+        anchors: [[0.5, 0.95], [-0.4, 1.1]],
+        tip: [0.4, 2.6],
+        shadow: [-0.3, 2.1, 2.7],
+        draw(ctx, r, [flame, gold], t, W) {
+            const ga = ctx.globalAlpha;
+            const flap = Math.sin(t * 2.6) * 0.09;
+            const deep = shade(flame, -0.4);
+            const pale = shade(gold, 0.6);
+            // Halo solaire
+            const halo = ctx.createRadialGradient(0, 0, r * 0.3, 0, 0, r * 3.0);
+            halo.addColorStop(0, rgba(gold, 0.55));
+            halo.addColorStop(0.5, rgba(flame, 0.22));
+            halo.addColorStop(1, rgba(flame, 0));
+            ctx.globalAlpha = ga * (0.85 + 0.15 * Math.sin(t * 4));
+            circle(ctx, 0, 0, r * 3.0);
+            ctx.fillStyle = halo;
+            ctx.fill();
+            ctx.globalAlpha = ga;
+            // Plumes de queue (ocelle dorée au bout)
+            for (const [k, a0] of [[1, 0.24], [-1, -0.24], [0, 0]]) {
+                const ang = Math.PI + a0 + Math.sin(t * 2 + k * 1.3) * 0.08;
+                const len = r * (k === 0 ? 3.0 : 2.55);
+                feather(ctx, -r * 0.55, 0, ang, len, r * 0.5, [deep, flame, gold], W);
+                const ex = -r * 0.55 + Math.cos(ang) * len * 0.8;
+                const ey = Math.sin(ang) * len * 0.8;
+                ellipse(ctx, ex, ey, r * 0.22, r * 0.14, ang);
+                ink(ctx, gold, W * 0.5);
+                ellipse(ctx, ex, ey, r * 0.1, r * 0.07, ang);
+                ctx.fillStyle = deep;
+                ctx.fill();
+            }
+            // Ailes
+            const tips = [];
+            for (const s of [1, -1]) {
+                const S = [r * 0.35, r * 0.35 * s];
+                const Wr = [r * 0.15, r * 1.55 * (1 + flap * 0.5) * s];
+                const at = (u) => [S[0] + (Wr[0] - S[0]) * u, S[1] + (Wr[1] - S[1]) * u];
+                // Rémiges primaires (les plus longues, en éventail au bout de l'aile)
+                for (let k = 6; k >= 0; k--) {
+                    const [bx, by] = at(0.55 + k * 0.075);
+                    const ang = s * (Math.PI / 2 - 0.5 + k * 0.22 + flap);
+                    const len = r * (1.6 - k * 0.06);
+                    feather(ctx, bx, by, ang, len, r * 0.6, [deep, flame, gold, pale], W * 0.7);
+                    tips.push([bx + Math.cos(ang) * len, by + Math.sin(ang) * len, s]);
+                }
+                // Rémiges secondaires (vers l'arrière)
+                for (let k = 5; k >= 0; k--) {
+                    const [bx, by] = at(0.05 + k * 0.13);
+                    const ang = s * (Math.PI * 0.68 + k * 0.05 + flap * 0.5);
+                    feather(ctx, bx, by, ang, r * (1.15 - k * 0.04), r * 0.55, [flame, gold, pale], W * 0.6);
+                }
+                // Couvertures : bras doré + petites plumes
+                for (let k = 4; k >= 0; k--) {
+                    const [bx, by] = at(0.08 + k * 0.2);
+                    feather(ctx, bx, by, s * (Math.PI * 0.62 + k * 0.06 + flap * 0.3), r * 0.6, r * 0.38, [gold, pale], W * 0.7);
+                }
+                bone(ctx, [S[0], S[1], Wr[0], Wr[1]], r * 0.2, gold);
+            }
+            // Flammèches qui s'échappent du bout des plumes
+            for (let i = 0; i < tips.length; i++) {
+                const [x, y, s] = tips[i];
+                const ph = (t * 1.5 + i * 0.37) % 1;
+                ctx.globalAlpha = ga * (1 - ph);
+                const fx = x - ph * r * 0.75;
+                const fy = y + s * ph * r * 0.15;
+                const fr = r * 0.15 * (1 - ph * 0.6);
+                circle(ctx, fx, fy, fr);
+                ctx.fillStyle = gold;
+                ctx.fill();
+                circle(ctx, fx, fy, fr * 0.5);
+                ctx.fillStyle = '#fff6c8';
+                ctx.fill();
+            }
+            ctx.globalAlpha = ga;
+            // Crête (derrière la tête)
+            for (const k of [-1, 0, 1]) {
+                feather(ctx, r * 1.15, 0, Math.PI + k * 0.38, r * (k ? 0.6 : 0.75), r * 0.13, [gold, flame, deep], W * 0.7);
+            }
+            // Corps
+            ellipse(ctx, r * 0.2, 0, r * 1.0, r * 0.38);
+            ink(ctx, lin(ctx, 0, -r * 0.38, 0, r * 0.38, [pale, gold, flame, deep]), W);
+            ellipse(ctx, r * 0.3, -r * 0.12, r * 0.6, r * 0.08);
+            ctx.fillStyle = 'rgba(255, 255, 255, 0.5)';
+            ctx.fill();
+            // Tête, bec, yeux
+            ctx.beginPath();
+            ctx.moveTo(r * 1.52, -r * 0.11);
+            ctx.lineTo(r * 1.88, 0);
+            ctx.lineTo(r * 1.52, r * 0.11);
+            ctx.closePath();
+            ink(ctx, pale, W * 0.6);
+            circle(ctx, r * 1.25, 0, r * 0.33);
+            ink(ctx, orb(ctx, r * 1.25, 0, r * 0.33, [pale, gold, flame]), W);
+            for (const s of [1, -1]) {
+                circle(ctx, r * 1.36, r * 0.15 * s, r * 0.07);
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+                circle(ctx, r * 1.38, r * 0.15 * s, r * 0.035);
+                ctx.fillStyle = deep;
+                ctx.fill();
+            }
+            // Braises en orbite qui scintillent
+            for (let k = 0; k < 6; k++) {
+                const a = t * 0.6 + (k / 6) * TAU;
+                const tw = 0.5 + 0.5 * Math.sin(t * 6 + k * 1.7);
+                ctx.globalAlpha = ga * (0.4 + 0.6 * tw);
+                sparkle(ctx, Math.cos(a) * r * 2.3, Math.sin(a) * r * 2.6, r * (0.1 + 0.1 * tw));
+                ctx.fillStyle = pale;
+                ctx.fill();
+            }
+            ctx.globalAlpha = ga;
         }
     }
 });

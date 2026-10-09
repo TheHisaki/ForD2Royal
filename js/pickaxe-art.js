@@ -19,7 +19,12 @@ const MOTIF_OF = {
     'pioche-royale': 'royal',
     'pioche-cosmique': 'cosmic',
     'pioche-maudite': 'void',
-    'pioche-bonbon': 'candy'
+    'pioche-bonbon': 'candy',
+    'pioche-pelle': 'shovel',
+    'pioche-guitare': 'guitar',
+    'pioche-trident': 'trident',
+    'pioche-orage': 'hammer',
+    'pioche-phenix': 'phoenix'
 };
 
 export function pickaxeMotif(skin) {
@@ -514,6 +519,450 @@ const DRAW = {
         }
         circle(ctx, 88, 0, 5);
         ink(ctx, orb(ctx, 88, 0, 5, ['#d1fae5', '#34d399', '#047857']), W * 0.8);
+    },
+
+    /* ----- Nouvelles pioches : une par rareté, de plus en plus travaillées ----- */
+
+    // Pelle de Plage (commun) : plastique jaune et bleu, poignée en T, sable et étoile de mer
+    shovel(ctx, W) {
+        shaft(ctx, W, 84, 8, ['#fff1a8', '#ffcc33', '#c98a12']);
+        rr(ctx, -8, -15, 10, 30, 5);
+        ink(ctx, lin(ctx, 0, -15, 0, 15, ['#a5e3ff', '#3a8dff', '#1d4f9e']), W);
+        rr(ctx, 76, -8, 12, 16, 4);
+        ink(ctx, lin(ctx, 0, -8, 0, 8, ['#a5e3ff', '#3a8dff', '#1d4f9e']), W);
+        // Lame arrondie
+        ctx.beginPath();
+        ctx.moveTo(84, -13);
+        ctx.quadraticCurveTo(92, -20, 102, -19);
+        ctx.quadraticCurveTo(116, -14, 124, 0);
+        ctx.quadraticCurveTo(116, 14, 102, 19);
+        ctx.quadraticCurveTo(92, 20, 84, 13);
+        ctx.closePath();
+        ink(ctx, lin(ctx, 84, -20, 84, 20, ['#a5e3ff', '#3a8dff', '#1d4f9e']), W);
+        ctx.beginPath();
+        ctx.moveTo(88, 0);
+        ctx.lineTo(112, 0);
+        ctx.strokeStyle = 'rgba(10, 16, 48, 0.3)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        gloss(ctx, 90, -12, 108, -14, 2, 0.6);
+        // Sable collé
+        ctx.fillStyle = '#f5d78e';
+        for (const [x, y] of [[104, 9], [110, 12], [98, 13], [113, 5], [106, 15]]) {
+            circle(ctx, x, y, 1.7);
+            ctx.fill();
+        }
+        // Autocollant étoile de mer
+        ctx.beginPath();
+        for (let i = 0; i < 10; i++) {
+            const a = -Math.PI / 2 + (i / 10) * TAU;
+            const rad = i % 2 ? 2.6 : 6.2;
+            const x = 100 + Math.cos(a) * rad;
+            const y = -6 + Math.sin(a) * rad;
+            if (i) ctx.lineTo(x, y);
+            else ctx.moveTo(x, y);
+        }
+        ctx.closePath();
+        ink(ctx, '#ff8a3d', W * 0.5);
+        circle(ctx, 100, -6, 1.2);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+    },
+
+    // Gratte Électrique (peu commun) : guitare en V, manche à frettes, cordes, éclair sur le corps
+    guitar(ctx, W) {
+        // Tête du manche (côté poignée) + mécaniques
+        ctx.beginPath();
+        ctx.moveTo(-16, -9);
+        ctx.lineTo(4, -6);
+        ctx.lineTo(4, 6);
+        ctx.lineTo(-16, 9);
+        ctx.lineTo(-20, 0);
+        ctx.closePath();
+        ink(ctx, lin(ctx, 0, -9, 0, 9, ['#3a2a3f', '#1c1426', '#0b0712']), W);
+        for (const x of [-13, -7, -1]) {
+            for (const s of [-1, 1]) {
+                circle(ctx, x, s * 10.5, 2.4);
+                ink(ctx, '#dfe5ee', W * 0.5);
+            }
+        }
+        // Manche + frettes + repères
+        rr(ctx, 2, -5, 72, 10, 3);
+        ink(ctx, lin(ctx, 0, -5, 0, 5, ['#8a5a32', '#5a3419', '#2e1a0c']), W);
+        ctx.beginPath();
+        for (let x = 12; x <= 70; x += 8) {
+            ctx.moveTo(x, -4.4);
+            ctx.lineTo(x, 4.4);
+        }
+        ctx.strokeStyle = '#c9d2dd';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.8)';
+        for (const x of [24, 40, 56]) {
+            circle(ctx, x, 0, 1.3);
+            ctx.fill();
+        }
+        // Corps en V
+        ctx.beginPath();
+        ctx.moveTo(70, -7);
+        ctx.lineTo(110, -40);
+        ctx.quadraticCurveTo(118, -38, 114, -29);
+        ctx.lineTo(90, 0);
+        ctx.lineTo(114, 29);
+        ctx.quadraticCurveTo(118, 38, 110, 40);
+        ctx.lineTo(70, 7);
+        ctx.quadraticCurveTo(64, 0, 70, -7);
+        ctx.closePath();
+        ink(ctx, lin(ctx, 66, -40, 116, 40, ['#ff8a8a', '#e8323c', '#8f1420']), W);
+        gloss(ctx, 76, -11, 104, -34, 2, 0.5);
+        // Plaque blanche, micros, chevalet
+        ctx.beginPath();
+        ctx.moveTo(74, -5);
+        ctx.lineTo(96, -21);
+        ctx.lineTo(86, -3);
+        ctx.lineTo(86, 3);
+        ctx.lineTo(96, 21);
+        ctx.lineTo(74, 5);
+        ctx.closePath();
+        ink(ctx, '#f4f6fb', W * 0.6);
+        for (const x of [75, 80]) {
+            rr(ctx, x, -5, 4, 10, 1.2);
+            ink(ctx, '#1c1426', W * 0.4);
+        }
+        rr(ctx, 84, -5, 3.5, 10, 1);
+        ink(ctx, '#c9d2dd', W * 0.4);
+        // Cordes
+        ctx.beginPath();
+        for (const y of [-3, -1, 1, 3]) {
+            ctx.moveTo(-14, y * 1.6);
+            ctx.lineTo(86, y);
+        }
+        ctx.strokeStyle = 'rgba(240, 244, 250, 0.85)';
+        ctx.lineWidth = 0.7;
+        ctx.stroke();
+        // Boutons dorés + éclair sur la branche du bas
+        for (const [x, y] of [[100, -27], [105, -32]]) {
+            circle(ctx, x, y, 2.6);
+            ink(ctx, orb(ctx, x, y, 2.6, ['#fff6c8', '#ffcc33', '#9c6a0c']), W * 0.45);
+        }
+        ctx.beginPath();
+        ctx.moveTo(96, 14);
+        ctx.lineTo(104, 22);
+        ctx.lineTo(100, 23);
+        ctx.lineTo(108, 33);
+        ctx.lineTo(97, 24);
+        ctx.lineTo(101, 23);
+        ctx.closePath();
+        ink(ctx, '#ffe03d', W * 0.45);
+    },
+
+    // Trident des Abysses (rare) : bronze patiné, algue enroulée, corail, perle qui scintille,
+    // bulles qui remontent des pointes
+    trident(ctx, W, t) {
+        shaft(ctx, W, 84, 8, ['#7fe0d2', '#2a9d8f', '#0f4c45']);
+        // Algue enroulée autour du manche
+        ctx.beginPath();
+        for (let x = 30; x <= 76; x += 2) {
+            const y = Math.sin(x * 0.35) * 4.6;
+            if (x === 30) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
+        }
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 4.6;
+        ctx.stroke();
+        ctx.strokeStyle = '#3fbf4a';
+        ctx.lineWidth = 2.4;
+        ctx.stroke();
+        // Corail rose sur le manche
+        const coral = (pts) => {
+            ctx.beginPath();
+            ctx.moveTo(pts[0], pts[1]);
+            for (let i = 2; i < pts.length; i += 2) ctx.lineTo(pts[i], pts[i + 1]);
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = 4.4;
+            ctx.stroke();
+            ctx.strokeStyle = '#ff7a9a';
+            ctx.lineWidth = 2.4;
+            ctx.stroke();
+        };
+        coral([60, -3, 56, -11, 52, -15]);
+        coral([56, -11, 60, -17]);
+        coral([66, 3, 69, 10]);
+        grip(ctx, W, ['#e9c46a', '#b07a10', '#5c3d05'], 'rgba(255, 255, 255, 0.35)');
+        // Pommeau : coquillage
+        ctx.beginPath();
+        ctx.moveTo(-2, -8);
+        ctx.quadraticCurveTo(-17, -9, -17, 0);
+        ctx.quadraticCurveTo(-17, 9, -2, 8);
+        ctx.closePath();
+        ink(ctx, lin(ctx, -17, 0, -2, 0, ['#ffd6e4', '#ff9fbf', '#d9668f']), W);
+        ctx.beginPath();
+        for (const a of [-0.9, -0.45, 0, 0.45, 0.9]) {
+            ctx.moveTo(-2, 0);
+            ctx.lineTo(-2 - Math.cos(a) * 13, Math.sin(a) * 8);
+        }
+        ctx.strokeStyle = 'rgba(122, 30, 70, 0.45)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        const bronze = (x0, y0, x1, y1) => lin(ctx, x0, y0, x1, y1, ['#f6e3a1', '#d4a537', '#7a5410']);
+        // Dents latérales (crochets)
+        for (const s of [-1, 1]) {
+            ctx.beginPath();
+            ctx.moveTo(82, 5 * s);
+            ctx.quadraticCurveTo(84, 26 * s, 100, 27 * s);
+            ctx.lineTo(108, 24 * s);
+            ctx.lineTo(121, 31 * s);
+            ctx.lineTo(106, 34 * s);
+            ctx.quadraticCurveTo(80, 35 * s, 77, 6 * s);
+            ctx.closePath();
+            ink(ctx, bronze(80, 0, 120, 34 * s), W);
+        }
+        // Dent centrale
+        rr(ctx, 84, -4.5, 26, 9, 3);
+        ink(ctx, bronze(84, -4.5, 84, 4.5), W);
+        ctx.beginPath();
+        ctx.moveTo(108, -5);
+        ctx.lineTo(112, -10);
+        ctx.lineTo(129, 0);
+        ctx.lineTo(112, 10);
+        ctx.lineTo(108, 5);
+        ctx.closePath();
+        ink(ctx, bronze(108, -10, 129, 10), W);
+        gloss(ctx, 112, -2.5, 124, -1, 1.6, 0.7);
+        // Taches de patine
+        ctx.fillStyle = 'rgba(79, 209, 197, 0.7)';
+        for (const [x, y, rad] of [[92, 22, 2.4], [99, -29, 2], [114, 2.5, 1.6], [88, -16, 1.8]]) {
+            circle(ctx, x, y, rad);
+            ctx.fill();
+        }
+        // Moyeu + perle (reflet qui tourne)
+        rr(ctx, 74, -10, 16, 20, 5);
+        ink(ctx, bronze(74, -10, 74, 10), W);
+        circle(ctx, 82, 0, 5.6);
+        ink(ctx, orb(ctx, 82, 0, 5.6, ['#ffffff', '#ffe1f0', '#c47aa6']), W * 0.6);
+        circle(ctx, 82 + Math.cos(t * 2) * 1.8, -1.4 + Math.sin(t * 2) * 1.2, 1.5);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        // Bulles qui remontent des pointes
+        const ga = ctx.globalAlpha;
+        for (let k = 0; k < 3; k++) {
+            const ph = (t * 0.9 + k / 3) % 1;
+            const [bx, by] = [[128, 0], [120, -31], [120, 31]][k];
+            ctx.globalAlpha = ga * (1 - ph);
+            circle(ctx, bx + ph * 12, by + Math.sin(ph * 6 + k) * 3, 2.4 * (1 - ph * 0.3));
+            ctx.strokeStyle = '#bff4ff';
+            ctx.lineWidth = 1.3;
+            ctx.stroke();
+        }
+        ctx.globalAlpha = ga;
+    },
+
+    // Marteau de l'Orage (épique) : bloc d'acier cerclé d'or, runes qui pulsent, éclairs qui
+    // crépitent autour de la tête, pique et pommeau à anneau
+    hammer(ctx, W, t) {
+        const pulse = 0.6 + 0.4 * Math.sin(t * 5);
+        shaft(ctx, W, 80, 10, ['#9aa6b8', '#4e566b', '#232838']);
+        for (const x of [40, 58]) {
+            rr(ctx, x, -6, 4.4, 12, 1.5);
+            ink(ctx, lin(ctx, 0, -6, 0, 6, ['#fff1a8', '#ffcc33', '#b07a10']), W * 0.6);
+        }
+        grip(ctx, W, ['#8a5a32', '#5a3419', '#2e1a0c'], 'rgba(255, 214, 170, 0.35)');
+        // Pommeau à anneau
+        circle(ctx, -8, 0, 6.5);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 5.6;
+        ctx.stroke();
+        ctx.strokeStyle = '#ffcc33';
+        ctx.lineWidth = 2.6;
+        ctx.stroke();
+        rr(ctx, -4, -5, 6, 10, 2);
+        ink(ctx, lin(ctx, 0, -5, 0, 5, ['#cbd5e1', '#7c879b', '#3a4252']), W);
+        // Lueur électrique autour de la tête
+        rr(ctx, 70, -38, 38, 76, 10);
+        ctx.save();
+        ctx.globalAlpha = 0.18 + 0.2 * pulse;
+        ctx.strokeStyle = '#7fe8ff';
+        ctx.lineWidth = W * 4;
+        ctx.stroke();
+        ctx.restore();
+        // Pique sur le dessus
+        ctx.beginPath();
+        ctx.moveTo(104, -9);
+        ctx.lineTo(122, 0);
+        ctx.lineTo(104, 9);
+        ctx.closePath();
+        ink(ctx, lin(ctx, 104, -9, 104, 9, ['#f1f5f9', '#9aa6b8', '#4e566b']), W);
+        // Bloc d'acier + 2 embouts dorés
+        rr(ctx, 70, -34, 38, 68, 8);
+        ink(ctx, lin(ctx, 70, 0, 108, 0, ['#5b6680', '#c9d2dd', '#f1f5f9', '#8d97a8']), W);
+        for (const s of [-1, 1]) {
+            rr(ctx, 66, s > 0 ? 26 : -40, 46, 14, 5);
+            ink(ctx, lin(ctx, 0, s > 0 ? 26 : -40, 0, s > 0 ? 40 : -26, ['#fff1a8', '#ffcc33', '#9c6a0c']), W);
+            ctx.fillStyle = '#4fe8ff';
+            for (const x of [76, 89, 102]) {
+                circle(ctx, x, s * 33, 1.8);
+                ctx.fill();
+            }
+        }
+        gloss(ctx, 76, -22, 76, 20, 2.2, 0.55);
+        // Runes lumineuses
+        ctx.save();
+        ctx.globalAlpha = 0.55 + 0.45 * pulse;
+        ctx.shadowColor = '#4fe8ff';
+        ctx.shadowBlur = 8 * pulse;
+        ctx.beginPath();
+        ctx.moveTo(93, -18);
+        ctx.lineTo(84, -2);
+        ctx.lineTo(94, -2);
+        ctx.lineTo(85, 17);
+        ctx.moveTo(78, -16);
+        ctx.lineTo(78, -8);
+        ctx.moveTo(75, -12);
+        ctx.lineTo(81, -12);
+        ctx.moveTo(101, 6);
+        ctx.lineTo(97, 14);
+        ctx.lineTo(102, 14);
+        ctx.strokeStyle = '#4fe8ff';
+        ctx.lineWidth = 2.6;
+        ctx.stroke();
+        ctx.restore();
+        // Éclairs : nouveau tracé 12 fois par seconde, du bord de la tête vers l'extérieur
+        const tick = Math.floor(t * 12);
+        for (let k = 0; k < 2; k++) {
+            const rnd = (i) => {
+                const v = Math.sin((tick + k * 7.3) * 12.9898 + i * 78.233) * 43758.5453;
+                return v - Math.floor(v);
+            };
+            const a = rnd(0) * TAU;
+            const sx = 89 + Math.cos(a) * 22;
+            const sy = Math.sin(a) * 36;
+            const ex = 89 + Math.cos(a) * 44;
+            const ey = Math.sin(a) * 58;
+            ctx.beginPath();
+            ctx.moveTo(sx, sy);
+            for (let i = 1; i <= 4; i++) {
+                const u = i / 4;
+                ctx.lineTo(sx + (ex - sx) * u + (rnd(i) - 0.5) * 12, sy + (ey - sy) * u + (rnd(i + 5) - 0.5) * 12);
+            }
+            ctx.strokeStyle = 'rgba(79, 232, 255, 0.7)';
+            ctx.lineWidth = 3.2;
+            ctx.stroke();
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 1.2;
+            ctx.stroke();
+        }
+    },
+
+    // Serre du Phénix (légendaire) : manche doré gravé de flammes, 3 plumes-lames de feu de chaque
+    // côté, flammes au bout des plumes, soleil central qui tourne, braises en orbite
+    phoenix(ctx, W, t) {
+        const flick = 0.75 + 0.25 * Math.sin(t * 9) * Math.sin(t * 5.3);
+        shaft(ctx, W, 94, 9, ['#fff1a8', '#e0a52a', '#8f5f08']);
+        ctx.beginPath();
+        ctx.moveTo(32, 0);
+        for (let x = 32; x <= 84; x += 4) ctx.lineTo(x, Math.sin(x * 0.45) * 2.4);
+        ctx.strokeStyle = 'rgba(200, 30, 40, 0.65)';
+        ctx.lineWidth = 1.4;
+        ctx.stroke();
+        grip(ctx, W, ['#d6333d', '#7a1a20', '#3d0a0e'], 'rgba(255, 210, 74, 0.6)');
+        // Pommeau : plume de queue
+        ctx.beginPath();
+        ctx.moveTo(0, -3.5);
+        ctx.quadraticCurveTo(-11, -11, -24, 0);
+        ctx.quadraticCurveTo(-11, 11, 0, 3.5);
+        ctx.closePath();
+        ink(ctx, lin(ctx, -24, 0, 0, 0, ['#ffe03d', '#ff6a1f', '#b3262e']), W);
+        ctx.beginPath();
+        ctx.moveTo(-2, 0);
+        ctx.lineTo(-20, 0);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        ctx.lineWidth = 1.2;
+        ctx.stroke();
+        // Halo de chaleur
+        circle(ctx, 90, 0, 30);
+        ctx.save();
+        ctx.globalAlpha = 0.18 * flick;
+        ctx.fillStyle = '#ffb21f';
+        ctx.fill();
+        ctx.restore();
+        // Plumes-lames (de la plus en arrière à la plus en avant)
+        for (const s of [-1, 1]) {
+            for (let k = 2; k >= 0; k--) {
+                const ang = s * (Math.PI / 2 - 0.75 + k * 0.32);
+                const len = 54 - k * 7;
+                const w = 17 - k * 2.5;
+                const b = -s;
+                ctx.save();
+                ctx.translate(90, 0);
+                ctx.rotate(ang);
+                const tipY = b * len * 0.22;
+                // Flamme au bout (vacille)
+                const fl = 10 * flick + k * 2;
+                ctx.beginPath();
+                ctx.moveTo(len - 4, tipY - 4);
+                ctx.quadraticCurveTo(len + fl * 0.6, tipY - 6, len + fl, tipY + b * 2);
+                ctx.quadraticCurveTo(len + fl * 0.5, tipY + 5, len - 4, tipY + 4);
+                ctx.closePath();
+                ctx.fillStyle = 'rgba(255, 224, 61, 0.85)';
+                ctx.fill();
+                ctx.beginPath();
+                ctx.moveTo(0, -w * 0.5);
+                ctx.quadraticCurveTo(len * 0.55, -w * 0.95 + b * len * 0.12, len, tipY);
+                ctx.quadraticCurveTo(len * 0.6, w * 0.95 + b * len * 0.08, 0, w * 0.5);
+                ctx.closePath();
+                ink(ctx, lin(ctx, 0, 0, len, 0, k === 0 ? ['#7a1a20', '#e8323c', '#ff8a1f', '#ffe03d'] : ['#8f1420', '#ff6a1f', '#ffb21f']), W);
+                // Barbes de la plume
+                ctx.beginPath();
+                for (let i = 1; i <= 4; i++) {
+                    const x = (len * i) / 5;
+                    const yMid = b * len * 0.22 * (x / len) ** 2;
+                    ctx.moveTo(x, yMid);
+                    ctx.lineTo(x + 5, yMid - w * 0.4);
+                    ctx.moveTo(x, yMid);
+                    ctx.lineTo(x + 5, yMid + w * 0.4);
+                }
+                ctx.strokeStyle = 'rgba(80, 10, 10, 0.4)';
+                ctx.lineWidth = 1.1;
+                ctx.stroke();
+                // Tranchant brillant
+                ctx.beginPath();
+                ctx.moveTo(len * 0.15, -w * 0.4);
+                ctx.quadraticCurveTo(len * 0.55, -w * 0.75 + b * len * 0.12, len * 0.92, tipY * 0.95);
+                ctx.strokeStyle = 'rgba(255, 246, 200, 0.75)';
+                ctx.lineWidth = 1.5;
+                ctx.stroke();
+                ctx.restore();
+            }
+        }
+        // Soleil : couronne de rayons qui tourne + gemme
+        ctx.save();
+        ctx.translate(90, 0);
+        ctx.rotate(t * 1.5);
+        ctx.beginPath();
+        for (let i = 0; i < 24; i++) {
+            const a = (i / 24) * TAU;
+            const rad = i % 2 ? 11 : 17;
+            if (i) ctx.lineTo(Math.cos(a) * rad, Math.sin(a) * rad);
+            else ctx.moveTo(Math.cos(a) * rad, Math.sin(a) * rad);
+        }
+        ctx.closePath();
+        ink(ctx, lin(ctx, -17, -17, 17, 17, ['#fff6c8', '#ffcc33', '#c27a0c']), W * 0.8);
+        ctx.restore();
+        circle(ctx, 90, 0, 9.5);
+        ink(ctx, orb(ctx, 90, 0, 9.5, ['#ffffff', '#ffe03d', '#ff6a1f', '#b3262e']), W);
+        circle(ctx, 87, -3, 2.4);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        // Braises en orbite
+        const ga = ctx.globalAlpha;
+        for (let k = 0; k < 4; k++) {
+            const a = t * 2.4 + (k / 4) * TAU;
+            ctx.globalAlpha = ga * (0.5 + 0.5 * Math.sin(t * 7 + k * 2));
+            circle(ctx, 90 + Math.cos(a) * 26, Math.sin(a) * 18, 2);
+            ctx.fillStyle = '#ffe03d';
+            ctx.fill();
+        }
+        ctx.globalAlpha = ga;
     }
 };
 
@@ -522,14 +971,20 @@ const DRAW = {
    L  = longueur voulue du manche (unités du repère courant),
    lw = épaisseur du contour (unités du repère courant).
 */
-export function drawPickaxeArt(ctx, skin, L = 100, lw = 2.5) {
+// t = temps en secondes (animations des pioches rares : éclairs, flammes, bulles).
+// Par défaut l'horloge de la page, pour la pioche en main ; les icônes passent t = 0.
+export function drawPickaxeArt(ctx, skin, L = 100, lw = 2.5, t = clock()) {
     const k = L / 100;
     ctx.save();
     ctx.scale(k, k);
     ctx.lineJoin = 'round';
     ctx.lineCap = 'round';
-    DRAW[pickaxeMotif(skin)](ctx, lw / k);
+    DRAW[pickaxeMotif(skin)](ctx, lw / k, t);
     ctx.restore();
+}
+
+function clock() {
+    return typeof performance !== 'undefined' ? performance.now() / 1000 : 0;
 }
 
 /* ===================== ICÔNES (hotbar, casier) ===================== */
@@ -559,7 +1014,7 @@ export function pickaxeCanvas(skin, size = 96, pad = 0.88) {
     t.scale(sc, sc);
     t.rotate(-0.75);
     t.translate(-50, 0);
-    drawPickaxeArt(t, motif, 100, 4.6);
+    drawPickaxeArt(t, motif, 100, 4.6, 0);
 
     // Cadre réel du dessin (pixels non transparents)
     const data = t.getImageData(0, 0, S, S).data;

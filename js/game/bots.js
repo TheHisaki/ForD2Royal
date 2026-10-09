@@ -16,6 +16,8 @@ import { hasBackpackArt } from './backpack-art.js';
 
 // Planeurs que les bots peuvent avoir (classiques et à forme)
 const BOT_GLIDERS = ITEMS.filter(it => it.type === 'glider' && Array.isArray(it.colors));
+// Pioches du catalogue que les bots peuvent avoir
+const BOT_PICKAXES = ITEMS.filter(it => it.type === 'pickaxe').map(it => it.id);
 // Sacs à forme que les bots peuvent porter
 const BOT_PACK_CHANCE = 0.35;
 const BOT_PACKS = ITEMS.filter(it => it.type === 'backpack' && !it.none && it.color && hasBackpackArt(it.motif));
@@ -357,7 +359,7 @@ export class BotManager {
                     bot.skinStyle = 'default';
                 }
             }
-            bot.pickaxeSkin = rpick(['pioche-defaut', 'pioche-laser', 'pioche-royale', 'pioche-cosmique', 'pioche-maudite', 'pioche-bonbon']);
+            bot.pickaxeSkin = rpick(BOT_PICKAXES);
             if (bot.inventory?.[0]) bot.inventory[0].pickaxeSkin = bot.pickaxeSkin;
             // ~1 bot sur 3 porte un sac à forme du catalogue (ailes, cape, queue...)
             if (Math.random() < BOT_PACK_CHANCE) {
