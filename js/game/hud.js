@@ -498,6 +498,12 @@ export class Hud {
         this._mmT = MINIMAP_STEP;
 
         if (this.mapOpen) this.resizeFullMap();
+        this.syncLocationLayout();
+    }
+
+    syncLocationLayout() {
+        const height = this.el.location?.getBoundingClientRect().height || 0;
+        document.documentElement.style.setProperty('--hud-location-height', `${Math.ceil(height)}px`);
     }
 
     resizeFullMap() {
@@ -794,6 +800,7 @@ export class Hud {
         this._locKey = key;
         this.el.locName.textContent = name;
         this.el.locBiome.textContent = sub;
+        this.syncLocationLayout();
         // Relance l'animation d'apparition en alternant 2 classes aux animations identiques
         // (pas de lecture de offsetWidth qui forcerait un recalcul de la mise en page)
         const loc = this.el.location;

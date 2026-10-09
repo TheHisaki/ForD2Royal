@@ -8,7 +8,7 @@ import { generateWorld, surfaceAt } from './world.js?v=12';
 import { isWater, BIOME_NAMES } from './config.js';
 import { Player } from './player.js?v=15';
 import { Renderer } from './renderer.js?v=14';
-import { Hud } from './hud.js?v=18';
+import { Hud } from './hud.js?v=19';
 import { Input } from './input.js?v=13';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP

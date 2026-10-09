@@ -787,7 +787,7 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
     --sa-gold: #ffb21f;
     position: absolute;
     left: 50%;
-    top: calc(var(--gap) + clamp(118px, 5vw + 84px, 146px));
+    top: calc(var(--gap) + var(--hud-location-height, 0px) + 18px);
     transform: translateX(-50%);
     display: flex;
     align-items: center;
@@ -1018,7 +1018,7 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
 }
 
 @media (max-width: 760px), (max-height: 520px) {
-    #supplyAnnouncement { top: calc(var(--gap) + 94px); gap: 8px; min-width: 0; padding: 6px 8px 6px 6px; }
+    #supplyAnnouncement { top: calc(var(--gap) + var(--hud-location-height, 0px) + 18px); gap: 8px; min-width: 0; padding: 6px 8px 6px 6px; }
     .sa-icon, .sa-timer { width: 40px; height: 40px; }
     .sa-icon svg { width: 30px; height: 30px; }
     .sa-title { font-size: 19px; }
@@ -3392,7 +3392,7 @@ html.touch-ui #killFeed {
 html.touch-ui .kill-entry { max-width: 100%; font-size: 11px; padding: 2px 8px; } /* trop long : « … » */
 html.touch-ui .kill-entry:nth-last-child(n+4) { display: none; }
 html.touch-ui #zoneAlert { top: calc(var(--edge-t) + clamp(26px, 6vh, 38px) + 66px); }
-html.touch-ui #supplyAnnouncement { top: calc(var(--edge-t) + clamp(26px, 6vh, 38px) + 122px); }
+html.touch-ui #supplyAnnouncement { top: calc(var(--edge-t) + var(--hud-location-height, 0px) + clamp(18px, 4vh, 32px)); }
 
 /* Bas centre : hotbar, avec l'objet en main et ses munitions juste au-dessus */
 html.touch-ui .hud-bottom-right {
