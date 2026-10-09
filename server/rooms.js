@@ -27,7 +27,7 @@ const AUTH_MAX_FAILS_PER_NAME = 8;    // mots de passe faux pour un même pseudo
 const ADMIN_WEAPON_IDS = new Set(['pistol', 'crossbow', 'ricochet', 'smg', 'ar', 'shotgun', 'sniper', 'icecannon']);
 const ADMIN_WEATHER_TYPES = new Set(['clear', 'night', 'storm', 'fog']);
 const ADMIN_MAX_RARITY = 4;
-const ADMIN_POWERS = new Set(['invisibility', 'heal_health', 'heal_shield', 'invincible', 'speed', 'noclip']);
+const ADMIN_POWERS = new Set(['invisibility', 'heal_health', 'heal_shield', 'invincible', 'speed', 'noclip', 'aimbot']);
 const ADMIN_ACTIONS = new Set(['kill_target', 'heal_health', 'heal_shield', 'teleport_to_target', 'teleport_target_here', 'give_weapon', 'give_heal', 'kick_target']);
 // Objets donnables par l'admin (action give_heal) : soins + grenades
 const ADMIN_HEAL_IDS = new Set(['bandage', 'medkit', 'shieldPotion', 'healingSpray', 'stimPatch',

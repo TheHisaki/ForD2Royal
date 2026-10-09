@@ -135,7 +135,7 @@ function segDist2(px, py, ax, ay, dx, dy, l2) {
     return ex * ex + ey * ey;
 }
 
-function segmentClear(world, ax, ay, bx, by, pad = 0) {
+export function segmentClear(world, ax, ay, bx, by, pad = 0) {
     // 1V1 : la frontière temporaire coupe la vue et le chemin (pas de tir inutile au travers)
     const bd = world.duelBarrier;
     if (bd && bd.active) {

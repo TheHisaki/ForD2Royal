@@ -6,7 +6,7 @@
 // ?v=36 : ravitaillements périodiques et caisses parachutées
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { isWater, BIOME_NAMES } from './config.js';
-import { Player } from './player.js?v=16';
+import { Player } from './player.js?v=17';
 import { Renderer } from './renderer.js?v=14';
 import { Hud } from './hud.js?v=19';
 import { Input } from './input.js?v=13';
@@ -15,7 +15,7 @@ import {
 } from './drop.js?v=20';
 import { Combat } from './combat.js?v=16';
 import { Loot } from './loot.js?v=12';
-import { BotManager, roofAlphaAt } from './bots.js?v=22';
+import { BotManager, roofAlphaAt, segmentClear } from './bots.js?v=23';
 import { SupplyDrops, SUPPLY_FALL_TIME } from './supply-drops.js?v=4';
 import { Corruption } from './corruption.js?v=12';
 import { CombatHud } from './combat-hud.js?v=14';
@@ -1528,6 +1528,43 @@ function start() {
     const THROW_DEAD_ZONE = 44;  // retour au centre = annulation du lancer
     let touchFacing = null;
     let currentAim = { x: 0, y: 0, distance: 0, cancelled: true };
+
+    // Cible la plus proche du viseur, uniquement pour l'admin et uniquement si elle est visible.
+    // L'arme, les munitions, la cadence, la dispersion et les collisions restent inchangées.
+    function adminAimTarget(point) {
+        if (!adminEnabled || !player.adminAimbot || !player.alive || player.dbno || player.phase !== 'ground') return null;
+        if (!(input.mouse.down || input.mouse.pressed)) return null;
+        const held = player.inventory?.[player.slot];
+        const weapon = held?.kind === 'weapon' ? WEAPONS[held.weaponId] : null;
+        if (!weapon || weapon.type !== 'gun') return null;
+
+        const cursorAngle = Math.atan2(point.y - player.y, point.x - player.x);
+        const maxRange = Number(weapon.range) || 900;
+        const maxCone = 0.62; // environ 35 degrés : pas de verrouillage depuis l'autre côté de l'écran
+        let best = null;
+        let bestScore = Infinity;
+        for (const target of fighters) {
+            if (target === player || !target.alive || target.dbno || target.phase !== 'ground') continue;
+            if (target.adminInvisible) continue;
+            if (player.team && target.team && player.team === target.team) continue;
+            const dx = target.x - player.x;
+            const dy = target.y - player.y;
+            const distance = Math.hypot(dx, dy);
+            if (distance > maxRange + (target.r || 0)) continue;
+            if (!canSeeFromHouse(target) || !segmentClear(world, player.x, player.y, target.x, target.y, 0)) continue;
+            const angle = Math.atan2(dy, dx);
+            const delta = Math.abs(Math.atan2(Math.sin(angle - cursorAngle), Math.cos(angle - cursorAngle)));
+            if (delta > maxCone) continue;
+            // Priorité à l'alignement du curseur, puis à la distance.
+            const score = delta * 1000 + distance * 0.01;
+            if (score < bestScore) {
+                bestScore = score;
+                best = target;
+            }
+        }
+        return best;
+    }
+
     function aimPoint() {
         if (input.touchMode) {
             const dir = input.touchAimDir();
@@ -1551,6 +1588,11 @@ function start() {
             touchFacing = null; // souris : visée normale au curseur
         }
         const point = renderer.screenToWorld(input.mouse.x, input.mouse.y);
+        const target = adminAimTarget(point);
+        if (target) {
+            point.x = target.x;
+            point.y = target.y;
+        }
         const dx = point.x - player.x;
         const dy = point.y - player.y;
         const distance = Math.hypot(dx, dy);
@@ -1766,7 +1808,8 @@ function start() {
             invisibility: player.adminInvisible === true,
             invincible: player.adminInvincible === true,
             speed: Number(player.adminSpeedMul || 1) > 1,
-            noclip: player.adminNoclip === true
+            noclip: player.adminNoclip === true,
+            aimbot: player.adminAimbot === true
         };
         const speed = Number(player.adminSpeedMul || 1) > 1 ? Number(player.adminSpeedMul) : Number(adminSpeedRange?.value || 2);
         if (adminSpeedRange) adminSpeedRange.value = String(speed);
@@ -1798,6 +1841,9 @@ function start() {
             case 'noclip':
                 target.adminNoclip = enabled;
                 break;
+            case 'aimbot':
+                target.adminAimbot = enabled;
+                break;
             case 'heal_health':
                 if (target.alive) combat.adminHeal?.(target, 'health');
                 break;
@@ -1817,6 +1863,7 @@ function start() {
             power === 'invisibility' ? player.adminInvisible :
             power === 'invincible' ? player.adminInvincible :
             power === 'speed' ? Number(player.adminSpeedMul || 1) > 1 :
+            power === 'aimbot' ? player.adminAimbot :
             player.adminNoclip
         );
         const value = power === 'speed' ? Math.max(1, Math.min(3, Number(adminSpeedRange?.value || 2))) : undefined;

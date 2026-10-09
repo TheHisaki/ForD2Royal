@@ -77,6 +77,7 @@ export class Player {
         this.adminInvisible = false;
         this.adminInvincible = false;
         this.adminNoclip = false;
+        this.adminAimbot = false;
         this.propelX = 0;
         this.propelY = 0;
         this.stimTimer = 0;
