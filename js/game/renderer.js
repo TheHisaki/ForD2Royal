@@ -21,7 +21,7 @@ import { clamp, rectsOverlap, frameView } from './utils.js';
 import {
     groundRGB, drawRoads, drawPlaza, drawField, drawBuildingBase, drawRoof,
     castsShadow, drawShadow, drawObject, drawPlayer, drawDoorMarkers
-} from './draw.js?v=11';
+} from './draw.js?v=12';
 import {
     circleClass, rectClass, clipOutside, recolor, drawCorruptDetails, drawCorruptObject, drawCorruptRoof
 } from './corrupt-look.js?v=2';

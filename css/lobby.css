@@ -899,6 +899,39 @@
 .skin-svg .s-magic-thin { stroke-width: 1.6; stroke-opacity: 0.4; }
 .skin-svg .s-const    { fill: none; stroke: #fff; stroke-width: 1.4; stroke-opacity: 0.5; }
 
+/* Pièces des skins Viking, Citrouille, Dragon */
+.skin-svg .f-horn     { fill: #f4ead2; }
+.skin-svg .f-fur      { fill: #9a7a56; }
+.skin-svg .f-burlap   { fill: #c89a5a; }
+.skin-svg .f-candy-a  { fill: #ff5d8f; }
+.skin-svg .f-candy-b  { fill: #4fe8ff; }
+.skin-svg .f-candy-c  { fill: #ffe03d; }
+.skin-svg .f-carve    { fill: var(--hair); }
+.skin-svg .s-hair     { fill: none; stroke: var(--hair); stroke-width: 6; }
+.skin-svg .s-vine     { fill: none; stroke: var(--pack); stroke-width: 3; }
+
+/* Ailes du dragon qui battent (pivot à l'attache dans le dos) */
+.skin-svg .sk-wing {
+    transform-box: fill-box;
+    transform-origin: 100% 85%;
+    animation: skinFlap 2.4s ease-in-out infinite;
+}
+
+.skin-svg .sk-wing-r {
+    transform-origin: 0% 85%;
+    animation-name: skinFlapR;
+}
+
+@keyframes skinFlap {
+    0%, 100% { transform: rotate(0deg); }
+    50%      { transform: rotate(-9deg); }
+}
+
+@keyframes skinFlapR {
+    0%, 100% { transform: rotate(0deg); }
+    50%      { transform: rotate(9deg); }
+}
+
 /* Cercle de runes qui tourne, orbes qui flottent, étoiles qui scintillent, perroquet qui dodeline */
 .skin-svg .sk-spin {
     transform-box: fill-box;
@@ -954,6 +987,7 @@
     .skin-svg .sk-spin,
     .skin-svg .sk-orb,
     .skin-svg .sk-twinkle,
+    .skin-svg .sk-wing,
     .skin-svg .sk-bob { animation: none; }
 }
 

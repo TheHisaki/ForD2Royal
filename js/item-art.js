@@ -89,6 +89,73 @@ function backpack(it) {
             `<circle cx="34" cy="57" r="2" fill="#fff" stroke="none"/><circle cx="86" cy="57" r="2" fill="#fff" stroke="none"/>` +
             `<path d="M60 24 V13 M55 16 H65" fill="none" stroke="${a}" stroke-width="3"/>` +
             shine('M47 37 Q55 29 65 29', 3, 0.65);
+    } else if (it.motif === 'bedroll') {
+        // Sac de Rando : sac à poche, duvet roulé sur le dessus tenu par 2 sangles
+        s += `<path d="M40 42 Q29 62 33 96 M80 42 Q91 62 87 96" fill="none" stroke="${strap}" stroke-width="10"/>` +
+            `<rect x="30" y="38" width="60" height="66" rx="16" fill="${c}"/>` +
+            `<path d="M74 40 Q90 42 90 56 V90 Q90 104 76 104 Z" fill="${d}" stroke="none" opacity="0.6"/>` +
+            `<rect x="30" y="38" width="60" height="66" rx="16" fill="none"/>` +
+            `<rect x="42" y="64" width="36" height="28" rx="7" fill="${d}"/>` +
+            `<path d="M42 72 H78" fill="none" stroke="${shade(c, 0.25)}" stroke-width="3"/>` +
+            `<rect x="56" y="68" width="8" height="8" rx="2" fill="${a}" stroke-width="2"/>` +
+            `<rect x="16" y="14" width="88" height="30" rx="15" fill="${a}"/>` +
+            `<path d="M26 22 Q60 18 94 22" fill="none" stroke="#fff" stroke-opacity="0.45" stroke-width="3"/>` +
+            `<circle cx="31" cy="29" r="9" fill="${shade(a, 0.25)}" stroke-width="3"/>` +
+            `<path d="M31 29 m-4 0 a4 4 0 1 1 4 4" fill="none" stroke-width="2.5"/>` +
+            `<path d="M46 12 V46 M74 12 V46" fill="none" stroke="${strap}" stroke-width="6"/>` +
+            shine('M37 54 Q39 46 47 44');
+    } else if (it.motif === 'surfboard') {
+        // Planche de Surf : planche en pointe, bandes colorées, latte centrale et leash
+        s += `<path d="M40 40 Q30 62 34 92 M80 40 Q90 62 86 92" fill="none" stroke="${strap}" stroke-width="10"/>` +
+            `<path d="M60 112 Q80 120 94 104 Q102 94 95 86" fill="none" stroke="${O}" stroke-width="7"/>` +
+            `<path d="M60 112 Q80 120 94 104 Q102 94 95 86" fill="none" stroke="${a}" stroke-width="3"/>` +
+            `<path d="M60 6 Q88 30 86 78 Q84 108 60 114 Q36 108 34 78 Q32 30 60 6 Z" fill="${c}"/>` +
+            `<path d="M36 58 H84 V68 H36 Z M36 74 H84 V78 H36 Z" fill="${a}" stroke="none"/>` +
+            `<path d="M60 10 V110" fill="none" stroke="${d}" stroke-width="2.5"/>` +
+            `<path d="M60 6 Q88 30 86 78 Q84 108 60 114 Q36 108 34 78 Q32 30 60 6 Z" fill="none"/>` +
+            `<circle cx="60" cy="38" r="8" fill="#fff" stroke-width="3"/>` +
+            `<circle cx="60" cy="38" r="4" fill="${a}" stroke="none"/>` +
+            shine('M44 36 Q48 20 58 13', 3, 0.6);
+    } else if (it.motif === 'barrel') {
+        // Tonneau du Fjord : douelles de bois, 2 cercles de fer, couvercle et bonde
+        s += `<path d="M40 30 Q28 60 32 96 M80 30 Q92 60 88 96" fill="none" stroke="${strap}" stroke-width="10"/>` +
+            `<path d="M34 22 Q24 64 34 106 H86 Q96 64 86 22 Z" fill="${c}"/>` +
+            `<path d="M86 22 Q96 64 86 106 H74 Q82 64 74 22 Z" fill="${d}" stroke="none" opacity="0.55"/>` +
+            `<path d="M48 23 Q42 64 48 105 M60 22 V106 M72 23 Q78 64 72 105" fill="none" stroke="${d}" stroke-width="2.5"/>` +
+            `<path d="M34 22 Q24 64 34 106 H86 Q96 64 86 22 Z" fill="none"/>` +
+            `<path d="M31 40 Q60 47 89 40 M31 88 Q60 95 89 88" fill="none" stroke="${O}" stroke-width="10"/>` +
+            `<path d="M31 40 Q60 47 89 40 M31 88 Q60 95 89 88" fill="none" stroke="${a}" stroke-width="5"/>` +
+            `<ellipse cx="60" cy="22" rx="26" ry="7" fill="${shade(c, 0.2)}"/>` +
+            `<circle cx="60" cy="66" r="6" fill="#5a3a1a"/>` +
+            shine('M38 52 Q36 64 38 78', 3, 0.5);
+    } else if (it.motif === 'jack') {
+        // Lanterne Citrouille : citrouille à côtes, visage sculpté lumineux, tige et feuille
+        s += `<circle cx="60" cy="66" r="52" fill="${a}" opacity="0.18" stroke="none"/>` +
+            `<path d="M42 34 Q30 60 34 96 M78 34 Q90 60 86 96" fill="none" stroke="${strap}" stroke-width="9"/>` +
+            `<ellipse cx="38" cy="68" rx="22" ry="34" fill="${c}"/>` +
+            `<ellipse cx="82" cy="68" rx="22" ry="34" fill="${c}"/>` +
+            `<ellipse cx="60" cy="68" rx="24" ry="38" fill="${shade(c, 0.12)}"/>` +
+            `<path d="M56 32 Q54 18 62 10 L69 15 Q62 22 64 32 Z" fill="#3fbf4a"/>` +
+            `<path d="M65 22 Q78 8 92 16 Q80 28 65 22 Z" fill="#3fbf4a" stroke-width="3"/>` +
+            `<path d="M38 58 L52 50 L50 66 Z M82 58 L68 50 L70 66 Z" fill="${a}" stroke-width="3"/>` +
+            `<path d="M60 66 L65 74 H55 Z" fill="${a}" stroke-width="2.5"/>` +
+            `<path d="M36 80 L45 84 L52 79 L60 86 L68 79 L75 84 L84 80 Q76 100 60 100 Q44 100 36 80 Z" fill="${a}" stroke-width="3"/>` +
+            shine('M24 56 Q26 44 34 38', 3, 0.5);
+    } else if (it.motif === 'egg') {
+        // Œuf de Dragon : coque à écailles, fissures de braise, harnais en cuir, étincelles
+        s += `<circle cx="60" cy="64" r="52" fill="${a}" opacity="0.16" stroke="none"/>` +
+            `<path d="M40 34 Q28 60 32 96 M80 34 Q92 60 88 96" fill="none" stroke="${strap}" stroke-width="9"/>` +
+            `<path d="M60 12 Q92 14 94 66 Q94 106 60 108 Q26 106 26 66 Q28 14 60 12 Z" fill="${c}"/>` +
+            `<path d="M76 18 Q94 30 94 66 Q94 106 60 108 Q86 92 86 64 Q86 34 76 18 Z" fill="${d}" stroke="none" opacity="0.6"/>` +
+            `<path d="M40 44 q6 6 12 0 q6 6 12 0 q6 6 12 0 M34 84 q6 6 12 0 q6 6 12 0 q6 6 12 0 q6 6 12 0 M42 98 q6 5 12 0 q6 5 12 0 q6 5 12 0" fill="none" stroke="${shade(c, 0.3)}" stroke-width="2.5"/>` +
+            `<path d="M60 12 Q92 14 94 66 Q94 106 60 108 Q26 106 26 66 Q28 14 60 12 Z" fill="none"/>` +
+            `<path d="M58 16 L52 30 L62 38 L55 50 M76 72 L86 80 L81 92" fill="none" stroke="${O}" stroke-width="7"/>` +
+            `<path d="M58 16 L52 30 L62 38 L55 50 M76 72 L86 80 L81 92" fill="none" stroke="${a}" stroke-width="3.5"/>` +
+            `<path d="M27 62 Q60 74 93 62" fill="none" stroke="${O}" stroke-width="10"/>` +
+            `<path d="M27 62 Q60 74 93 62" fill="none" stroke="#6b4a2e" stroke-width="5"/>` +
+            `<rect x="54" y="62" width="12" height="11" rx="2" fill="${a}" stroke-width="2.5"/>` +
+            `<circle cx="16" cy="34" r="4" fill="${a}" stroke-width="2"/><circle cx="104" cy="42" r="3" fill="${a}" stroke-width="2"/><circle cx="102" cy="98" r="3.5" fill="${a}" stroke-width="2"/>` +
+            shine('M38 34 Q44 20 56 16', 3, 0.55);
     } else {
         // Motifs conservés pour les objets du passe et les anciens profils.
         s += `<path d="M36 34 Q26 60 30 92 M84 34 Q94 60 90 92" fill="none" stroke="${strap}" stroke-width="11"/>` +

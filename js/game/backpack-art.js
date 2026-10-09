@@ -1,7 +1,8 @@
 /* ==================================
    SACS À DOS EN JEU (vus du dessus, dans le dos) - FOR2D ROYAL
    Chaque sac « à forme » du casier (js/cosmetics.js, champ motif) a son dessin en jeu :
-   ailes, cape, queue de poisson, carapace, pack techno, cœur pixel, écu.
+   ailes, cape, queue de poisson, carapace, pack techno, cœur pixel, écu,
+   sac de rando, planche de surf, tonneau, lanterne citrouille, œuf de dragon.
    Les sacs classiques restent le petit sac coloré dessiné par draw.js.
 
    Repère : celui du combattant (regard vers +x, dos vers -x), r = rayon du personnage.
@@ -264,6 +265,219 @@ const DRAW = {
         ctx.strokeStyle = '#ffffff';
         ctx.lineWidth = r * 0.18;
         ctx.stroke();
+    },
+
+    // Sac de rando : sac classique avec poche, duvet roulé en travers au bout, 2 sangles
+    bedroll(ctx, r, c, a) {
+        roundRect(ctx, -r * 1.02, -r * 0.6, r * 0.72, r * 1.2, r * 0.22);
+        ink(ctx, c);
+        roundRect(ctx, -r * 0.86, -r * 0.32, r * 0.36, r * 0.64, r * 0.1);
+        ink(ctx, sh(c, -0.25, c), 2);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+        ctx.fillRect(-r * 0.96, -r * 0.48, r * 0.07, r * 0.96);
+        roundRect(ctx, -r * 1.42, -r * 0.74, r * 0.4, r * 1.48, r * 0.2);
+        ink(ctx, a);
+        ctx.beginPath();
+        ctx.moveTo(-r * 1.3, -r * 0.6);
+        ctx.lineTo(-r * 1.3, r * 0.6);
+        ctx.strokeStyle = 'rgba(255, 255, 255, 0.4)';
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ctx.beginPath();
+        for (const y of [-0.34, 0.34]) {
+            ctx.moveTo(-r * 1.46, r * y);
+            ctx.lineTo(-r * 0.98, r * y);
+        }
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 6;
+        ctx.stroke();
+        ctx.strokeStyle = sh(c, -0.45, OUTLINE);
+        ctx.lineWidth = 3;
+        ctx.stroke();
+    },
+
+    // Planche de surf le long du dos : bandes colorées, latte centrale, leash enroulé
+    surfboard(ctx, r, c, a) {
+        ctx.beginPath();
+        ctx.moveTo(-r * 1.9, 0);
+        ctx.quadraticCurveTo(-r * 1.95, r * 0.6, -r * 1.55, r * 0.62);
+        ctx.quadraticCurveTo(-r * 1.3, r * 0.62, -r * 1.35, r * 0.4);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 4.5;
+        ctx.stroke();
+        ctx.strokeStyle = a;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+        ellipse(ctx, -r * 1.02, 0, r * 0.92, r * 0.36);
+        ink(ctx, c);
+        ctx.save();
+        ctx.clip();
+        ctx.fillStyle = a;
+        ctx.fillRect(-r * 1.46, -r * 0.4, r * 0.13, r * 0.8);
+        ctx.fillRect(-r * 1.66, -r * 0.4, r * 0.07, r * 0.8);
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.15, 0);
+        ctx.lineTo(-r * 1.9, 0);
+        ctx.strokeStyle = sh(c, -0.35, OUTLINE);
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.35)';
+        ctx.fillRect(-r * 1.6, -r * 0.24, r * 1.2, r * 0.07);
+        ctx.restore();
+        ellipse(ctx, -r * 1.02, 0, r * 0.92, r * 0.36);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        ellipse(ctx, -r * 0.82, 0, r * 0.1, r * 0.1);
+        ink(ctx, '#ffffff', 2);
+    },
+
+    // Tonneau couché en travers du dos : douelles, 2 cercles de fer, bonde
+    barrel(ctx, r, c, a) {
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.4, -r * 0.62);
+        ctx.quadraticCurveTo(-r * 0.22, 0, -r * 0.4, r * 0.62);
+        ctx.lineTo(-r * 1.32, r * 0.62);
+        ctx.quadraticCurveTo(-r * 1.5, 0, -r * 1.32, -r * 0.62);
+        ctx.closePath();
+        ink(ctx, c);
+        ctx.beginPath();
+        for (const x of [-0.63, -0.86, -1.09]) {
+            ctx.moveTo(r * x, -r * 0.6);
+            ctx.quadraticCurveTo(r * (x + (x + 0.86) * 0.3), 0, r * x, r * 0.6);
+        }
+        ctx.strokeStyle = sh(c, -0.35, OUTLINE);
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        ctx.beginPath();
+        for (const y of [-0.36, 0.36]) {
+            ctx.moveTo(-r * 0.3, r * y);
+            ctx.lineTo(-r * 1.43, r * y);
+        }
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 6.5;
+        ctx.stroke();
+        ctx.strokeStyle = a;
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+        ellipse(ctx, -r * 0.86, -r * 0.62, r * 0.44, r * 0.08);
+        ink(ctx, sh(c, 0.2, c), 2);
+        ellipse(ctx, -r * 0.86, r * 0.62, r * 0.44, r * 0.08);
+        ink(ctx, sh(c, 0.2, c), 2);
+        ellipse(ctx, -r * 0.86, 0, r * 0.08, r * 0.08);
+        ink(ctx, '#5a3a1a', 2);
+    },
+
+    // Lanterne citrouille : citrouille à côtes, visage sculpté (tourné vers l'arrière) qui vacille
+    jack(ctx, r, c, a, t, seed) {
+        const R = r * 0.6;
+        const glow = 0.72 + 0.28 * Math.sin(t * 7 + seed) * Math.sin(t * 3.1 + seed * 2);
+        ctx.save();
+        ctx.translate(-r * 0.92, 0);
+        const ga = ctx.globalAlpha;
+        ellipse(ctx, 0, 0, R * 1.45, R * 1.45);
+        ctx.globalAlpha = ga * 0.2 * glow;
+        ctx.fillStyle = a;
+        ctx.fill();
+        ctx.globalAlpha = ga;
+        ctx.beginPath();
+        ctx.moveTo(R * 0.8, 0);
+        ctx.arc(0, 0, R * 0.8, 0, TAU);
+        for (let i = 0; i < 8; i++) {
+            const k = (i / 8) * TAU + 0.39;
+            ctx.moveTo(Math.cos(k) * R * 0.52 + R * 0.48, Math.sin(k) * R * 0.52);
+            ctx.arc(Math.cos(k) * R * 0.52, Math.sin(k) * R * 0.52, R * 0.48, 0, TAU);
+        }
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        ctx.fillStyle = c;
+        ctx.fill();
+        ctx.beginPath();
+        for (let i = 0; i < 8; i++) {
+            const k = (i / 8) * TAU + 0.39 + Math.PI / 8;
+            ctx.moveTo(Math.cos(k) * R * 0.22, Math.sin(k) * R * 0.22);
+            ctx.lineTo(Math.cos(k) * R * 0.9, Math.sin(k) * R * 0.9);
+        }
+        ctx.strokeStyle = sh(c, -0.35, OUTLINE);
+        ctx.lineWidth = 1.8;
+        ctx.stroke();
+        // Visage vers -x (l'arrière du combattant)
+        ctx.globalAlpha = ga * glow;
+        ctx.beginPath();
+        for (const s of [1, -1]) {
+            ctx.moveTo(-R * 0.34, s * R * 0.16);
+            ctx.lineTo(-R * 0.7, s * R * 0.3);
+            ctx.lineTo(-R * 0.32, s * R * 0.5);
+            ctx.closePath();
+        }
+        ctx.moveTo(-R * 0.76, -R * 0.42);
+        ctx.lineTo(-R * 0.9, -R * 0.2);
+        ctx.lineTo(-R * 0.8, -R * 0.08);
+        ctx.lineTo(-R * 0.92, R * 0.06);
+        ctx.lineTo(-R * 0.82, R * 0.18);
+        ctx.lineTo(-R * 0.76, R * 0.42);
+        ctx.quadraticCurveTo(-R * 0.6, 0, -R * 0.76, -R * 0.42);
+        ctx.closePath();
+        ink(ctx, a, 1.8);
+        ctx.globalAlpha = ga;
+        roundRect(ctx, -R * 0.14, -R * 0.14, R * 0.28, R * 0.28, R * 0.08);
+        ink(ctx, '#3fbf4a', 2.5);
+        ctx.restore();
+    },
+
+    // Œuf de dragon : coque à écailles, fissures de braise qui pulsent, harnais, étincelles
+    egg(ctx, r, c, a, t, seed) {
+        const pulse = 0.6 + 0.4 * Math.sin(t * 4 + seed);
+        const cx = -r * 0.92;
+        const ga = ctx.globalAlpha;
+        ellipse(ctx, cx, 0, r * 0.9, r * 0.78);
+        ctx.globalAlpha = ga * 0.18 * pulse;
+        ctx.fillStyle = a;
+        ctx.fill();
+        ctx.globalAlpha = ga;
+        ellipse(ctx, cx, 0, r * 0.66, r * 0.5);
+        ink(ctx, c);
+        ctx.beginPath();
+        for (const [x, y] of [[-0.75, -0.22], [-0.95, 0.05], [-1.15, -0.2], [-0.7, 0.22], [-1.12, 0.26], [-1.32, 0.02]]) {
+            ctx.moveTo(r * (x + 0.08), r * (y - 0.06));
+            ctx.quadraticCurveTo(r * (x - 0.06), r * y, r * (x + 0.08), r * (y + 0.06));
+        }
+        ctx.strokeStyle = sh(c, 0.3, '#ffffff');
+        ctx.lineWidth = 1.6;
+        ctx.stroke();
+        ctx.beginPath();
+        ctx.moveTo(-r * 1.4, -r * 0.08);
+        ctx.lineTo(-r * 1.22, -r * 0.02);
+        ctx.lineTo(-r * 1.14, -r * 0.2);
+        ctx.lineTo(-r * 0.98, -r * 0.14);
+        ctx.moveTo(-r * 0.62, r * 0.12);
+        ctx.lineTo(-r * 0.74, r * 0.3);
+        ctx.lineTo(-r * 0.88, r * 0.26);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 5;
+        ctx.stroke();
+        ctx.globalAlpha = ga * (0.55 + 0.45 * pulse);
+        ctx.strokeStyle = a;
+        ctx.lineWidth = 2.4;
+        ctx.stroke();
+        ctx.globalAlpha = ga;
+        ctx.beginPath();
+        ctx.moveTo(-r * 0.62, -r * 0.5);
+        ctx.lineTo(-r * 0.62, r * 0.5);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 6.5;
+        ctx.stroke();
+        ctx.strokeStyle = '#6b4a2e';
+        ctx.lineWidth = 3.5;
+        ctx.stroke();
+        roundRect(ctx, -r * 0.7, -r * 0.08, r * 0.16, r * 0.16, r * 0.03);
+        ink(ctx, a, 2);
+        for (let k = 0; k < 3; k++) {
+            const ang = t * 1.8 + seed + k * 2.094;
+            ellipse(ctx, cx + Math.cos(ang) * r * 0.82, Math.sin(ang) * r * 0.7, r * 0.06, r * 0.06);
+            ink(ctx, a, 1.5);
+        }
     }
 };
 

@@ -51,7 +51,7 @@ export const SLOTS = [
 
 /*
    Tenue : style de dessin ('default' | 'knight' | 'skeleton' | 'ninja' | 'astro' |
-   'chef' | 'pirate' | 'mecha' | 'mage'),
+   'chef' | 'pirate' | 'mecha' | 'mage' | 'viking' | 'pumpkin' | 'dragon'),
    look = couleurs du lobby, game = couleurs en jeu (player.colors).
 */
 export const SKINS = [
@@ -125,6 +125,41 @@ export const SKINS = [
         look: { skin: '#ece6d3', hair: '#ece6d3', outfit: '#1b1426', outfitDark: '#0e0a16', pants: '#1b1426', shoes: '#0e0a16', pack: '#3b0a66', accent: '#b04cff' },
         game: { skin: '#ece6d3', hair: '#ece6d3', outfit: '#1b1426', pack: '#b04cff' }
     },
+    {
+        id: 'campeur', name: 'Campeur Malin', rarity: 'common', price: 300,
+        series: 'Essentiels', style: 'default', hair: 'spiky', goggles: false,
+        desc: "Gourde, boussole et carte pliée : il connaît chaque sentier de l'île.",
+        look: { skin: '#e8b48a', hair: '#7a4a22', outfit: '#6f9a3a', outfitDark: '#4d6e26', pants: '#5a4630', shoes: '#3a2a1c', pack: '#ff8a1f', accent: '#ffd24a' },
+        game: { skin: '#e8b48a', hair: '#7a4a22', outfit: '#6f9a3a', pack: '#ff8a1f' }
+    },
+    {
+        id: 'surfeuse', name: 'Surfeuse Solaire', rarity: 'uncommon', price: 500,
+        series: 'Essentiels', style: 'default', hair: 'swoop', goggles: true,
+        desc: 'Lunettes de soleil sur la tête, elle attend la vague parfaite depuis le premier saut.',
+        look: { skin: '#c98a5e', hair: '#ffe07a', outfit: '#21c4d9', outfitDark: '#1690a3', pants: '#ff7a59', shoes: '#f4f6fb', pack: '#ffd23a', accent: '#ff5d8f' },
+        game: { skin: '#c98a5e', hair: '#ffe07a', outfit: '#21c4d9', pack: '#ffd23a' }
+    },
+    {
+        id: 'jarl-viking', name: 'Jarl du Fjord', rarity: 'rare', price: 900,
+        series: 'Royaume déchu', style: 'viking',
+        desc: "Casque à cornes, barbe tressée et bouclier peint : il a ramé jusqu'à l'île.",
+        look: { skin: '#f2c29b', hair: '#e07a2a', outfit: '#3d6b8f', outfitDark: '#2a4d68', pants: '#6b4a2e', shoes: '#3a2a1c', pack: '#d63c3c', accent: '#c9d2dd' },
+        game: { skin: '#f2c29b', hair: '#e07a2a', outfit: '#3d6b8f', pack: '#d63c3c' }
+    },
+    {
+        id: 'roi-citrouille', name: 'Roi Citrouille', rarity: 'epic', price: 1300,
+        series: 'Nuit de la corruption', style: 'pumpkin',
+        desc: "Sa tête brille dans le noir et son sac déborde de bonbons. Personne n'ose lui en demander.",
+        look: { skin: '#ff8a1f', hair: '#ffe03d', outfit: '#3b2a4f', outfitDark: '#261a36', pants: '#2a1f38', shoes: '#1a1226', pack: '#3fbf4a', accent: '#ffe03d' },
+        game: { skin: '#ff8a1f', hair: '#ffe03d', outfit: '#3b2a4f', pack: '#3fbf4a' }
+    },
+    {
+        id: 'dragon-ancestral', name: 'Dragon Ancestral', rarity: 'legendary', price: 2200,
+        series: 'Royaume déchu', style: 'dragon',
+        desc: 'Écailles émeraude, ailes de braise et un souffle qui crépite. Le dernier gardien du royaume.',
+        look: { skin: '#2ec27e', hair: '#ffe7a1', outfit: '#1f8f5a', outfitDark: '#146b42', pants: '#146b42', shoes: '#0e4a2e', pack: '#ff6a1f', accent: '#ffb21f' },
+        game: { skin: '#2ec27e', hair: '#ffe7a1', outfit: '#1f8f5a', pack: '#ff6a1f' }
+    },
 
     /* ----- Passe de combat (pass: true) : pas en vente, gagnés en montant de palier ----- */
     {
@@ -170,6 +205,21 @@ const BACKPACKS = [
     { id: 'sac-lanterne', name: 'Blue Pack', rarity: 'legendary', price: 1000,
         series: 'Nuit de la corruption', motif: 'tech', color: '#1a78a8', accent: '#55e6f4',
         desc: 'Un pack compact et technologique aux reflets cyan.' },
+    { id: 'sac-rando', name: 'Sac de Rando', rarity: 'common', price: 200,
+        series: 'Essentiels', motif: 'bedroll', color: '#7a8f3a', accent: '#ff8a1f',
+        desc: 'Un vrai sac de randonnée, avec son duvet roulé sur le dessus.' },
+    { id: 'sac-surf', name: 'Planche de Surf', rarity: 'uncommon', price: 400,
+        series: 'Essentiels', motif: 'surfboard', color: '#21c4d9', accent: '#ffd23a',
+        desc: 'Toujours prête pour la prochaine vague, même en pleine tempête.' },
+    { id: 'sac-tonneau', name: 'Tonneau du Fjord', rarity: 'rare', price: 650,
+        series: 'Royaume déchu', motif: 'barrel', color: '#b97a3c', accent: '#c9d2dd',
+        desc: "Un petit tonneau cerclé de fer. On n'ose pas demander ce qu'il contient." },
+    { id: 'sac-citrouille', name: 'Lanterne Citrouille', rarity: 'epic', price: 900,
+        series: 'Nuit de la corruption', motif: 'jack', color: '#ff8a1f', accent: '#ffe03d',
+        desc: "Une citrouille sculptée dont le sourire s'allume dans le noir." },
+    { id: 'sac-oeuf', name: 'Œuf de Dragon', rarity: 'legendary', price: 1200,
+        series: 'Royaume déchu', motif: 'egg', color: '#3a1f5c', accent: '#ffb21f',
+        desc: 'Il est encore chaud et ses fissures brillent. Quelque chose bouge à l\'intérieur.' },
     { id: 'pass-sac-pixel', name: 'Cœur Pixel', rarity: 'rare', price: 0, pass: true,
         series: 'Passe Saison 1', motif: 'pixel', color: '#2ee6c8', accent: '#ff4fc8',
         desc: 'Un cœur en gros pixels, offert à tous les joueurs du passe.' },

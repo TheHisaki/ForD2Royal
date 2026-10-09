@@ -1,7 +1,8 @@
 /* ==================================
    SKINS DU LOBBY - FOR2D ROYAL
    Personnages cartoon en SVG (viewBox 140 x 276, même silhouette pour tous).
-   Styles : 'default' (coiffures + lunettes), 'knight', 'skeleton', 'ninja', 'astro'.
+   Styles : 'default' (coiffures + lunettes), 'knight', 'skeleton', 'ninja', 'astro',
+   'chef', 'pirate', 'mecha', 'mage', 'viking', 'pumpkin', 'dragon'.
    Les couleurs viennent des variables CSS (--skin, --hair, --outfit, --outfit-dark,
    --pants, --shoes, --pack, --accent...), posées par la place du lobby (css/lobby.css)
    ou par renderSkinInto() à partir du catalogue (js/cosmetics.js).
@@ -714,6 +715,212 @@ function mageBody() {
     );
 }
 
+/* ===================== JARL DU FJORD (rare) ===================== */
+
+function vikingBody() {
+    return (
+        // Bouclier rond peint dans le dos (dépasse à droite)
+        '<circle class="f-wood" cx="106" cy="128" r="33"/>' +
+        '<path class="f-pack" d="M106 128 V98 A30 30 0 0 1 136 128 Z M106 128 V158 A30 30 0 0 1 76 128 Z" style="stroke-width:2.5"/>' +
+        '<circle class="s-steel" cx="106" cy="128" r="30"/>' +
+        '<circle class="f-steel" cx="106" cy="128" r="7"/>' +
+        // Jambes bandées + bottes fourrées
+        '<rect class="f-pants" x="46" y="160" width="22" height="88" rx="7"/>' +
+        '<rect class="f-pants" x="72" y="160" width="22" height="88" rx="7"/>' +
+        '<rect class="f-shade" x="84" y="166" width="8" height="78" rx="3"/>' +
+        '<path class="s-fold sk-detail" d="M48 196 L66 203 M48 211 L66 218 M48 226 L66 233 M74 196 L92 203 M74 211 L92 218 M74 226 L92 233"/>' +
+        '<path class="f-shoes" d="M32 268 Q30 250 46 246 H68 V268 Z"/>' +
+        '<path class="f-shoes" d="M72 246 H94 Q110 250 108 268 H72 Z"/>' +
+        '<rect class="f-fur" x="42" y="236" width="30" height="13" rx="6"/>' +
+        '<rect class="f-fur" x="68" y="236" width="30" height="13" rx="6"/>' +
+        // Tunique longue, bordure dorée
+        '<path class="f-outfit" d="M44 102 Q70 92 96 102 Q100 140 104 178 Q70 188 36 178 Q40 140 44 102 Z"/>' +
+        '<path class="f-shade" d="M72 96 Q86 97 96 102 Q100 140 104 178 Q88 184 72 185 Z"/>' +
+        thick('M36 178 Q70 188 104 178', 's-gold') +
+        // Baudrier du bouclier + ceinture à boucle ronde
+        '<path class="s-strap" d="M50 104 L92 146"/>' +
+        '<path class="s-pack" d="M50 104 L92 146"/>' +
+        '<rect class="f-belt" x="40" y="146" width="60" height="12" rx="3"/>' +
+        '<circle class="f-gold" cx="70" cy="152" r="7"/>' +
+        // Manches courtes, avant-bras nus, brassards d'acier, mains
+        '<path class="f-outfit-d" d="M46 104 Q34 106 30 120 L28 136 H46 L47 124 Z"/>' +
+        '<path class="f-outfit-d" d="M94 104 Q106 106 110 120 L112 136 H94 L93 124 Z"/>' +
+        '<path class="f-skin" d="M28 134 H46 L42 164 H25 Z"/>' +
+        '<path class="f-skin" d="M94 134 H112 L115 164 H98 Z"/>' +
+        '<rect class="f-steel" x="24" y="146" width="21" height="14" rx="3"/>' +
+        '<rect class="f-steel" x="96" y="146" width="20" height="14" rx="3"/>' +
+        '<circle class="f-skin" cx="32" cy="170" r="9.5"/>' +
+        '<circle class="f-skin" cx="108" cy="170" r="9.5"/>' +
+        // Cou + cape de fourrure sur les épaules
+        '<rect class="f-skin" x="61" y="82" width="18" height="14" rx="4"/>' +
+        '<path class="f-fur" d="M32 110 Q32 92 52 92 Q60 86 70 90 Q80 86 88 92 Q108 92 108 110 Q100 118 92 111 Q86 120 78 111 Q70 120 62 111 Q54 120 48 111 Q40 118 32 110 Z"/>' +
+        // Tresses sur les côtés du visage
+        '<path class="f-hair" d="M34 54 Q30 76 36 94 L43 92 Q38 74 41 54 Z"/>' +
+        '<path class="f-hair" d="M106 54 Q110 76 104 94 L97 92 Q102 74 99 54 Z"/>' +
+        // Tête : oreilles, visage, grande barbe tressée, moustache
+        '<circle class="f-skin" cx="39" cy="62" r="7"/>' +
+        '<circle class="f-skin" cx="101" cy="62" r="7"/>' +
+        '<ellipse class="f-skin" cx="70" cy="60" rx="31" ry="32"/>' +
+        '<path class="f-shade-soft" d="M84 32 Q102 42 101 62 Q99 84 80 92 Q95 76 95 60 Q95 42 84 32 Z"/>' +
+        '<path class="f-hair" d="M40 64 Q40 106 70 114 Q100 106 100 64 Q92 80 82 78 Q70 84 58 78 Q48 80 40 64 Z"/>' +
+        thick('M63 108 L61 126 M77 108 L79 126', 's-hair') +
+        '<rect class="f-steel" x="56" y="122" width="10" height="6" rx="2" style="stroke-width:2"/>' +
+        '<rect class="f-steel" x="74" y="122" width="10" height="6" rx="2" style="stroke-width:2"/>' +
+        '<path class="f-hair" d="M70 76 Q58 70 50 78 Q58 84 70 80 Q82 84 90 78 Q82 70 70 76 Z"/>' +
+        '<path class="f-mouth" d="M63 86 Q70 92 77 86 Z"/>' +
+        '<g class="sk-detail">' +
+        '<path class="s-brow" d="M50 54 Q57 49 64 53 M76 53 Q83 49 90 54"/>' +
+        '<g class="sk-eyes">' +
+        '<ellipse class="f-line" cx="58" cy="63" rx="4.5" ry="6"/><ellipse class="f-line" cx="82" cy="63" rx="4.5" ry="6"/>' +
+        '<circle class="f-white" cx="59.6" cy="60.8" r="1.6"/><circle class="f-white" cx="83.6" cy="60.8" r="1.6"/>' +
+        '</g>' +
+        '</g>' +
+        // Casque : cornes, calotte, arête, bandeau rivé, nasal
+        '<path class="f-horn" d="M40 42 Q20 38 14 16 Q12 6 18 0 Q22 20 42 30 Z"/>' +
+        '<path class="f-horn" d="M100 42 Q120 38 126 16 Q128 6 122 0 Q118 20 98 30 Z"/>' +
+        '<path class="s-fold" d="M21 28 L30 21 M119 28 L110 21"/>' +
+        '<path class="f-steel" d="M36 50 Q36 16 70 14 Q104 16 104 50 Z"/>' +
+        '<path class="f-shade" d="M80 15 Q104 20 104 50 H90 Q92 28 80 15 Z"/>' +
+        '<path class="f-steel" d="M66 15 H74 V46 H66 Z" style="stroke-width:3"/>' +
+        '<rect class="f-steel" x="33" y="43" width="74" height="10" rx="4"/>' +
+        '<g class="sk-detail"><circle class="f-line" cx="44" cy="48" r="1.8"/><circle class="f-line" cx="57" cy="48" r="1.8"/>' +
+        '<circle class="f-line" cx="83" cy="48" r="1.8"/><circle class="f-line" cx="96" cy="48" r="1.8"/></g>' +
+        '<path class="f-steel" d="M66 52 H74 V72 Q70 76 66 72 Z" style="stroke-width:3"/>' +
+        '<path class="s-shine sk-detail" d="M46 36 Q50 24 62 20"/>'
+    );
+}
+
+/* ===================== ROI CITROUILLE (épique) ===================== */
+
+function pumpkinBody() {
+    return (
+        // Lucioles
+        '<g class="sk-detail">' +
+        '<circle class="f-glow sk-orb" cx="12" cy="40" r="4"/>' +
+        '<circle class="f-glow sk-orb sk-orb-b" cx="130" cy="104" r="3.5"/>' +
+        '<circle class="f-glow sk-orb sk-orb-c" cx="126" cy="210" r="3"/>' +
+        '</g>' +
+        // Sac de bonbons sur l'épaule (derrière, à gauche)
+        '<circle class="f-candy-a" cx="20" cy="88" r="7"/>' +
+        '<circle class="f-candy-b" cx="32" cy="82" r="7"/>' +
+        '<circle class="f-candy-c" cx="44" cy="88" r="6"/>' +
+        '<ellipse class="f-burlap" cx="30" cy="128" rx="26" ry="34"/>' +
+        '<path class="f-burlap" d="M18 100 L14 90 L30 96 L46 90 L42 100 Z"/>' +
+        thick('M17 99 Q30 104 43 99', 's-vine') +
+        '<path class="s-fold sk-detail" d="M14 120 L22 124 M12 138 L20 140"/>' +
+        // Jambes à rayures, chaussures pointues recourbées
+        '<rect class="f-pants" x="46" y="160" width="22" height="90" rx="7"/>' +
+        '<rect class="f-pants" x="72" y="160" width="22" height="90" rx="7"/>' +
+        '<path class="s-neon sk-detail" d="M47 202 H67 M47 218 H67 M47 234 H67 M73 202 H93 M73 218 H93 M73 234 H93"/>' +
+        '<path class="f-shoes" d="M30 262 Q22 246 36 252 Q46 244 68 246 V268 H36 Q28 268 30 262 Z"/>' +
+        '<path class="f-shoes" d="M110 262 Q118 246 104 252 Q94 244 72 246 V268 H104 Q112 268 110 262 Z"/>' +
+        // Manteau aux pans déchirés, gilet de feuilles, boutons dorés
+        '<path class="f-outfit" d="M44 100 Q70 90 96 100 Q100 140 104 186 L96 178 L90 190 L82 180 L74 192 L66 180 L58 192 L50 180 L44 190 L36 186 Q40 140 44 100 Z"/>' +
+        '<path class="f-shade" d="M72 94 Q86 95 96 100 Q100 140 104 186 L96 178 L90 190 L82 180 L74 192 L72 188 Z"/>' +
+        '<path class="f-pack" d="M58 100 H82 L78 148 H62 Z"/>' +
+        '<path class="s-fold sk-detail" d="M70 104 V146 M70 114 L62 108 M70 124 L78 118 M70 134 L63 128"/>' +
+        '<circle class="f-gold" cx="54" cy="116" r="3" style="stroke-width:2"/><circle class="f-gold" cx="86" cy="116" r="3" style="stroke-width:2"/>' +
+        // Lien du sac en diagonale + ceinture à boucle citrouille
+        '<path class="s-strap" d="M44 104 L94 150"/>' +
+        '<path class="s-pack" d="M44 104 L94 150"/>' +
+        '<rect class="f-belt" x="42" y="148" width="56" height="11" rx="3"/>' +
+        '<rect class="f-skin" x="62" y="145" width="16" height="17" rx="6"/>' +
+        // Manches aux poignets déchirés, gants sombres
+        '<path class="f-outfit-d" d="M46 104 Q34 106 30 120 L22 160 L28 156 L32 164 L38 158 L44 162 L47 124 Z"/>' +
+        '<path class="f-outfit-d" d="M94 104 Q106 106 110 120 L118 160 L112 156 L108 164 L102 158 L96 162 L93 124 Z"/>' +
+        '<circle class="f-shoes" cx="31" cy="170" r="9.5"/>' +
+        '<circle class="f-shoes" cx="109" cy="170" r="9.5"/>' +
+        // Col haut en pointes + cou en tige
+        '<rect class="f-pack" x="63" y="84" width="14" height="14" rx="3"/>' +
+        '<path class="f-outfit-d" d="M40 98 L46 82 L55 93 L63 82 L70 93 L77 82 L85 93 L94 82 L100 98 Q70 110 40 98 Z"/>' +
+        // Halo de la bougie, tête-citrouille à côtes
+        '<circle class="f-glow sk-glow" cx="70" cy="58" r="50" style="stroke:none;fill-opacity:0.16"/>' +
+        '<ellipse class="f-skin" cx="48" cy="58" rx="22" ry="32"/>' +
+        '<ellipse class="f-skin" cx="92" cy="58" rx="22" ry="32"/>' +
+        '<ellipse class="f-skin" cx="70" cy="58" rx="26" ry="35"/>' +
+        '<path class="f-shade" d="M98 30 Q114 40 114 58 Q114 82 96 88 Q106 74 106 58 Q106 42 98 30 Z"/>' +
+        '<path class="s-shine sk-detail" d="M32 50 Q34 38 42 32"/>' +
+        // Visage sculpté qui vacille
+        '<path class="f-carve sk-glow" d="M48 56 L62 48 L60 64 Z M92 56 L78 48 L80 64 Z" style="stroke-width:3"/>' +
+        '<path class="f-carve sk-glow" d="M70 64 L75 72 H65 Z" style="stroke-width:2.5"/>' +
+        '<path class="f-carve sk-glow" d="M44 76 L53 80 L60 75 L70 82 L80 75 L87 80 L96 76 Q88 96 70 96 Q52 96 44 76 Z" style="stroke-width:3"/>' +
+        // Tige, feuille, vrille et petite couronne de travers
+        '<path class="f-pack" d="M52 26 Q50 12 58 2 L66 6 Q60 14 62 26 Z"/>' +
+        '<path class="f-pack" d="M52 14 Q36 0 22 10 Q36 22 52 14 Z" style="stroke-width:3"/>' +
+        '<path class="s-vine sk-detail" d="M64 18 Q74 14 72 6 Q70 0 66 4"/>' +
+        '<path class="f-gold" d="M78 24 L79 6 L88 15 L95 3 L100 17 L109 9 L107 29 Q92 33 78 24 Z"/>' +
+        '<circle class="f-red" cx="93" cy="22" r="3" style="stroke-width:1.5"/>'
+    );
+}
+
+/* ===================== DRAGON ANCESTRAL (légendaire) ===================== */
+
+function dragonBody() {
+    return (
+        // Ailes de braise qui battent (doigts en écailles)
+        '<g class="sk-wing">' +
+        '<path class="f-pack" d="M50 104 L6 40 Q10 62 2 76 Q16 80 14 100 Q26 102 26 120 Q36 118 44 132 Z"/>' +
+        thick('M50 104 L6 40 M48 110 L2 76 M46 118 L14 100 M44 126 L26 120', 's-bone') +
+        '</g>' +
+        '<g class="sk-wing sk-wing-r">' +
+        '<path class="f-pack" d="M90 104 L134 40 Q130 62 138 76 Q124 80 126 100 Q114 102 114 120 Q104 118 96 132 Z"/>' +
+        thick('M90 104 L134 40 M92 110 L138 76 M94 118 L126 100 M96 126 L114 120', 's-bone') +
+        '</g>' +
+        // Queue qui s'enroule, pointe en losange
+        '<path class="f-skin" d="M80 170 Q124 190 122 234 Q120 252 132 254 L130 262 Q110 262 110 236 Q112 200 76 186 Z"/>' +
+        '<path class="f-hair" d="M127 248 L140 256 L130 268 L121 258 Z"/>' +
+        // Jambes écailleuses, pattes griffues
+        '<path class="f-outfit" d="M44 160 H68 L66 248 H46 Z"/>' +
+        '<path class="f-outfit" d="M72 160 H96 L94 248 H74 Z"/>' +
+        '<path class="s-fold sk-detail" d="M50 190 q4 4 8 0 M57 208 q4 4 8 0 M50 226 q4 4 8 0 M78 190 q4 4 8 0 M85 208 q4 4 8 0 M78 226 q4 4 8 0"/>' +
+        '<path class="f-shoes" d="M30 268 Q30 248 46 246 H68 V268 Z"/>' +
+        '<path class="f-shoes" d="M72 246 H94 Q110 248 110 268 H72 Z"/>' +
+        '<path class="f-hair" d="M31 266 L23 272 L35 271 Z M44 267 L40 275 L50 270 Z M96 267 L100 275 L90 270 Z M109 266 L117 272 L105 271 Z" style="stroke-width:2.5"/>' +
+        // Corps, ventre en plaques dorées
+        '<path class="f-outfit" d="M42 102 Q70 92 98 102 Q104 140 100 172 Q70 182 40 172 Q36 140 42 102 Z"/>' +
+        '<path class="f-shade" d="M72 96 Q88 97 98 102 Q104 140 100 172 Q86 177 72 178 Z"/>' +
+        '<path class="f-accent" d="M56 104 Q70 100 84 104 L82 168 Q70 174 58 168 Z"/>' +
+        '<path class="s-plate sk-detail" d="M57 118 H83 M57 132 H83 M58 146 H82 M58 158 H82"/>' +
+        // Bras écailleux, pointes aux épaules, mains griffues
+        '<path class="f-skin" d="M46 104 Q34 106 30 120 L24 158 Q24 166 32 167 Q40 167 41 160 L47 124 Z"/>' +
+        '<path class="f-skin" d="M94 104 Q106 106 110 120 L116 158 Q116 166 108 167 Q100 167 99 160 L93 124 Z"/>' +
+        '<path class="s-fold sk-detail" d="M33 128 q4 4 8 0 M31 142 q4 4 8 0 M99 128 q4 4 8 0 M101 142 q4 4 8 0"/>' +
+        '<path class="f-hair" d="M34 110 L22 96 L38 104 Z M106 110 L118 96 L102 104 Z" style="stroke-width:3"/>' +
+        '<circle class="f-skin" cx="30" cy="170" r="9.5"/>' +
+        '<circle class="f-skin" cx="110" cy="170" r="9.5"/>' +
+        '<path class="f-hair" d="M23 175 L19 184 L28 179 Z M31 179 L31 188 L36 179 Z M109 179 L109 188 L104 179 Z M117 175 L121 184 L112 179 Z" style="stroke-width:2"/>' +
+        // Cou
+        '<rect class="f-skin" x="60" y="82" width="20" height="16" rx="5"/>' +
+        // Nageoires-oreilles, cornes, crête
+        '<path class="f-pack" d="M40 52 L20 42 L25 57 L16 66 L40 64 Z"/>' +
+        '<path class="f-pack" d="M100 52 L120 42 L115 57 L124 66 L100 64 Z"/>' +
+        '<path class="f-hair" d="M46 36 Q30 20 34 0 Q44 18 58 28 Z"/>' +
+        '<path class="f-hair" d="M94 36 Q110 20 106 0 Q96 18 82 28 Z"/>' +
+        // Tête, museau, naseaux, crocs
+        '<ellipse class="f-skin" cx="70" cy="56" rx="32" ry="32"/>' +
+        '<path class="f-shade-soft" d="M84 28 Q102 38 102 58 Q100 78 84 86 Q96 72 96 56 Q96 38 84 28 Z"/>' +
+        '<path class="f-pack" d="M62 26 L70 10 L78 26 Z" style="stroke-width:3"/>' +
+        '<ellipse class="f-skin" cx="70" cy="76" rx="22" ry="15"/>' +
+        '<ellipse class="f-line" cx="63" cy="74" rx="2.5" ry="2"/>' +
+        '<ellipse class="f-line" cx="77" cy="74" rx="2.5" ry="2"/>' +
+        '<path class="s-brow" d="M56 84 Q70 92 84 84"/>' +
+        '<path class="f-white" d="M60 86 L62 93 L65 88 Z M75 88 L78 93 L80 86 Z" style="stroke:var(--outline);stroke-width:1.5"/>' +
+        // Yeux de feu à pupille fendue, sourcils froncés
+        '<g class="sk-eyes">' +
+        '<ellipse class="f-glow" cx="56" cy="52" rx="7" ry="6"/><ellipse class="f-glow" cx="84" cy="52" rx="7" ry="6"/>' +
+        '<ellipse class="f-line" cx="56" cy="52" rx="1.8" ry="5"/><ellipse class="f-line" cx="84" cy="52" rx="1.8" ry="5"/>' +
+        '</g>' +
+        '<path class="s-brow" d="M46 42 L63 46 M94 42 L77 46"/>' +
+        '<path class="s-shine sk-detail" d="M44 50 Q46 34 58 28"/>' +
+        // Braises qui flottent
+        '<g class="sk-detail">' +
+        '<circle class="f-flame2 sk-orb" cx="118" cy="30" r="3.5"/>' +
+        '<circle class="f-flame sk-orb sk-orb-b" cx="20" cy="22" r="3"/>' +
+        '<circle class="f-flame2 sk-orb sk-orb-c" cx="12" cy="150" r="3"/>' +
+        '</g>'
+    );
+}
+
 /* ===================== ASSEMBLAGE ===================== */
 
 const BODIES = {
@@ -724,7 +931,10 @@ const BODIES = {
     chef: chefBody,
     pirate: pirateBody,
     mecha: mechaBody,
-    mage: mageBody
+    mage: mageBody,
+    viking: vikingBody,
+    pumpkin: pumpkinBody,
+    dragon: dragonBody
 };
 
 function svgOf(style, hair, goggles) {
