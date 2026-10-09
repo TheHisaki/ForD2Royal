@@ -32,7 +32,7 @@ import { EndScreen, Spectator } from './end-screen.js?v=9';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=10';
 import { GUNGAME_MAP_ID, GUNGAME_MAX_PLAYERS, GUNGAME_STAGE_COUNT, gunGameWeapon, isGunGameMode, setGunGameSeed } from './gungame.js?v=3';
 import { drawCapsuleBase, drawCapsuleDome } from './capsules.js?v=1';
-import { Weather, WEATHER_TYPES } from './weather.js?v=1';
+import { Weather, WEATHER_TYPES } from './weather.js?v=2';
 import { WeatherFx } from './weather-fx.js?v=2';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots

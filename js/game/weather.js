@@ -1,6 +1,6 @@
 /* ==================================
    MÉTÉO DE PARTIE - FOR2D ROYAL
-   Deux changements programmés à 200 s et 400 s après le départ commun.
+   Trois changements programmés à 150 s, 300 s et 450 s après le départ commun.
    L'hôte décide, les autres clients se calent sur le type + la séquence.
    ================================== */
 
@@ -11,8 +11,8 @@ export const WEATHER_TYPES = Object.freeze({
     fog: { id: 'fog', name: 'Brouillard', title: 'Le brouillard se lève', icon: '≋' }
 });
 
-// Partie de dix minutes : deux changements, suffisamment espacés pour être lisibles.
-export const WEATHER_CHANGE_TIMES = Object.freeze([200, 400]);
+// Une météo change toutes les 2 min 30 s pendant une partie de dix minutes.
+export const WEATHER_CHANGE_TIMES = Object.freeze([150, 300, 450]);
 const WEATHER_POOL = ['night', 'storm', 'fog'];
 
 function weatherFrom(value) {
