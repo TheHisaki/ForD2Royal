@@ -20,7 +20,7 @@ import { SupplyDrops, SUPPLY_FALL_TIME } from './supply-drops.js?v=4';
 import { Corruption } from './corruption.js?v=12';
 import { CombatHud } from './combat-hud.js?v=14';
 import { Effects } from './effects.js?v=16';
-import { HEALS, WEAPONS, THROWABLES, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=14';
+import { HEALS, WEAPONS, THROWABLES, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=15';
 import { drawPlayer, drawDying } from './draw.js?v=13';
 import { iconCanvas } from './icons.js';
 import { SFX } from '../sfx.js?v=16';
