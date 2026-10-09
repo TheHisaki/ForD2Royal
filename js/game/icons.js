@@ -351,58 +351,108 @@ WEAPON_ART.crossbow = {
         part(ctx, [88, -5, 98, 0, 88, 5], M3, 2);
         part(ctx, [40, -2, 48, -2, 44, -7, 38, -7], a.color, 1.8);
         part(ctx, [40, 2, 48, 2, 44, 7, 38, 7], a.color, 1.8);
-    },
+    }
+};
 
-    icecannon: {
-        box: [0, -24, 112, 23],
-        tilt: -0.2,
-        glow: true,
-        draw(ctx, a) {
-            part(ctx, [0, -8, 24, -6, 24, 5, 7, 10, 0, 10], '#253653');
-            box(ctx, 20, -10, 18, 14, 3, '#47698f');
-            box(ctx, 34, -14, 42, 19, 5, '#b9eaff');
-            shine(ctx, 38, -11, 30, 2.5, 0.7);
-            box(ctx, 47, -12, 5, 15, 1, a.color, 2);
-            for (const x of [40, 51, 62, 73]) {
-                ctx.beginPath();
-                ctx.arc(x, -4, 7, -Math.PI * 0.75, Math.PI * 0.75);
-                ctx.strokeStyle = OUTLINE;
-                ctx.lineWidth = 5;
-                ctx.stroke();
-                ctx.strokeStyle = '#4fe8ff';
-                ctx.lineWidth = 2.5;
-                ctx.stroke();
-            }
+// Flocon à 6 branches (contour sombre puis trait clair)
+function snowflake(ctx, x, y, s, color = '#ffffff') {
+    ctx.beginPath();
+    for (let k = 0; k < 3; k++) {
+        const a = (k / 3) * Math.PI;
+        const dx = Math.cos(a) * s;
+        const dy = Math.sin(a) * s;
+        ctx.moveTo(x - dx, y - dy);
+        ctx.lineTo(x + dx, y + dy);
+    }
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = 3.4;
+    ctx.stroke();
+    ctx.strokeStyle = color;
+    ctx.lineWidth = 1.6;
+    ctx.stroke();
+}
+
+/*
+   Canon à glace : crosse et carcasse bleu nuit, réservoir en verre rempli de liquide
+   cryogénique (bulles), bobines lumineuses, canon givré couvert de cristaux,
+   émetteur en cristal et flocons qui s'en échappent. Pièces à la couleur de la rareté.
+*/
+WEAPON_ART.icecannon = {
+    box: [-3, -30, 121, 24],
+    tilt: -0.2,
+    draw(ctx, a) {
+        const NAVY = '#1d3b66';
+        const BLUE = '#2f6aa3';
+        const ICE = '#7fdcff';
+        const CYAN = '#4fe8ff';
+        const FROST = '#e6fbff';
+        // Crosse + plaque de couche + insert de rareté
+        part(ctx, [0, -8, 26, -9, 26, 5, 8, 11, 0, 11], NAVY);
+        part(ctx, [6, -4, 21, -5, 21, 1, 9, 5], a.color, 2);
+        box(ctx, -3, -9, 5, 21, 2, M0, 2);
+        // Poignée striée + détente
+        part(ctx, [30, 2, 40, 2, 36, 23, 26, 23], M1);
+        ridges(ctx, 30, 36, 3, 8, 19, 'rgba(255, 255, 255, 0.15)', 1.2);
+        triggerGuard(ctx, 38, 47, 3);
+        // Carcasse + bande de rareté
+        box(ctx, 22, -12, 46, 16, 4, BLUE);
+        shine(ctx, 25, -10.5, 40, 2.2, 0.35);
+        box(ctx, 33, -12, 6, 16, 0, a.color, 2);
+        ctx.fillStyle = 'rgba(10, 16, 48, 0.45)';
+        for (const x of [45, 51, 57]) ctx.fillRect(x, -2, 4, 3);
+        // Embouts du réservoir
+        box(ctx, 30, -26, 6, 11, 2, M2, 2);
+        box(ctx, 60, -26, 6, 11, 2, M2, 2);
+        // Réservoir en verre : liquide cryogénique + bulles
+        ctx.beginPath();
+        ctx.roundRect(34, -28, 28, 15, 7);
+        ctx.fillStyle = 'rgba(214, 246, 255, 0.6)';
+        ctx.fill();
+        ctx.save();
+        ctx.clip();
+        ctx.fillStyle = ICE;
+        ctx.fillRect(33, -22, 30, 10);
+        ctx.fillStyle = CYAN;
+        ctx.fillRect(33, -17, 30, 5);
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.9)';
+        for (const [x, y, rr] of [[39, -19, 1.6], [45, -17, 1.1], [51, -20, 2], [57, -17.5, 1.2], [42, -23.5, 0.9]]) {
             ctx.beginPath();
-            ctx.moveTo(76, -12);
-            ctx.lineTo(96, -8);
-            ctx.lineTo(106, -2);
-            ctx.lineTo(96, 4);
-            ctx.lineTo(76, 8);
-            ctx.closePath();
-            paint(ctx, '#6fd0ff');
-            ctx.beginPath();
-            ctx.moveTo(104, -2);
-            ctx.lineTo(116, -10);
-            ctx.lineTo(111, -1);
-            ctx.lineTo(116, 8);
-            ctx.closePath();
-            paint(ctx, '#d6fbff');
-            for (const [x, y] of [[102, -18], [110, 16], [92, 15]]) {
-                ctx.beginPath();
-                ctx.moveTo(x, y - 4);
-                ctx.lineTo(x + 1.2, y - 1.2);
-                ctx.lineTo(x + 4, y);
-                ctx.lineTo(x + 1.2, y + 1.2);
-                ctx.lineTo(x, y + 4);
-                ctx.lineTo(x - 1.2, y + 1.2);
-                ctx.lineTo(x - 4, y);
-                ctx.lineTo(x - 1.2, y - 1.2);
-                ctx.closePath();
-                ctx.fillStyle = '#ffffff';
-                ctx.fill();
-            }
+            ctx.arc(x, y, rr, 0, TAU);
+            ctx.fill();
         }
+        ctx.restore();
+        ctx.beginPath();
+        ctx.roundRect(34, -28, 28, 15, 7);
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = 3;
+        ctx.stroke();
+        shine(ctx, 38, -25.5, 19, 1.8, 0.85);
+        // Tube + bobines lumineuses
+        box(ctx, 66, -9, 26, 10, 3, M2);
+        for (const x of [69, 76, 83]) {
+            box(ctx, x, -13, 4.5, 18, 2, CYAN, 2);
+            shine(ctx, x + 1, -11.5, 1.6, 6, 0.75);
+        }
+        // Canon givré + cristaux de givre qui poussent dessus
+        box(ctx, 90, -9, 20, 10, 3, FROST);
+        ctx.fillStyle = 'rgba(127, 220, 255, 0.55)';
+        ctx.fillRect(92, -3, 16, 3);
+        part(ctx, [93, -9, 96, -17, 99, -9], FROST, 1.8);
+        part(ctx, [99, -9, 101, -14, 103, -9], FROST, 1.8);
+        part(ctx, [96, 1, 99, 7, 102, 1], FROST, 1.8);
+        // Émetteur : anneau + cristal en pointe
+        ctx.beginPath();
+        ctx.ellipse(111, -4, 4.5, 10, 0, 0, TAU);
+        paint(ctx, ICE);
+        ctx.beginPath();
+        ctx.ellipse(111, -4, 1.8, 5.5, 0, 0, TAU);
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
+        part(ctx, [114, -9, 121, -4, 114, 1], FROST, 2);
+        // Flocons qui s'échappent
+        snowflake(ctx, 104, -22, 4.2);
+        snowflake(ctx, 117, 13, 3.4);
+        snowflake(ctx, 92, 15, 2.8, ICE);
     }
 };
 

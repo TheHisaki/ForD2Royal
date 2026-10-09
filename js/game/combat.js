@@ -11,6 +11,8 @@ const SWING_TIME = 0.25;                // durée de l'animation de coup (s)
 const SUB_STEP = 20;                    // les balles avancent par pas de 20 unités max
 const HIT_PAD = 4;                      // marge de collision balle / combattant
 const TRACER = 26;                      // longueur du traceur
+const ICE_WEAPON = 'icecannon';         // projectile dessiné en éclat de glace
+const ICE_TRAIL = 70;                   // longueur de la traînée givrée
 // Grenades (vue de dessus) : vol en arc (hauteur visuelle z), puis roulent jusqu'à la mèche
 const THROW_SPEED = 520;      // vitesse au sol pendant le vol (unités / s)
 const THROW_AIR = 0.62;       // durée du vol avant de toucher le sol (s)
@@ -493,9 +495,16 @@ export class Combat {
         // Les coéquipiers restent protégés, mais une explosion peut blesser son propriétaire.
         if (attacker && attacker !== victim && attacker.team && victim.team && attacker.team === victim.team) return;
 
+        const statusWeapon = WEAPONS[weaponId];
+
         // Combattant géré par une autre machine : on lui signale le coup, il l'appliquera.
         // (corruption et hémorragie : chaque propriétaire les calcule déjà lui-même)
         if (!this.owns(victim)) {
+            // Givre affiché tout de suite sur la copie (visuel seulement : le vrai
+            // ralentissement est décidé par le propriétaire puis resynchronisé)
+            if (statusWeapon?.slowDuration && !victim.dbno) {
+                victim.iceSlowTimer = Math.max(victim.iceSlowTimer || 0, statusWeapon.slowDuration);
+            }
             if (weaponId !== 'corruption' && weaponId !== 'bleedout') {
                 this.events.onRemoteHit?.(victim, amount, attacker, weaponId);
             }
@@ -509,7 +518,6 @@ export class Combat {
             return;
         }
 
-        const statusWeapon = WEAPONS[weaponId];
         if (statusWeapon?.slowDuration && !victim.dbno) {
             victim.iceSlowTimer = Math.max(victim.iceSlowTimer || 0, statusWeapon.slowDuration);
             victim.iceSlowMul = Math.min(victim.iceSlowMul || 0.45, statusWeapon.slowMultiplier || 0.45);
@@ -827,7 +835,7 @@ export class Combat {
                     this.events.onImpact?.(b.x, b.y, Math.atan2(b.vy, b.vx), 'ricochet', null, b.owner);
                     continue;
                 }
-                this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), 'wall', null, b.owner);
+                this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), b.weaponId === ICE_WEAPON ? 'iceWall' : 'wall', null, b.owner);
                 return false;
             }
             for (let i = 0; i < targets.length; i++) {
@@ -837,7 +845,7 @@ export class Combat {
                 const dx = b.x - t.x;
                 const dy = b.y - t.y;
                 if (dx * dx + dy * dy < rr * rr) {
-                    const impactKind = b.weaponId === 'icecannon'
+                    const impactKind = b.weaponId === ICE_WEAPON
                         ? 'ice'
                         : (t.shield > 0 ? 'shield' : 'health');
                     this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), impactKind, b.visual ? null : t, b.owner);
@@ -879,17 +887,14 @@ export class Combat {
         const list = this.bullets;
         // Traceurs : jaunes (armes classiques), bleutés (ricochet) ; les carreaux sont dessinés à part
         const visible = this.canSee;
-        for (const [kind, color] of [['normal', '#fff3a8'], ['ricochet', '#8ff3ff'], ['ice', '#d6fbff']]) {
+        for (const [kind, color] of [['normal', '#fff3a8'], ['ricochet', '#8ff3ff']]) {
             ctx.beginPath();
             let any = false;
             for (let i = 0; i < list.length; i++) {
                 const b = list[i];
                 if (visible && !visible(b.owner)) continue;
-                if (b.weaponId === 'crossbow') continue;
-                const isKind = kind === 'ice'
-                    ? b.weaponId === 'icecannon'
-                    : (b.weaponId !== 'icecannon' && (b.weaponId === 'ricochet') === (kind === 'ricochet'));
-                if (!isKind) continue;
+                if (b.weaponId === 'crossbow' || b.weaponId === ICE_WEAPON) continue;
+                if ((b.weaponId === 'ricochet') !== (kind === 'ricochet')) continue;
                 const len = Math.min(TRACER, b.dist + 6);
                 ctx.moveTo(b.x - b.ux * len, b.y - b.uy * len);
                 ctx.lineTo(b.x, b.y);
@@ -906,6 +911,7 @@ export class Combat {
         for (let i = 0; i < list.length; i++) {
             if (visible && !visible(list[i].owner)) continue;
             if (list[i].weaponId === 'crossbow') this._drawBolt(ctx, list[i]);
+            else if (list[i].weaponId === ICE_WEAPON) this._drawIceShard(ctx, list[i]);
         }
         for (const p of this.throwables) {
             if (!visible || visible(p.owner)) this._drawGrenade(ctx, p);
@@ -948,6 +954,83 @@ export class Combat {
         ctx.fillStyle = '#d59cff';
         ctx.fill();
         ctx.stroke();
+        ctx.restore();
+    }
+
+    /*
+       Éclat du canon à glace : traînée givrée qui s'affine, halo froid, cristal en losange
+       qui tourne sur lui-même, cœur blanc et petits flocons laissés derrière.
+       Aucune allocation : tout est calculé à partir de la distance parcourue.
+    */
+    _drawIceShard(ctx, b) {
+        const ang = Math.atan2(b.uy, b.ux);
+        const trail = Math.min(ICE_TRAIL, b.dist + 6);
+        ctx.save();
+        ctx.translate(b.x, b.y);
+        ctx.rotate(ang);
+        // Traînée : large et transparente, puis fine et claire
+        ctx.globalAlpha = 0.28;
+        ctx.strokeStyle = '#7fe8ff';
+        ctx.lineWidth = 12;
+        ctx.beginPath();
+        ctx.moveTo(-trail, 0);
+        ctx.lineTo(-4, 0);
+        ctx.stroke();
+        ctx.globalAlpha = 0.75;
+        ctx.strokeStyle = '#e6fbff';
+        ctx.lineWidth = 4;
+        ctx.beginPath();
+        ctx.moveTo(-trail * 0.75, 0);
+        ctx.lineTo(-4, 0);
+        ctx.stroke();
+        // Flocons qui restent derrière (positions fixes le long de la traînée)
+        ctx.globalAlpha = 0.9;
+        ctx.fillStyle = '#ffffff';
+        const phase = b.dist * 0.05;
+        for (let k = 1; k <= 3; k++) {
+            const d = k * 18;
+            if (d > trail) break;
+            const side = Math.sin(phase + k * 2.1) * 5;
+            ctx.beginPath();
+            ctx.arc(-d, side, 2.2 - k * 0.4, 0, Math.PI * 2);
+            ctx.fill();
+        }
+        // Halo froid autour du cristal
+        ctx.globalAlpha = 0.35;
+        ctx.fillStyle = '#9fe8ff';
+        ctx.beginPath();
+        ctx.ellipse(2, 0, 16, 10, 0, 0, Math.PI * 2);
+        ctx.fill();
+        // Cristal en losange (il tourne un peu sur lui-même)
+        ctx.globalAlpha = 1;
+        ctx.scale(1, 0.75 + 0.25 * Math.cos(b.dist * 0.04));
+        ctx.beginPath();
+        ctx.moveTo(14, 0);
+        ctx.lineTo(0, -6.5);
+        ctx.lineTo(-9, 0);
+        ctx.lineTo(0, 6.5);
+        ctx.closePath();
+        ctx.fillStyle = '#7fdcff';
+        ctx.fill();
+        ctx.strokeStyle = '#0a1030';
+        ctx.lineWidth = 2.2;
+        ctx.stroke();
+        // Facette claire + cœur blanc
+        ctx.beginPath();
+        ctx.moveTo(14, 0);
+        ctx.lineTo(0, -6.5);
+        ctx.lineTo(-2, 0);
+        ctx.closePath();
+        ctx.fillStyle = '#e6fbff';
+        ctx.fill();
+        ctx.beginPath();
+        ctx.moveTo(8, 0);
+        ctx.lineTo(1, -2.4);
+        ctx.lineTo(-3, 0);
+        ctx.lineTo(1, 2.4);
+        ctx.closePath();
+        ctx.fillStyle = '#ffffff';
+        ctx.fill();
         ctx.restore();
     }
 

@@ -5,7 +5,7 @@
 
 import { B, BIOME_NAMES, OCEAN_DEEP, SEED, isWater } from './config.js?v=12';
 import { nearestLake, distToRoads } from './world.js?v=12';
-import { groundRGB, drawPlaza, drawField } from './draw.js?v=12';
+import { groundRGB, drawPlaza, drawField } from './draw.js?v=13';
 import { fbm, valueNoise } from './noise.js';
 import { SFX } from '../sfx.js';
 

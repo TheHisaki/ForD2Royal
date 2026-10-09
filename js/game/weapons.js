@@ -80,7 +80,7 @@ export const WEAPONS = {
     icecannon: gun({
         id: 'icecannon', name: 'Canon à glace', short: 'Canon glace', ammo: 'medium',
         damage: 32, fireRate: 1.2, auto: false, magSize: 5, reloadTime: 2.4,
-        bulletSpeed: 1150, range: 1050, spread: 0.035, length: 64,
+        bulletSpeed: 1150, range: 1050, spread: 0.035, length: 72,
         slowDuration: 1, slowMultiplier: 0.45, allowedRarities: [3, 4]
     })
 };
@@ -225,46 +225,99 @@ const CUSTOM_DRAW = {
         ctx.fillStyle = 'rgba(255,255,255,0.18)';
         ctx.fillRect(3, -4, 7, 2.5);
     },
-    // Canon à glace : chambre cryogénique, bobines bleues, cristaux et embout givré
+    /*
+       Canon à glace (vue de dessus, ~72 de long pour que le tir parte bien du cristal) :
+       crosse bleu nuit, carcasse à la couleur de la rareté, réservoir cryogénique sur le
+       flanc, 3 bobines qui pulsent, canon givré et cristal émetteur. Halo froid animé.
+    */
     icecannon(ctx, band) {
-        part(ctx, 0, 22, 13, '#253653');
-        part(ctx, 8, 24, 16, '#47698f');
+        const pulse = 0.55 + 0.45 * Math.sin(clock() * 6);
+        // Halo froid autour du canon
+        ctx.save();
+        ctx.globalAlpha *= 0.16 + 0.14 * pulse;
+        ctx.fillStyle = '#7fe8ff';
+        ctx.beginPath();
+        ctx.ellipse(56, 0, 22, 12, 0, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.restore();
+        // Crosse + carcasse
+        part(ctx, 0, 16, 11, ICE_NAVY);
+        part(ctx, 10, 30, 14, ICE_BLUE);
         ctx.fillStyle = band;
-        ctx.fillRect(22, -6.5, 4, 13);
-        part(ctx, 28, 38, 12, '#b9eaff');
-        for (const x of [32, 42, 52, 62]) {
-            ctx.beginPath();
-            ctx.arc(x, 0, 7, -Math.PI * 0.75, Math.PI * 0.75);
-            ctx.strokeStyle = OUTLINE;
-            ctx.lineWidth = 5;
-            ctx.stroke();
-            ctx.strokeStyle = '#4fe8ff';
-            ctx.lineWidth = 2.4;
-            ctx.stroke();
+        ctx.fillRect(16, -5.5, 4, 11);
+        ctx.fillStyle = 'rgba(255,255,255,0.2)';
+        ctx.fillRect(22, -5, 15, 2.5);
+        // Réservoir cryogénique sur le flanc (verre + liquide qui pulse)
+        roundRect(ctx, 17, -14, 21, 7.5, 3.5);
+        ctx.fillStyle = 'rgba(214, 246, 255, 0.8)';
+        ctx.fill();
+        ctx.strokeStyle = OUTLINE;
+        ctx.lineWidth = LW * 0.8;
+        ctx.stroke();
+        roundRect(ctx, 19, -12.4, 17, 4.3, 2);
+        ctx.save();
+        ctx.globalAlpha *= 0.65 + 0.35 * pulse;
+        ctx.fillStyle = '#4fe8ff';
+        ctx.fill();
+        ctx.restore();
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.fillRect(20, -12.6, 8, 1.4);
+        // Tube + 3 bobines lumineuses
+        part(ctx, 38, 19, 8, '#525c6f');
+        for (const x of [40, 46, 52]) {
+            part(ctx, x, 3.6, 13, '#4fe8ff');
+            ctx.save();
+            ctx.globalAlpha *= 0.5 + 0.5 * pulse;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(x + 1, -5, 1.4, 10);
+            ctx.restore();
         }
-        part(ctx, 64, 17, 18, '#6fd0ff');
-        ctx.fillStyle = '#eaffff';
-        ctx.fillRect(67, -5, 9, 3);
-        // Canon conique et cristal de glace à la bouche
+        // Canon givré + cristaux de givre qui poussent dessus
+        part(ctx, 56, 9, 10, ICE_FROST);
+        ctx.fillStyle = 'rgba(127, 220, 255, 0.6)';
+        ctx.fillRect(57, 1, 7, 2.5);
+        for (const [x, s] of [[57.5, -1], [61, 1], [59.5, 1]]) {
+            ctx.beginPath();
+            ctx.moveTo(x, s * 4.5);
+            ctx.lineTo(x + 1.6, s * 9);
+            ctx.lineTo(x + 3.2, s * 4.5);
+            ctx.closePath();
+            ink(ctx, ICE_FROST, LW * 0.6);
+        }
+        // Cristal émetteur (pointe vers l'avant)
         ctx.beginPath();
-        ctx.moveTo(78, -8);
-        ctx.lineTo(96, -5);
-        ctx.lineTo(101, 0);
-        ctx.lineTo(96, 5);
-        ctx.lineTo(78, 8);
+        ctx.moveTo(64, -6.5);
+        ctx.lineTo(73, 0);
+        ctx.lineTo(64, 6.5);
+        ctx.lineTo(61.5, 0);
         ctx.closePath();
-        ink(ctx, lin(ctx, 78, -8, 96, 8, ['#dffaff', '#7fdcff', '#2875a8']), LW);
+        ink(ctx, lin(ctx, 61, -6, 73, 6, ['#ffffff', '#7fdcff', '#2f6aa3']), LW);
         ctx.beginPath();
-        ctx.moveTo(100, 0);
-        ctx.lineTo(111, -7);
-        ctx.lineTo(107, 0);
-        ctx.lineTo(111, 7);
+        ctx.moveTo(64, -6.5);
+        ctx.lineTo(73, 0);
+        ctx.lineTo(64.5, -0.5);
         ctx.closePath();
-        ink(ctx, '#d6fbff', LW * 0.75);
-        ctx.fillStyle = 'rgba(255,255,255,0.7)';
-        ctx.fillRect(35, -5, 23, 2);
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.fill();
     }
 };
+
+// Couleurs du canon à glace
+const ICE_NAVY = '#1d3b66';
+const ICE_BLUE = '#2f6aa3';
+const ICE_FROST = '#e6fbff';
+
+// Horloge de la page (animations du canon à glace en main)
+function clock() {
+    return typeof performance !== 'undefined' ? performance.now() / 1000 : 0;
+}
+
+// Dégradé linéaire régulier entre plusieurs couleurs
+function lin(ctx, x0, y0, x1, y1, colors) {
+    const g = ctx.createLinearGradient(x0, y0, x1, y1);
+    colors.forEach((c, i) => g.addColorStop(i / (colors.length - 1), c));
+    return g;
+}
 
 // Plan générique d'une arme sans plan dédié (créé une fois puis mis en cache)
 const DEFAULT_PLANS = new Map();

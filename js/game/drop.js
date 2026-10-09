@@ -6,7 +6,7 @@
 
 import { clamp, inFrameView, fighterSeed, airProject, frameView, rectPointDist } from './utils.js';
 import { keepDuelSide } from './player.js?v=14';
-import { drawPlayer, drawStyledHead } from './draw.js?v=12';
+import { drawPlayer, drawStyledHead } from './draw.js?v=13';
 import { GLIDER_ART } from '../glider-art.js';
 import { drawBackpack } from './backpack-art.js';
 

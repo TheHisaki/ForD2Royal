@@ -49,6 +49,7 @@ const TEXT = 10;  // chiffre de dégâts
 // Options (champ flags)
 const GLOW = 1;    // anneau : halo large et transparent en plus
 const TWINKLE = 2; // étoile : scintille en continu au lieu de "pop" puis rétrécir
+const ICY = 4;     // flash de tir : couleurs froides (canon à glace) au lieu du feu
 
 // Palettes (tableaux constants : pas d'allocation à chaque effet)
 const DUST = ['#eadfbf', '#dccb9f', '#d2bf8c'];
@@ -62,6 +63,8 @@ const HEALTH_STARS = ['#ffffff', '#ff8095'];
 const DEATH_STARS = ['#ffffff', '#cfeaff'];
 const RICO_SPARKS = ['#8ff3ff', '#d6fbff', '#ffffff'];
 const ICE_SPARKS = ['#d6fbff', '#7fe8ff', '#ffffff'];
+const FROST_MIST = ['#e6fbff', '#cdeffc', '#bfe9ff'];
+const ICE_CHIPS = ['#e6fbff', '#9fe3ff', '#6fd0ff'];
 const FIRE = ['#ffb627', '#ff7a1a', '#ffe03d', '#ff5a2a'];
 const FIRE_SPARKS = ['#ffe03d', '#ffb627', '#ffffff'];
 const SOOT = ['#4a4550', '#5d5862', '#3a3640'];
@@ -81,8 +84,8 @@ const MUZZLE = {
     crossbow: { flash: 0, smoke: 0, shell: 0, back: 0, big: false, string: true },
     // Ricochet : petit flash + étincelles bleutées
     ricochet: { flash: 13, smoke: 1, shell: 3, back: 12, big: false, sparks: RICO_SPARKS },
-    // Canon à glace : éclat cyan et brume froide au départ du tir
-    icecannon: { flash: 18, smoke: 2, shell: 0, back: 24, big: true, sparks: ICE_SPARKS }
+    // Canon à glace : flash bleu glacé, brume froide et flocons au départ du tir (pas de douille)
+    icecannon: { flash: 22, smoke: 0, shell: 0, back: 0, big: false, sparks: ICE_SPARKS, ice: true }
 };
 
 /* ===================== FORMES UNITAIRES (précalculées) ===================== */
@@ -367,20 +370,21 @@ function drawFlash(ctx, p, t, x, y, base) {
     const grow = t < 0.3 ? 0.7 + 0.3 * easeOutQuad(t / 0.3) : 1 - 0.4 * (t - 0.3) / 0.7;
     const s = p.size * grow;
     const a = p.alpha * (1 - 0.4 * t);
+    const icy = (p.flags & ICY) !== 0;
     ctx.translate(x, y);
     ctx.rotate(p.ang + p.rot);
     ctx.globalAlpha = a * 0.35;
-    ctx.fillStyle = '#fff3a8';
+    ctx.fillStyle = icy ? '#d6fbff' : '#fff3a8';
     ctx.beginPath();
     ctx.arc(s * 0.3, 0, s * 0.6, 0, TAU);
     ctx.fill();
     ctx.globalAlpha = a;
     ctx.scale(s, s * p.width); // width = échelle latérale (variation + miroir)
     flashPath(ctx, 1);
-    ctx.fillStyle = '#ffb627';
+    ctx.fillStyle = icy ? '#3fb4ff' : '#ffb627';
     ctx.fill();
     flashPath(ctx, 0.68);
-    ctx.fillStyle = '#ffe03d';
+    ctx.fillStyle = icy ? '#9fe8ff' : '#ffe03d';
     ctx.fill();
     flashPath(ctx, 0.4);
     ctx.fillStyle = '#ffffff';
@@ -728,6 +732,43 @@ export class Effects {
             f.size = cfg.flash * rand(0.9, 1.1);
             f.width = sign() * rand(0.8, 1.05);
             f.reach = f.size * 1.4;
+            if (cfg.ice) f.flags = ICY;
+        }
+        // Canon à glace : anneau de givre, brume froide qui se dissipe, flocons projetés
+        if (cfg.ice) {
+            const ring = this._spawn(RING, TOP, x, y, 0.28);
+            ring.size = 4;
+            ring.size2 = 22;
+            ring.width = 4;
+            ring.width2 = 1;
+            ring.alpha = 0.85;
+            ring.color = '#bff0ff';
+            ring.flags = GLOW;
+            ring.reach = 34;
+            for (let i = 0; i < 4; i++) {
+                const p = this._spawn(DOT, TOP, x + dx * rand(0, 8), y + dy * rand(0, 8), rand(0.5, 0.85), 0.02);
+                const sp = rand(30, 90);
+                const a = angle + rand(-0.9, 0.9);
+                p.vx = Math.cos(a) * sp;
+                p.vy = Math.sin(a) * sp;
+                p.drag = 2.6;
+                p.size = rand(3, 5);
+                p.size2 = rand(11, 16);
+                p.alpha = rand(0.35, 0.5);
+                p.color = pick(FROST_MIST);
+            }
+            for (let i = 0; i < 3; i++) {
+                const a = angle + rand(-0.6, 0.6);
+                const sp = rand(80, 170);
+                const p = this._spawn(STAR, TOP, x, y, rand(0.35, 0.55));
+                p.vx = Math.cos(a) * sp;
+                p.vy = Math.sin(a) * sp;
+                p.drag = 3;
+                p.size = rand(4, 6);
+                p.rot = rand(0, TAU);
+                p.color = '#ffffff';
+                p.reach = 14;
+            }
         }
         // Corde d'arbalète : traits de vitesse blancs + petit anneau
         if (cfg.string) {
@@ -880,23 +921,83 @@ export class Effects {
         st.color = '#fff3a8';
     }
 
-    // Impact glacé : éclats de cristal, anneau froid et petits flocons
-    iceImpact(x, y, angle) {
+    /*
+       Impact glacé (cible ou mur) : flash blanc, éclats de glace qui sautent et retombent,
+       anneau de givre, brume froide, flocons, et une tache de givre qui reste au sol.
+    */
+    iceImpact(x, y, angle, onTarget = false) {
         if (this._far(x, y)) return;
-        this._sparks(x, y, angle + Math.PI, 1.2, 10, 120, 320, ICE_SPARKS, 0.25, 0.5, 2.2);
-        const ring = this._spawn(RING, TOP, x, y, 0.42);
-        ring.size = 5;
-        ring.size2 = 30;
-        ring.width = 4;
-        ring.width2 = 1;
-        ring.alpha = 0.9;
-        ring.color = '#bff0ff';
-        ring.flags = GLOW;
-        ring.reach = 42;
+        const back = angle + Math.PI;
+        // Tache de givre au sol (reste un peu)
+        const frost = this._spawn(DOT, GROUND, x, y, 1.6);
+        frost.size = onTarget ? 16 : 12;
+        frost.size2 = onTarget ? 26 : 20;
+        frost.alpha = 0.45;
+        frost.color = '#dff7ff';
+        frost.color2 = 'rgba(127, 220, 255, 0.55)';
+        frost.width = 2;
+        frost.reach = 30;
+        // Flash blanc au point d'impact
+        const fl = this._spawn(DOT, TOP, x, y, 0.12);
+        fl.size = 14;
+        fl.size2 = 4;
+        fl.alpha = 0.95;
+        fl.color = '#ffffff';
+        fl.reach = 16;
+        // Étincelles froides vers le tireur
+        this._sparks(x, y, back, 1.2, 10, 140, 340, ICE_SPARKS, 0.22, 0.45, 2.2);
+        // Anneaux de givre
+        for (let i = 0; i < 2; i++) {
+            const ring = this._spawn(RING, i ? TOP : GROUND, x, y, 0.42, i * 0.06);
+            ring.size = 5;
+            ring.size2 = onTarget ? 40 - i * 10 : 30 - i * 8;
+            ring.width = 5 - i * 2;
+            ring.width2 = 1;
+            ring.alpha = 0.9;
+            ring.color = i ? '#ffffff' : '#9fe8ff';
+            ring.flags = GLOW;
+            ring.reach = 52;
+        }
+        // Éclats de glace (petits carrés bleutés qui sautent et retombent)
+        for (let i = 0; i < 9; i++) {
+            const a = back + rand(-1.4, 1.4);
+            const sp = rand(110, 260);
+            const p = this._spawn(CUBE, TOP, x, y, rand(0.5, 0.8));
+            p.vx = Math.cos(a) * sp;
+            p.vy = Math.sin(a) * sp;
+            p.drag = 2.8;
+            p.z = 3;
+            p.vz = rand(80, 200);
+            p.gz = 760;
+            p.bounce = 0.3;
+            p.bounces = 1;
+            p.size = rand(1.8, 3.2);
+            p.size2 = p.size * 0.6;
+            p.rot = rand(0, TAU);
+            p.vrot = rand(8, 18) * sign();
+            p.color = pick(ICE_CHIPS);
+            p.color2 = OUTLINE;
+            p.width = 1;
+        }
+        // Brume froide qui se dissipe
+        for (let i = 0; i < 4; i++) {
+            const a = rand(0, TAU);
+            const p = this._spawn(DOT, TOP, x + Math.cos(a) * 4, y + Math.sin(a) * 4, rand(0.6, 0.9), rand(0, 0.05));
+            p.vx = Math.cos(a) * rand(15, 45);
+            p.vy = Math.sin(a) * rand(15, 45);
+            p.drag = 2;
+            p.gy = -10;
+            p.size = rand(4, 6);
+            p.size2 = rand(14, 20);
+            p.alpha = rand(0.3, 0.45);
+            p.color = pick(FROST_MIST);
+            p.reach = 26;
+        }
+        // Flocons qui s'envolent
         for (let i = 0; i < 6; i++) {
             const a = (i / 6) * TAU + rand(-0.18, 0.18);
             const sp = rand(35, 100);
-            const p = this._spawn(STAR, TOP, x, y, rand(0.45, 0.75));
+            const p = this._spawn(STAR, TOP, x, y, rand(0.5, 0.8));
             p.vx = Math.cos(a) * sp;
             p.vy = Math.sin(a) * sp;
             p.drag = 2.5;

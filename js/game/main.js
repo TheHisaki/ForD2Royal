@@ -19,9 +19,9 @@ import { BotManager, roofAlphaAt } from './bots.js?v=21';
 import { SupplyDrops, SUPPLY_FALL_TIME } from './supply-drops.js?v=3';
 import { Corruption } from './corruption.js?v=12';
 import { CombatHud } from './combat-hud.js?v=14';
-import { Effects } from './effects.js?v=15';
-import { HEALS, WEAPONS, THROWABLES, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=13';
-import { drawPlayer, drawDying } from './draw.js?v=12';
+import { Effects } from './effects.js?v=16';
+import { HEALS, WEAPONS, THROWABLES, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=14';
+import { drawPlayer, drawDying } from './draw.js?v=13';
 import { iconCanvas } from './icons.js';
 import { SFX } from '../sfx.js?v=16';
 import { Settings } from '../settings.js?v=9';
@@ -615,6 +615,8 @@ function start() {
             victim.health = 100;
             victim.shield = 0;
             victim.usingItem = null;
+            victim.iceSlowTimer = 0;
+            victim.flashTimer = 0;
             applyGunGameLoadout(victim, victim.gunStage || 0);
             if (victim.brain) {
                 victim.brain.roamGoal = { x: point.x, y: point.y };
@@ -792,7 +794,7 @@ function start() {
         },
         onImpact(x, y, angle, kind, target, owner) {
             if (canSeeFromHouse(owner)) {
-                if (kind === 'ice') effects.iceImpact(x, y, angle);
+                if (kind === 'ice' || kind === 'iceWall') effects.iceImpact(x, y, angle, kind === 'ice');
                 else effects.impact(x, y, angle, kind);
             }
             SFX.play('impact', { x, y, kind });
@@ -2077,7 +2079,7 @@ function start() {
         if (Number.isFinite(m.dt)) mate.dbnoTimer = m.dt;
         if (Number.isFinite(m.fl)) mate.flashTimer = m.fl;
         if (Number.isFinite(m.st)) mate.stimTimer = m.st;
-        if (Number.isFinite(m.ice)) mate.iceSlowTimer = m.ice;
+        if (Number.isFinite(m.ice)) mate.iceSlowTimer = Math.max(0, Math.min(2, m.ice));
         if (Number.isFinite(m.rl)) mate.reloadTimer = m.rl;
         // Soin en cours (affichage seulement : total infini, la copie ne se soigne jamais elle-même)
         if (m.use && !mate.usingItem) mate.usingItem = { slot: mate.slot, t: 0, total: Infinity };
@@ -2094,7 +2096,7 @@ function start() {
         const seen = new Set();
         for (const e of list) {
             if (!Array.isArray(e)) continue;
-            const [id, x, y, a, hp, sh, ph, db, alt, wId, wR, gg] = e;
+            const [id, x, y, a, hp, sh, ph, db, alt, wId, wR, gg, ice] = e;
             const b = fighterById(id);
             if (!b || !b.isBot) continue;
             seen.add(b);
@@ -2110,6 +2112,8 @@ function start() {
             if (Number.isFinite(alt)) b._targetAlt = alt;
             b.health = hp;
             b.shield = sh;
+            // Givre du canon à glace (affichage du bot gelé chez les invités)
+            if (Number.isFinite(ice)) b.iceSlowTimer = Math.max(0, Math.min(2, ice));
             if (isGunGame && Number.isFinite(gg)) {
                 b.gunStage = Math.max(b.gunStage || 0, Math.min(GUNGAME_STAGE_COUNT - 1, Number(gg)));
                 applyGunGameLoadout(b, b.gunStage);
@@ -2632,8 +2636,12 @@ function start() {
             smokeOverlay.style.setProperty('--smoke-blur', `${5 + smokeStrength * 8}px`);
         }
         if (iceOverlay) {
-            const iceStrength = player.iceSlowTimer > 0 ? Math.min(0.9, 0.38 + player.iceSlowTimer * 0.5) : 0;
-            iceOverlay.style.opacity = String(iceStrength);
+            // Plein effet pendant le ralentissement, fondu sur les 0,35 dernières secondes
+            const iceT = player.alive ? (player.iceSlowTimer || 0) : 0;
+            const iceStrength = iceT > 0 ? 0.92 * Math.min(1, iceT / 0.35) : 0;
+            iceOverlay.style.opacity = iceStrength > 0 ? iceStrength.toFixed(3) : '0';
+            const iceOn = iceStrength > 0;
+            if (iceOn !== iceOverlay.classList.contains('is-on')) iceOverlay.classList.toggle('is-on', iceOn);
         }
         for (const f of fighters) {
             if (f.hitFlash > 0) f.hitFlash = Math.max(0, f.hitFlash - dt * 5);
@@ -3634,7 +3642,8 @@ function start() {
                     Math.round(b.health), Math.round(b.shield), b.phase, b.dbno ? 1 : 0,
                     Math.round((b.altitude || 0) * 100) / 100,
                     held?.kind === 'weapon' ? held.weaponId : '', held?.rarity || 0,
-                    isGunGame ? (b.gunStage || 0) : null
+                    isGunGame ? (b.gunStage || 0) : null,
+                    Math.round((b.iceSlowTimer || 0) * 10) / 10
                 ]);
             }
             netSend({ type: 'b_sync', bots: list });

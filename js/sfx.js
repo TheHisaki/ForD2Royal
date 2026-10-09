@@ -380,6 +380,16 @@ const SHOTS = {
         tone(c, { type: 'sine', f0: 2400, f1: 1500, dur: 0.18, vol: 0.07, delay: 0.015 });
         tone(c, { type: 'sine', f0: 3600, f1: 2300, dur: 0.12, vol: 0.035, delay: 0.015 });
         noise(c, { type: 'highpass', f0: 5000, dur: 0.02, vol: 0.16 });
+    },
+    icecannon(c) {
+        // Décharge cryogénique : souffle froid, "pchiou" qui descend et cristaux qui tintent
+        noise(c, { type: 'highpass', f0: 3200, f1: 1400, dur: 0.16, vol: 0.32, attack: 0.004 });
+        tone(c, { type: 'sine', f0: 1500, f1: 260, dur: 0.2, vol: 0.32 });
+        tone(c, { type: 'triangle', f0: 180, f1: 70, dur: 0.12, vol: 0.3 });
+        if (c.lite) return;
+        tone(c, { type: 'sine', f0: 3100, f1: 2700, dur: 0.18, vol: 0.06, delay: 0.03 });
+        tone(c, { type: 'sine', f0: 4200, f1: 3900, dur: 0.14, vol: 0.04, delay: 0.06 });
+        noise(c, { type: 'bandpass', f0: 6000, q: 1.2, dur: 0.22, vol: 0.05, attack: 0.03, delay: 0.04 });
     }
 };
 
@@ -566,6 +576,22 @@ const IMPACTS = {
     health(c) {
         noise(c, { type: 'lowpass', f0: 700, dur: 0.07, vol: 0.35 });
         tone(c, { type: 'sine', f0: 150, f1: 80, dur: 0.08, vol: 0.3 });
+    },
+    ice(c) {
+        // Éclat de glace qui se brise sur la cible + crissement de givre
+        noise(c, { type: 'highpass', f0: 4200, f1: 2200, dur: 0.12, vol: 0.3 });
+        tone(c, { type: 'triangle', f0: 260, f1: 120, dur: 0.08, vol: 0.22 });
+        if (c.lite) return;
+        tone(c, { type: 'sine', f0: 3400, f1: 3000, dur: 0.16, vol: 0.07, delay: 0.01 });
+        tone(c, { type: 'sine', f0: 4600, f1: 4300, dur: 0.12, vol: 0.05, delay: 0.04 });
+        grains(c, 4, 4500, 8000, 0.12, 0.05, 2);
+    },
+    iceWall(c) {
+        // Cristal qui éclate contre un mur
+        noise(c, { type: 'highpass', f0: 3600, f1: 1800, dur: 0.09, vol: 0.22 });
+        if (c.lite) return;
+        tone(c, { type: 'sine', f0: 3800, f1: 3300, dur: 0.12, vol: 0.05 });
+        grains(c, 3, 4000, 7500, 0.1, 0.04, 2);
     }
 };
 

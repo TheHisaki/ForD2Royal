@@ -1734,6 +1734,56 @@ function mageOrbs(ctx, r, time, seed, color) {
     ctx.globalAlpha = ga;
 }
 
+/*
+   Combattant gelé (canon à glace) : voile de givre sur la silhouette, anneau de glace au sol,
+   6 cristaux qui pointent vers l'extérieur et 3 flocons qui tournent. Disparaît en fondu
+   sur le dernier quart de seconde. Repère du combattant (déjà tourné).
+*/
+const FROST_FILL = '#bff0ff';
+const FROST_LIGHT = '#e6fbff';
+const FROST_RING = '#9fe8ff';
+function drawFrozen(ctx, r, timer, time, seed) {
+    const k = Math.min(1, timer / 0.25);
+    const ga = ctx.globalAlpha;
+    // Voile de givre sur le corps
+    ctx.globalAlpha = ga * 0.38 * k;
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r * 0.82, r * 1.1, 0, 0, TAU);
+    ctx.fillStyle = FROST_FILL;
+    ctx.fill();
+    // Anneau de glace
+    ctx.globalAlpha = ga * 0.75 * k;
+    circle(ctx, 0, 0, r * 1.22);
+    ctx.strokeStyle = FROST_RING;
+    ctx.lineWidth = 3;
+    ctx.stroke();
+    // Cristaux de glace (pointes vers l'extérieur)
+    ctx.globalAlpha = ga * k;
+    for (let i = 0; i < 6; i++) {
+        const a = seed + i * (TAU / 6);
+        const len = r * (0.32 + 0.12 * ((i * 7) % 3) / 2);
+        const c = Math.cos(a);
+        const s = Math.sin(a);
+        const bx = c * r * 0.9;
+        const by = s * r * 0.9;
+        const w = r * 0.11;
+        ctx.beginPath();
+        ctx.moveTo(bx - s * w, by + c * w);
+        ctx.lineTo(bx + c * len, by + s * len);
+        ctx.lineTo(bx + s * w, by - c * w);
+        ctx.closePath();
+        fillStroke(ctx, FROST_LIGHT, OUTLINE, 2);
+    }
+    // Flocons qui tournent autour
+    ctx.fillStyle = '#ffffff';
+    for (let i = 0; i < 3; i++) {
+        const a = time * 1.8 + seed + i * (TAU / 3);
+        circle(ctx, Math.cos(a) * r * 1.45, Math.sin(a) * r * 1.45, r * 0.08);
+        ctx.fill();
+    }
+    ctx.globalAlpha = ga;
+}
+
 // Petites âmes violettes autour du squelette (3 au plus, calculées à partir de time)
 function soulSparks(ctx, r, time, seed, color) {
     const ga = ctx.globalAlpha;
@@ -2437,6 +2487,9 @@ function paintFighter(ctx, p, time, fx) {
         if (style === 'mage') mageOrbs(ctx, r, time, seed, sc.hair);
         if (style === 'pumpkin') soulSparks(ctx, r, time, seed, sc.hair); // lucioles
     }
+
+    // Touché par le canon à glace : carapace de givre, cristaux et flocons autour
+    if (p.iceSlowTimer > 0) drawFrozen(ctx, r, p.iceSlowTimer, time, seed);
 
     // Flash : toute la silhouette (sac, épaules, mains, tête) réunie dans un seul chemin,
     // remplie d'un coup pour une teinte uniforme sans surépaisseur aux chevauchements

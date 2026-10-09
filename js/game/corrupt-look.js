@@ -9,7 +9,7 @@
    (clip), donc la frontière se voit nettement et avance avec la zone.
    ================================== */
 
-import { drawObject, drawRoof } from './draw.js?v=12';
+import { drawObject, drawRoof } from './draw.js?v=13';
 
 const TAU = Math.PI * 2;
 
