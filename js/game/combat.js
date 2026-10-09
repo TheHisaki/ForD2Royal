@@ -223,10 +223,11 @@ export class Combat {
                 const factor = 1 - d / t.radius;
                 if (t.damage > 0) this.damage(target, Math.max(1, t.damage * factor), p.owner, t.id);
                 if (t.id === 'flash') {
-                    const flashDuration = (t.duration || 4) * factor;
-                    target.flashTimer = Math.max(target.flashTimer || 0, flashDuration);
-                    target.flashDuration = Math.max(target.flashDuration || 0, flashDuration);
-                    target.flashPower = Math.max(target.flashPower || 0, factor);
+                    // Aveuglement complet partout dans le rayon (la distance ne change rien)
+                    const flashDuration = t.duration || 5.5;
+                    target.flashTimer = flashDuration;
+                    target.flashDuration = flashDuration;
+                    target.flashPower = 1;
                 }
                 if (t.id === 'propulsion') {
                     const dx = target.x - p.x;

@@ -13,14 +13,14 @@ import { Input } from './input.js?v=13';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
 } from './drop.js?v=20';
-import { Combat } from './combat.js?v=15';
+import { Combat } from './combat.js?v=16';
 import { Loot } from './loot.js?v=12';
 import { BotManager, roofAlphaAt } from './bots.js?v=22';
 import { SupplyDrops, SUPPLY_FALL_TIME } from './supply-drops.js?v=4';
 import { Corruption } from './corruption.js?v=12';
 import { CombatHud } from './combat-hud.js?v=14';
 import { Effects } from './effects.js?v=16';
-import { HEALS, WEAPONS, THROWABLES, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=15';
+import { HEALS, WEAPONS, THROWABLES, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=16';
 import { drawPlayer, drawDying } from './draw.js?v=13';
 import { iconCanvas } from './icons.js';
 import { SFX } from '../sfx.js?v=17';
@@ -1244,13 +1244,17 @@ function start() {
         return true;
     }
 
+    const hasOwnItem = (table, id) => typeof id === 'string' && Object.prototype.hasOwnProperty.call(table, id);
+
+    // Donne un objet admin : soin (kind 'heal') ou grenade (kind 'throwable', 3 par case comme au sol)
     function giveHealToFighter(f, itemId, count = 1) {
-        if (!f?.alive || !['bandage', 'medkit', 'shieldPotion', 'healingSpray', 'stimPatch'].includes(itemId)) return false;
-        const maxStack = HEALS[itemId]?.stack || 1;
+        const kind = hasOwnItem(HEALS, itemId) ? 'heal' : hasOwnItem(THROWABLES, itemId) ? 'throwable' : null;
+        if (!f?.alive || !kind) return false;
+        const maxStack = kind === 'heal' ? (HEALS[itemId]?.stack || 1) : 3;
         let left = Math.max(1, Math.min(maxStack, Number(count) | 0));
         for (let i = 1; i < f.inventory.length && left > 0; i++) {
             const item = f.inventory[i];
-            if (item?.kind === 'heal' && item.itemId === itemId) {
+            if (item?.kind === kind && item.itemId === itemId) {
                 const add = Math.min(left, maxStack - item.count);
                 item.count += add;
                 left -= add;
@@ -1258,7 +1262,7 @@ function start() {
         }
         for (let i = 1; i < f.inventory.length && left > 0; i++) {
             if (!f.inventory[i]) {
-                f.inventory[i] = { kind: 'heal', itemId, count: left };
+                f.inventory[i] = { kind, itemId, count: left };
                 left = 0;
             }
         }
@@ -1840,36 +1844,50 @@ function start() {
         if (adminWeatherBtn) adminWeatherBtn.textContent = `Appliquer : ${WEATHER_TYPES[adminWeatherSelect.value]?.name || 'Météo'}`;
     });
 
-    const ADMIN_HEAL_GROUP = '__heals__';
+    const ADMIN_ITEM_GROUP = '__items__';
+
+    const makeOption = ({ value, label }) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        return option;
+    };
 
     function updateAdminGiveControls() {
-        const isHealing = adminWeaponSelect?.value === ADMIN_HEAL_GROUP;
+        const isItem = adminWeaponSelect?.value === ADMIN_ITEM_GROUP;
         if (!adminRaritySelect) return;
 
-        const selectedWeapon = WEAPONS[adminWeaponSelect?.value];
-        const raritySource = selectedWeapon?.allowedRarities
-            ? selectedWeapon.allowedRarities.map(index => ({ value: String(index), label: RARITIES[index]?.name || String(index) }))
-            : RARITIES.map((rarity, index) => ({ value: String(index), label: rarity.name }));
-        const options = isHealing
-            ? Object.values(HEALS).map((heal) => ({ value: heal.id, label: heal.name }))
-            : raritySource;
-        adminRaritySelect.replaceChildren(...options.map(({ value, label }) => {
-            const option = document.createElement('option');
-            option.value = value;
-            option.textContent = label;
-            return option;
-        }));
-        if (options.length) adminRaritySelect.value = options[0].value;
-        if (adminRarityLabel) adminRarityLabel.textContent = isHealing ? 'Produit de soin' : 'Rareté';
-        adminDropWeaponBtn?.toggleAttribute('hidden', isHealing);
+        if (isItem) {
+            // "Objet" : soins et grenades, rangés en deux groupes dans la case du dessous
+            const groups = [
+                ['Soins', Object.values(HEALS)],
+                ['Grenades', Object.values(THROWABLES)]
+            ].map(([label, list]) => {
+                const group = document.createElement('optgroup');
+                group.label = label;
+                group.append(...list.map((it) => makeOption({ value: it.id, label: it.name })));
+                return group;
+            });
+            adminRaritySelect.replaceChildren(...groups);
+            adminRaritySelect.selectedIndex = 0;
+        } else {
+            const selectedWeapon = WEAPONS[adminWeaponSelect?.value];
+            const options = selectedWeapon?.allowedRarities
+                ? selectedWeapon.allowedRarities.map(index => ({ value: String(index), label: RARITIES[index]?.name || String(index) }))
+                : RARITIES.map((rarity, index) => ({ value: String(index), label: rarity.name }));
+            adminRaritySelect.replaceChildren(...options.map(makeOption));
+            if (options.length) adminRaritySelect.value = options[0].value;
+        }
+        if (adminRarityLabel) adminRarityLabel.textContent = isItem ? 'Objet' : 'Rareté';
+        adminDropWeaponBtn?.toggleAttribute('hidden', isItem);
     }
 
     function giveAdminItemToTarget() {
         const selected = adminWeaponSelect?.value;
-        if (selected === ADMIN_HEAL_GROUP) {
+        if (selected === ADMIN_ITEM_GROUP) {
             const itemId = adminRaritySelect?.value;
-            if (!HEALS[itemId]) return;
-            sendAdminAction('give_heal', { itemId, count: 1 });
+            if (!HEALS[itemId] && !THROWABLES[itemId]) return;
+            sendAdminAction('give_heal', { itemId, count: 1 }); // soin ou grenade (même action serveur)
             return;
         }
         const rarity = Number(adminRaritySelect?.value || 0);
@@ -2264,10 +2282,11 @@ function start() {
                 if (!target || !owns(target)) break;
                 const factor = Math.max(0, Math.min(1, Number(msg.v) || 0));
                 if (msg.e === 'flash') {
-                    const factorDuration = Math.max(0.05, (THROWABLES.flash?.duration || 4) * factor);
-                    target.flashTimer = Math.max(target.flashTimer || 0, factorDuration);
-                    target.flashDuration = Math.max(target.flashDuration || 0, factorDuration);
-                    target.flashPower = Math.max(target.flashPower || 0, factor);
+                    // Aveuglement complet partout dans le rayon (la distance ne change rien)
+                    const flashDuration = THROWABLES.flash?.duration || 5.5;
+                    target.flashTimer = flashDuration;
+                    target.flashDuration = flashDuration;
+                    target.flashPower = 1;
                 }
                 if (msg.e === 'propulsion') {
                     const dx = target.x - (Number(msg.x) || target.x);
@@ -2669,16 +2688,13 @@ function start() {
     /* ----- Petits effets liés aux personnages (atterrissage, pas, soins) ----- */
     function fighterEffects(dt) {
         if (flashOverlay) {
+            // Écran blanc total pendant "hold" (1,5 s), puis retour progressif sur les 4 s restantes
             const flashT = player.flashTimer || 0;
-            const flashTotal = player.flashDuration || THROWABLES.flash?.duration || 4;
-            const flashPower = Math.max(0, Math.min(1, player.flashPower || 1));
-            const elapsed = Math.max(0, flashTotal - flashT);
-            const ramp = Math.min(0.55, flashTotal * 0.16);
-            const inCurve = ramp > 0 ? Math.min(1, elapsed / ramp) : 1;
-            const outCurve = flashTotal > 0 ? Math.min(1, flashT / Math.max(0.001, flashTotal - ramp * 0.35)) : 0;
-            const intensity = flashT > 0
-                ? flashPower * Math.min(1, inCurve * 1.15) * Math.min(1, outCurve * 1.1)
-                : 0;
+            const flashTotal = player.flashDuration || THROWABLES.flash?.duration || 5.5;
+            const hold = Math.min(THROWABLES.flash?.hold ?? 1.5, flashTotal);
+            const fade = Math.max(0.001, flashTotal - hold);
+            const u = Math.min(1, flashT / fade);
+            const intensity = flashT > 0 ? u * u * (3 - 2 * u) : 0;
             flashOverlay.style.opacity = intensity > 0 ? intensity.toFixed(3) : '0';
             flashOverlay.style.setProperty('--flash-blur', `${4 + intensity * 8}px`);
         }

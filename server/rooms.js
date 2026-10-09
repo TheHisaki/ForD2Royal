@@ -29,7 +29,9 @@ const ADMIN_WEATHER_TYPES = new Set(['clear', 'night', 'storm', 'fog']);
 const ADMIN_MAX_RARITY = 4;
 const ADMIN_POWERS = new Set(['invisibility', 'heal_health', 'heal_shield', 'invincible', 'speed', 'noclip']);
 const ADMIN_ACTIONS = new Set(['kill_target', 'heal_health', 'heal_shield', 'teleport_to_target', 'teleport_target_here', 'give_weapon', 'give_heal', 'kick_target']);
-const ADMIN_HEAL_IDS = new Set(['bandage', 'medkit', 'shieldPotion', 'healingSpray', 'stimPatch']);
+// Objets donnables par l'admin (action give_heal) : soins + grenades
+const ADMIN_HEAL_IDS = new Set(['bandage', 'medkit', 'shieldPotion', 'healingSpray', 'stimPatch',
+    'smoke', 'explosive', 'flash', 'propulsion']);
 
 // Nom court de l'action renvoyé au client (le formulaire sait quoi débloquer)
 const ACCOUNT_ACTIONS = {
