@@ -11,7 +11,7 @@ import { airProject, inFrameView } from './utils.js';
 import { LOOT_WEAPONS, WEAPONS, RARITIES, HEALS, THROWABLES } from './weapons.js';
 
 export const SUPPLY_FALL_TIME = 15;     // s : durée de la descente (annonce comprise)
-const DROP_INTERVAL = 30;
+const DROP_INTERVAL = 60;          // s : un largage par minute
 const FALL_TIME = SUPPLY_FALL_TIME;
 const INTERACT_RANGE = 105;
 const OPENED_KEEP = 20;                 // s : la caisse vide reste au sol...

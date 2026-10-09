@@ -85,6 +85,8 @@ export class Player {
         this.iceSlowTimer = 0;
         this.iceSlowMul = 0.45;
         this.flashTimer = 0;
+        this.flashDuration = 0;
+        this.flashPower = 0;
     }
 
     update(dt, input, world, aimX, aimY) {

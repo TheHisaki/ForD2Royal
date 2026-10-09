@@ -6,17 +6,17 @@
 // ?v=36 : ravitaillements périodiques et caisses parachutées
 import { generateWorld, surfaceAt } from './world.js?v=12';
 import { isWater, BIOME_NAMES } from './config.js';
-import { Player } from './player.js?v=15';
+import { Player } from './player.js?v=16';
 import { Renderer } from './renderer.js?v=14';
 import { Hud } from './hud.js?v=19';
 import { Input } from './input.js?v=13';
 import {
     Drop, drawFalling, drawSkyHaze, flightViewAt, fallHeight, fallCameraGap, SHIP_HEIGHT, DUEL_DROP
 } from './drop.js?v=20';
-import { Combat } from './combat.js?v=14';
+import { Combat } from './combat.js?v=15';
 import { Loot } from './loot.js?v=12';
 import { BotManager, roofAlphaAt } from './bots.js?v=21';
-import { SupplyDrops, SUPPLY_FALL_TIME } from './supply-drops.js?v=3';
+import { SupplyDrops, SUPPLY_FALL_TIME } from './supply-drops.js?v=4';
 import { Corruption } from './corruption.js?v=12';
 import { CombatHud } from './combat-hud.js?v=14';
 import { Effects } from './effects.js?v=16';
@@ -32,6 +32,7 @@ import { EndScreen, Spectator } from './end-screen.js?v=9';
 import { mountHudIcons, setHudIcon } from './hud-icons.js?v=10';
 import { GUNGAME_MAP_ID, GUNGAME_MAX_PLAYERS, GUNGAME_STAGE_COUNT, gunGameWeapon, isGunGameMode, setGunGameSeed } from './gungame.js?v=3';
 import { drawCapsuleBase, drawCapsuleDome } from './capsules.js?v=1';
+import { Weather, WEATHER_TYPES } from './weather.js?v=1';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -617,6 +618,8 @@ function start() {
             victim.usingItem = null;
             victim.iceSlowTimer = 0;
             victim.flashTimer = 0;
+            victim.flashDuration = 0;
+            victim.flashPower = 0;
             applyGunGameLoadout(victim, victim.gunStage || 0);
             if (victim.brain) {
                 victim.brain.roamGoal = { x: point.x, y: point.y };
@@ -1023,6 +1026,16 @@ function start() {
         if (type === 'warn') SFX.play('zoneWarn');
         else if (type === 'shrink') SFX.play('zoneShrink');
     };
+
+    const weather = new Weather({
+        seed: gameSeed,
+        isHost: () => isHost,
+        send: netSend,
+        onChange: (type, info) => {
+            updateWeatherVisual();
+            showWeatherAnnouncement(type, info);
+        }
+    });
 
     /*
        Bots de la partie (même calcul sur toutes les machines) :
@@ -1666,6 +1679,8 @@ function start() {
     const adminPowerButtons = [...document.querySelectorAll('[data-admin-power]')];
     const adminSpeedRange = document.getElementById('adminSpeedRange');
     const adminSpeedValue = document.getElementById('adminSpeedValue');
+    const adminWeatherSelect = document.getElementById('adminWeatherSelect');
+    const adminWeatherBtn = document.getElementById('adminWeatherBtn');
 
     function setAdminStatus(text) {
         if (adminPanelStatus) adminPanelStatus.textContent = text;
@@ -1800,6 +1815,21 @@ function start() {
         }
         setAdminStatus(action ? `Action ${power === 'heal_health' ? 'vie' : 'bouclier'} appliquée.` : `${power} : ${enabled ? 'activé' : 'désactivé'}.`);
     }
+
+    function sendAdminWeather() {
+        if (!adminEnabled || !player.alive || player.dbno) return;
+        const weatherId = adminWeatherSelect?.value;
+        if (!WEATHER_TYPES[weatherId]) return;
+        const message = { type: 'admin_weather', weather: weatherId };
+        if (isMultiplayer) netSend(message);
+        else weather.setType(weatherId, { manual: true, force: true, announce: true });
+        setAdminStatus(`Météo changée : ${WEATHER_TYPES[weatherId].name}.`);
+    }
+
+    adminWeatherBtn?.addEventListener('click', sendAdminWeather);
+    adminWeatherSelect?.addEventListener('change', () => {
+        if (adminWeatherBtn) adminWeatherBtn.textContent = `Appliquer : ${WEATHER_TYPES[adminWeatherSelect.value]?.name || 'Météo'}`;
+    });
 
     const ADMIN_HEAL_GROUP = '__heals__';
 
@@ -2078,6 +2108,8 @@ function start() {
         }
         if (Number.isFinite(m.dt)) mate.dbnoTimer = m.dt;
         if (Number.isFinite(m.fl)) mate.flashTimer = m.fl;
+        if (Number.isFinite(m.fd)) mate.flashDuration = Math.max(0, m.fd);
+        if (Number.isFinite(m.fp)) mate.flashPower = Math.max(0, Math.min(1, m.fp));
         if (Number.isFinite(m.st)) mate.stimTimer = m.st;
         if (Number.isFinite(m.ice)) mate.iceSlowTimer = Math.max(0, Math.min(2, m.ice));
         if (Number.isFinite(m.rl)) mate.reloadTimer = m.rl;
@@ -2222,7 +2254,12 @@ function start() {
                 const target = fighterById(msg.t);
                 if (!target || !owns(target)) break;
                 const factor = Math.max(0, Math.min(1, Number(msg.v) || 0));
-                if (msg.e === 'flash') target.flashTimer = Math.max(target.flashTimer || 0, (THROWABLES.flash?.duration || 4.2) * factor);
+                if (msg.e === 'flash') {
+                    const factorDuration = Math.max(0.05, (THROWABLES.flash?.duration || 4) * factor);
+                    target.flashTimer = Math.max(target.flashTimer || 0, factorDuration);
+                    target.flashDuration = Math.max(target.flashDuration || 0, factorDuration);
+                    target.flashPower = Math.max(target.flashPower || 0, factor);
+                }
                 if (msg.e === 'propulsion') {
                     const dx = target.x - (Number(msg.x) || target.x);
                     const dy = target.y - (Number(msg.y) || target.y);
@@ -2341,6 +2378,10 @@ function start() {
                 // ~50 ms de trajet réseau compensés
                 if (Number.isFinite(msg.c) && msg.c >= 0) corruption.syncTo(msg.c + 0.05);
                 if (Number.isFinite(msg.d)) drop.syncTo(msg.d);
+                if (typeof msg.w === 'string') weather.syncTo(msg.w, Number(msg.wi), Number(msg.wt));
+                break;
+            case 'weather_change':
+                weather.applyMessage(msg);
                 break;
             case 'chest_open': {
                 const c = loot.chests[msg.c];
@@ -2619,8 +2660,18 @@ function start() {
     /* ----- Petits effets liés aux personnages (atterrissage, pas, soins) ----- */
     function fighterEffects(dt) {
         if (flashOverlay) {
-            const flashStrength = player.flashTimer > 0 ? Math.min(0.97, 0.58 + player.flashTimer / 4.2 * 0.39) : 0;
-            flashOverlay.style.opacity = String(flashStrength);
+            const flashT = player.flashTimer || 0;
+            const flashTotal = player.flashDuration || THROWABLES.flash?.duration || 4;
+            const flashPower = Math.max(0, Math.min(1, player.flashPower || 1));
+            const elapsed = Math.max(0, flashTotal - flashT);
+            const ramp = Math.min(0.55, flashTotal * 0.16);
+            const inCurve = ramp > 0 ? Math.min(1, elapsed / ramp) : 1;
+            const outCurve = flashTotal > 0 ? Math.min(1, flashT / Math.max(0.001, flashTotal - ramp * 0.35)) : 0;
+            const intensity = flashT > 0
+                ? flashPower * Math.min(1, inCurve * 1.15) * Math.min(1, outCurve * 1.1)
+                : 0;
+            flashOverlay.style.opacity = intensity > 0 ? intensity.toFixed(3) : '0';
+            flashOverlay.style.setProperty('--flash-blur', `${4 + intensity * 8}px`);
         }
         let smokeStrength = 0;
         if (player.alive && player.phase === 'ground') {
@@ -3372,6 +3423,55 @@ function start() {
         duelPop = next;
     }
 
+    const weatherAnn = (() => {
+        const el = document.getElementById('weatherAnnouncement');
+        if (!el) return null;
+        return {
+            el,
+            icon: el.querySelector('.weather-symbol'),
+            title: el.querySelector('.sa-title'),
+            place: el.querySelector('.sa-place'),
+            sr: el.querySelector('.sa-sr'),
+            hideTimer: 0
+        };
+    })();
+
+    function updateWeatherVisual() {
+        const id = weather?.type || 'clear';
+        document.body.dataset.weather = id;
+        const overlay = document.getElementById('weatherOverlay');
+        if (overlay) {
+            overlay.className = `weather-overlay weather-${id}`;
+            overlay.setAttribute('aria-label', WEATHER_TYPES[id]?.name || 'Météo');
+        }
+    }
+
+    function showWeatherAnnouncement(type, info = {}) {
+        const a = weatherAnn;
+        const data = WEATHER_TYPES[type] || WEATHER_TYPES.clear;
+        if (!a) return;
+        a.el.dataset.weather = type;
+        a.el.style.setProperty('--sa-orange', type === 'storm' ? '#4fc9ff' : type === 'night' ? '#a58cff' : type === 'fog' ? '#d7e7ef' : '#ff8a1f');
+        a.el.style.setProperty('--sa-gold', type === 'storm' ? '#c9f6ff' : type === 'night' ? '#e1d7ff' : type === 'fog' ? '#ffffff' : '#ffb21f');
+        if (a.icon) a.icon.textContent = data.icon;
+        if (a.title) a.title.textContent = data.title;
+        if (a.place) a.place.textContent = data.name;
+        if (a.sr) a.sr.textContent = `Changement de météo : ${data.name}. ${data.title}.`;
+        clearTimeout(a.hideTimer);
+        a.el.hidden = false;
+        a.el.classList.remove('is-in', 'is-out');
+        void a.el.offsetWidth;
+        a.el.classList.add('is-in');
+        a.hideTimer = setTimeout(() => {
+            a.el.classList.remove('is-in');
+            a.el.classList.add('is-out');
+            setTimeout(() => { a.el.hidden = true; a.el.classList.remove('is-out'); }, 380);
+        }, 5000);
+    }
+
+    // Météo initiale claire ; un changement annoncé appellera ensuite les deux fonctions.
+    updateWeatherVisual();
+
     /* ----- Annonce de ravitaillement (centre-haut) -----
        Une seule annonce par largage : secteur de la carte, flèche vers le point d'impact
        et compte à rebours en direct (anneau), puis disparition après SUPPLY_ANN_TIME. */
@@ -3621,6 +3721,8 @@ function start() {
                 dt: Math.round((player.dbnoTimer || 0) * 10) / 10,
                 al: player.alive,
                 fl: Math.round((player.flashTimer || 0) * 10) / 10,
+                fd: Math.round((player.flashDuration || 0) * 10) / 10,
+                fp: Math.round((player.flashPower || 0) * 100) / 100,
                 st: Math.round((player.stimTimer || 0) * 10) / 10,
                 ice: Math.round((player.iceSlowTimer || 0) * 10) / 10,
                 rl: Math.round((player.reloadTimer || 0) * 10) / 10,
@@ -3655,7 +3757,10 @@ function start() {
             netSend({
                 type: 'world_sync',
                 c: corruption.state === 'idle' ? -1 : Math.round(corruption.elapsed * 1000) / 1000,
-                d: isDuel ? Math.round(drop.dist * 100) / 100 : Math.round(drop.dist)
+                d: isDuel ? Math.round(drop.dist * 100) / 100 : Math.round(drop.dist),
+                w: weather.type,
+                wi: weather.seq,
+                wt: Math.round(weather.changedAt * 10) / 10
             });
         }
     }
@@ -3675,6 +3780,7 @@ function start() {
         const aim = aimPoint();
         drop.update(dt, player, input, aim.x, aim.y);
         supplyDrops?.update(dt, time);
+        weather.update(time);
 
         // Après l'expulsion, le passage entre les deux camps est fermé pendant 10 s.
         if (duelBoundary) {

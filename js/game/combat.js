@@ -222,7 +222,12 @@ export class Combat {
                 if (d > t.radius) continue;
                 const factor = 1 - d / t.radius;
                 if (t.damage > 0) this.damage(target, Math.max(1, t.damage * factor), p.owner, t.id);
-                if (t.id === 'flash') target.flashTimer = Math.max(target.flashTimer || 0, t.duration * factor);
+                if (t.id === 'flash') {
+                    const flashDuration = (t.duration || 4) * factor;
+                    target.flashTimer = Math.max(target.flashTimer || 0, flashDuration);
+                    target.flashDuration = Math.max(target.flashDuration || 0, flashDuration);
+                    target.flashPower = Math.max(target.flashPower || 0, factor);
+                }
                 if (t.id === 'propulsion') {
                     const dx = target.x - p.x;
                     const dy = target.y - p.y;
@@ -746,6 +751,10 @@ export class Combat {
             if (f.iceSlowTimer <= 0) f.iceSlowMul = 0.45;
         }
         if (f.flashTimer > 0) f.flashTimer = Math.max(0, f.flashTimer - dt);
+        if (f.flashTimer <= 0) {
+            f.flashDuration = 0;
+            f.flashPower = 0;
+        }
         const stim = f.stimTimer > 0 ? (f.stimSpeedMul || 1.25) : 1;
         const slow = f.iceSlowTimer > 0 ? (f.iceSlowMul || 0.45) : 1;
         const baseSpeed = f.dbno ? 0.35 : (f.usingItem ? 0.5 : stim);

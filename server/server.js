@@ -218,7 +218,7 @@ const server = http.createServer((req, res) => {
 const GAME_MESSAGES = new Set([
     'p_state', 'p_fire', 'p_throw', 'p_effect', 'p_hit', 'kill', 'dbno', 'revive', 'emote',
     'b_sync', 'world_sync', 'chest_open', 'loot_spawn', 'loot_take', 'admin_drop_weapon', 'admin_power', 'admin_action',
-    'supply_spawn', 'supply_open_request', 'supply_open',
+    'supply_spawn', 'supply_open_request', 'supply_open', 'admin_weather', 'weather_change',
     'gungame_progress', 'gungame_winner']);
 
 const ACCOUNT_MESSAGES = new Set([

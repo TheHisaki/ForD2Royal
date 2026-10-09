@@ -36,7 +36,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/game.css?v=23">
+    <link rel="stylesheet" href="css/game.css?v=24">
     <link rel="stylesheet" href="css/settings.css?v=6">
     <link rel="stylesheet" href="css/end-screen.css?v=6">
 </head>
@@ -174,6 +174,7 @@
                 <button type="button" class="admin-category is-active" data-admin-category="players" role="tab" aria-selected="true" aria-controls="adminPanePlayers">Joueurs</button>
                 <button type="button" class="admin-category" data-admin-category="give-weapon" role="tab" aria-selected="false" aria-controls="adminPaneGiveWeapon">Give</button>
                 <button type="button" class="admin-category" data-admin-category="hack" role="tab" aria-selected="false" aria-controls="adminPaneHack">Hack</button>
+                <button type="button" class="admin-category" data-admin-category="weather" role="tab" aria-selected="false" aria-controls="adminPaneWeather">Météo</button>
             </div>
 
             <div class="admin-panel-pane" id="adminPanePlayers" data-admin-pane="players" role="tabpanel">
@@ -233,6 +234,20 @@
                     <button type="button" class="admin-hack-btn is-action" data-admin-power="heal_shield">Heal bouclier</button>
                 </div>
             </div>
+            <div class="admin-panel-pane" id="adminPaneWeather" data-admin-pane="weather" role="tabpanel" hidden>
+                <div class="admin-panel-content">
+                    <label for="adminWeatherSelect">Météo de la partie</label>
+                    <select id="adminWeatherSelect">
+                        <option value="clear">Ciel dégagé</option>
+                        <option value="night">Nuit</option>
+                        <option value="storm">Tempête</option>
+                        <option value="fog">Brouillard</option>
+                    </select>
+                    <button type="button" class="admin-hack-btn is-action" id="adminWeatherBtn">Appliquer : Ciel dégagé</button>
+                    <p class="admin-help">La météo est diffusée à tous les joueurs.</p>
+                </div>
+            </div>
+
             <p id="adminPanelStatus" role="status" aria-live="polite">Touche ² pour fermer</p>
         </div>
 
@@ -302,6 +317,17 @@
         </div>
 
         <!-- Annonce de ravitaillement (sous l'alerte de corruption) : secteur, direction, compte à rebours -->
+        <div id="weatherAnnouncement" hidden role="status" aria-live="polite">
+            <span class="sa-icon weather-icon" aria-hidden="true"><span class="weather-symbol">☀</span></span>
+            <span class="sa-body" aria-hidden="true">
+                <span class="sa-kicker">Météo</span>
+                <strong class="sa-title">Le ciel se dégage</strong>
+                <span class="sa-where"><span class="sa-place">Ciel dégagé</span></span>
+            </span>
+            <span class="sa-timer weather-reload" aria-hidden="true"><span class="sa-count">↻</span><span class="sa-unit">LIVE</span></span>
+            <span class="sa-sr"></span>
+        </div>
+
         <div id="supplyAnnouncement" hidden role="status" aria-live="polite">
             <span class="sa-icon" aria-hidden="true">
                 <svg viewBox="0 0 48 48" focusable="false">
@@ -407,6 +433,7 @@
     </div>
 
     <!-- Bords rouges quand on prend des dégâts -->
+    <div id="weatherOverlay" class="weather-overlay weather-clear" aria-hidden="true"></div>
     <div id="damageVignette" aria-hidden="true"></div>
     <div id="flashOverlay" aria-hidden="true"></div>
     <div id="smokeOverlay" aria-hidden="true"></div>
@@ -678,6 +705,6 @@
     })();
     </script>
 
-    <script type="module" src="js/game/main.js?v=55"></script>
+    <script type="module" src="js/game/main.js?v=56"></script>
 </body>
 </html>

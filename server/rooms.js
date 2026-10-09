@@ -25,6 +25,7 @@ const AUTH_WINDOW = 10 * 60 * 1000;   // fenêtre de comptage des tentatives
 const AUTH_MAX_PER_IP = 20;           // connexions + créations par adresse IP
 const AUTH_MAX_FAILS_PER_NAME = 8;    // mots de passe faux pour un même pseudo
 const ADMIN_WEAPON_IDS = new Set(['pistol', 'crossbow', 'ricochet', 'smg', 'ar', 'shotgun', 'sniper', 'icecannon']);
+const ADMIN_WEATHER_TYPES = new Set(['clear', 'night', 'storm', 'fog']);
 const ADMIN_MAX_RARITY = 4;
 const ADMIN_POWERS = new Set(['invisibility', 'heal_health', 'heal_shield', 'invincible', 'speed', 'noclip']);
 const ADMIN_ACTIONS = new Set(['kill_target', 'heal_health', 'heal_shield', 'teleport_to_target', 'teleport_target_here', 'give_weapon', 'give_heal', 'kick_target']);
@@ -1718,6 +1719,38 @@ class RoomManager {
                 power,
                 enabled,
                 ...(value === undefined ? {} : { value })
+            });
+            return;
+        }
+
+        if (data.type === 'admin_weather') {
+            if (!ws.isAdmin) return;
+            const weather = String(data.weather || '').toLowerCase();
+            if (!ADMIN_WEATHER_TYPES.has(weather)) return;
+            room.weatherSeq = (room.weatherSeq || 0) + 1;
+            this.broadcastToMatch(room, {
+                type: 'weather_change',
+                weather,
+                seq: room.weatherSeq,
+                at: 0,
+                manual: true
+            });
+            return;
+        }
+
+        if (data.type === 'weather_change') {
+            // Seul l'hôte peut diffuser une transition programmée.
+            if (sender.id !== room.authorityId) return;
+            const weather = String(data.weather || '').toLowerCase();
+            const seq = Number(data.seq);
+            const at = Number(data.at);
+            if (!ADMIN_WEATHER_TYPES.has(weather) || !Number.isInteger(seq) || seq < 1 || !Number.isFinite(at) || at < 0 || at > 3600) return;
+            this.broadcastToMatch(room, {
+                type: 'weather_change',
+                weather,
+                seq,
+                at: Math.round(at * 10) / 10,
+                scheduled: data.scheduled === true
             });
             return;
         }
