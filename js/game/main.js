@@ -23,7 +23,7 @@ import { Effects } from './effects.js?v=16';
 import { HEALS, WEAPONS, THROWABLES, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=15';
 import { drawPlayer, drawDying } from './draw.js?v=13';
 import { iconCanvas } from './icons.js';
-import { SFX } from '../sfx.js?v=16';
+import { SFX } from '../sfx.js?v=17';
 import { Settings } from '../settings.js?v=9';
 import { Cosmetics, getSkin, getItem } from '../cosmetics.js?v=10';
 import { itemArt } from '../item-art.js?v=11';
@@ -33,6 +33,7 @@ import { mountHudIcons, setHudIcon } from './hud-icons.js?v=10';
 import { GUNGAME_MAP_ID, GUNGAME_MAX_PLAYERS, GUNGAME_STAGE_COUNT, gunGameWeapon, isGunGameMode, setGunGameSeed } from './gungame.js?v=3';
 import { drawCapsuleBase, drawCapsuleDome } from './capsules.js?v=1';
 import { Weather, WEATHER_TYPES } from './weather.js?v=1';
+import { WeatherFx } from './weather-fx.js?v=1';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -1026,6 +1027,14 @@ function start() {
         if (type === 'warn') SFX.play('zoneWarn');
         else if (type === 'shrink') SFX.play('zoneShrink');
     };
+
+    // Rendu de la météo (pluie, tornade, nuit, brouillard) : purement visuel
+    const weatherFx = new WeatherFx({
+        seed: gameSeed,
+        worldWidth: world.width,
+        worldHeight: world.height,
+        onThunder: () => SFX.play('thunder', { vol: 0.9 })
+    });
 
     const weather = new Weather({
         seed: gameSeed,
@@ -3235,6 +3244,7 @@ function start() {
             // La frontière est un obstacle aérien : au-dessus des arbres, bâtiments et joueurs.
             if (duelBoundary) drawDuelBoundary(ctx, duelBoundary, duelBoundaryAge, time, v);
             supplyDrops?.draw(ctx, time, v); // parachute en descente + fumigène (au-dessus des arbres)
+            weatherFx.drawWorld(ctx, v, time); // tornade (tempête), au-dessus des joueurs
             if (player.throwState && !currentAim.cancelled && player.phase === 'ground' && player.alive) {
                 combat.drawThrowPreview(ctx, player, player.angle, currentAim.distance);
             }
@@ -3247,6 +3257,17 @@ function start() {
             }
             drop.draw(ctx, player, time);
             effects.drawTop(ctx, v);
+            if (weatherFx.active()) {
+                // Météo à l'écran : centrée sur le joueur au sol, sinon au centre de la vue
+                const m = ctx.getTransform();
+                const onGround = player.alive && player.phase === 'ground';
+                const focus = onGround
+                    ? { x: m.a * player.x + m.e, y: m.d * player.y + m.f }
+                    : { x: ctx.canvas.width / 2, y: ctx.canvas.height / 2 };
+                weatherFx.drawScreen(ctx, v, focus, m.a, renderer?.dpr || 1, time);
+            } else {
+                weatherFx.drawScreen(ctx, v, null, 1, 1, time);
+            }
             bots.drawLabels(ctx, v, time, canSeeFromHouse);
             if (isMultiplayer) drawRemoteTeammateLabels(ctx, v, time);
             drawTeammateOffscreen(ctx);
@@ -3463,6 +3484,7 @@ function start() {
     function updateWeatherVisual() {
         const id = weather?.type || 'clear';
         document.body.dataset.weather = id;
+        weatherFx.setType(id);
         const overlay = document.getElementById('weatherOverlay');
         if (overlay) {
             overlay.className = `weather-overlay weather-${id}`;

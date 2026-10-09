@@ -748,6 +748,15 @@ const SOUNDS = {
         EXPLOSIONS[k](c);
     },
 
+    // Tonnerre de la tempête (js/game/weather-fx.js) : grondement grave + craquement
+    thunder(c) {
+        noise(c, { type: 'lowpass', f0: 900, f1: 120, dur: 1.6, vol: 0.5, attack: 0.05 });
+        tone(c, { type: 'sine', f0: 60, f1: 32, dur: 1.4, vol: 0.45, attack: 0.04 });
+        if (!c.lite) {
+            noise(c, { type: 'lowpass', f0: 1800, f1: 300, dur: 0.5, vol: 0.25, delay: 0.25 });
+        }
+    },
+
     hitmarker(c, o) {
         if (o.shield) {
             tone(c, { type: 'square', f0: 2200, dur: 0.04, vol: 0.05,
