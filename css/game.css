@@ -807,6 +807,10 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
 
 :is(#supplyAnnouncement, #weatherAnnouncement)[hidden] { display: none; }
 
+:is(#supplyAnnouncement, #weatherAnnouncement).is-stacked {
+    top: calc(var(--gap) + var(--hud-location-height, 0px) + 84px);
+}
+
 /* Liseré lumineux en haut + reflet qui balaie le bandeau à l'apparition */
 :is(#supplyAnnouncement, #weatherAnnouncement)::before,
 :is(#supplyAnnouncement, #weatherAnnouncement)::after {
@@ -4030,7 +4034,6 @@ body.map-open :is(#duelExpel, #duelScoreHud, #duelRoundResult, .dbno-banner, .re
 #weatherAnnouncement {
     --sa-orange: #ff8a1f;
     --sa-gold: #ffb21f;
-    top: calc(var(--gap) + var(--hud-location-height, 0px) + 88px);
 }
 #weatherAnnouncement .weather-icon {
     background: radial-gradient(circle at 50% 30%, #eaffff 0%, var(--sa-orange) 58%, #17386b 100%);
@@ -4050,8 +4053,9 @@ body.map-open :is(#duelExpel, #duelScoreHud, #duelRoundResult, .dbno-banner, .re
 #weatherAnnouncement[data-weather="night"] .weather-icon { background: radial-gradient(circle at 50% 30%, #e7dcff, #806bd4 60%, #1a174d); }
 #weatherAnnouncement[data-weather="storm"] .weather-icon { background: radial-gradient(circle at 50% 30%, #eaffff, #43bce8 60%, #173b70); }
 @media (max-width: 760px), (max-height: 520px) {
-    #weatherAnnouncement { top: calc(var(--gap) + var(--hud-location-height, 0px) + 76px); }
-} {
+    /* La météo partage la même hauteur de base que le largage ; l'empilement est géré par main.js. */
+}
+@keyframes weatherRain {
     from { transform: translate3d(-20px, -30px, 0) rotate(2deg); }
     to { transform: translate3d(55px, 110px, 0) rotate(2deg); }
 }

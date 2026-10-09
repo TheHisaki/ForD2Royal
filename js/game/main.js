@@ -3436,6 +3436,30 @@ function start() {
         };
     })();
 
+    const announcementOrder = { supply: 0, weather: 0 };
+    let announcementSerial = 0;
+
+    function refreshAnnouncementStack() {
+        const supplyVisible = Boolean(supplyAnn?.drop && !supplyAnn.el.hidden && !supplyAnn.el.classList.contains('is-out'));
+        const weatherVisible = Boolean(weatherAnn?.el && !weatherAnn.el.hidden && !weatherAnn.el.classList.contains('is-out'));
+        supplyAnn?.el.classList.remove('is-stacked');
+        weatherAnn?.el.classList.remove('is-stacked');
+        if (!supplyVisible || !weatherVisible) return;
+        const second = announcementOrder.supply < announcementOrder.weather ? weatherAnn : supplyAnn;
+        second?.el.classList.add('is-stacked');
+    }
+
+    function markAnnouncement(kind) {
+        announcementOrder[kind] = ++announcementSerial;
+        refreshAnnouncementStack();
+    }
+
+    function hideAnnouncementStack(kind) {
+        if (kind === 'supply') supplyAnn?.el.classList.remove('is-stacked');
+        if (kind === 'weather') weatherAnn?.el.classList.remove('is-stacked');
+        refreshAnnouncementStack();
+    }
+
     function updateWeatherVisual() {
         const id = weather?.type || 'clear';
         document.body.dataset.weather = id;
@@ -3462,10 +3486,12 @@ function start() {
         a.el.classList.remove('is-in', 'is-out');
         void a.el.offsetWidth;
         a.el.classList.add('is-in');
+        markAnnouncement('weather');
         a.hideTimer = setTimeout(() => {
             a.el.classList.remove('is-in');
             a.el.classList.add('is-out');
-            setTimeout(() => { a.el.hidden = true; a.el.classList.remove('is-out'); }, 380);
+            hideAnnouncementStack('weather');
+            setTimeout(() => { a.el.hidden = true; a.el.classList.remove('is-out'); refreshAnnouncementStack(); }, 380);
         }, 5000);
     }
 
@@ -3524,6 +3550,7 @@ function start() {
         a.el.classList.remove('is-in', 'is-out');
         void a.el.offsetWidth; // relance l'animation d'entrée (une fois toutes les 30 s)
         a.el.classList.add('is-in');
+        markAnnouncement('supply');
         updateSupplyAnnouncement();
     }
 
@@ -3535,7 +3562,8 @@ function start() {
             a.drop = null;
             a.el.classList.remove('is-in');
             a.el.classList.add('is-out');
-            a.hideTimer = setTimeout(() => { a.el.hidden = true; a.el.classList.remove('is-out'); }, 380);
+            hideAnnouncementStack('supply');
+            a.hideTimer = setTimeout(() => { a.el.hidden = true; a.el.classList.remove('is-out'); refreshAnnouncementStack(); }, 380);
             return;
         }
         const left = supplyDrops?.remaining(d) ?? 0;
