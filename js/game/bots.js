@@ -1608,7 +1608,8 @@ export class BotManager {
 
     // Pseudo + barres bouclier / vie au-dessus de chaque bot au sol
     // v (optionnel) = bornes de la vue : les bots hors écran sont ignorés
-    drawLabels(ctx, v, time = 0, canSee = null) {
+    // fogAt (optionnel) = (bot) -> 0..1 : brouillard sur ce bot ; ses infos s'estompent et se floutent
+    drawLabels(ctx, v, time = 0, canSee = null, fogAt = null) {
         const W = 52;
         const H = 5;
         const m = LABEL_MARGIN;
@@ -1622,6 +1623,10 @@ export class BotManager {
                       bot.y < v.minY - m || bot.y > v.maxY + m)) continue;
             // Dans une maison dont le toit est fermé pour celui qui regarde : caché
             bot._labelA = 1 - roofAlphaAt(this.world, bot.x, bot.y);
+            // Brouillard : pseudo et vie des adversaires aussi peu lisibles que leur personnage
+            // (les coéquipiers restent lisibles pour se retrouver)
+            bot._labelFog = fogAt && bot.team !== (this.player?.team ?? 1) ? fogAt(bot) : 0;
+            bot._labelA *= 1 - bot._labelFog;
             if (bot._labelA < 0.05) continue;
             list.push(bot);
         }
@@ -1641,6 +1646,8 @@ export class BotManager {
             const shieldY = healthY - H - 1;
             const bx = x - W / 2;
             ctx.globalAlpha = bot._labelA; // s'efface en même temps que le toit se referme
+            // Flou proportionnel au brouillard (ignoré sans support de ctx.filter)
+            ctx.filter = bot._labelFog > 0.08 ? `blur(${(bot._labelFog * 4).toFixed(1)}px)` : 'none';
 
             const isTeammate = bot.team === (this.player?.team ?? 1);
             const teamCol = SQUAD_COLORS[bot.squadSlot || 2] || '#ffd21e';

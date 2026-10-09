@@ -15,7 +15,7 @@ import {
 } from './drop.js?v=20';
 import { Combat } from './combat.js?v=15';
 import { Loot } from './loot.js?v=12';
-import { BotManager, roofAlphaAt } from './bots.js?v=21';
+import { BotManager, roofAlphaAt } from './bots.js?v=22';
 import { SupplyDrops, SUPPLY_FALL_TIME } from './supply-drops.js?v=4';
 import { Corruption } from './corruption.js?v=12';
 import { CombatHud } from './combat-hud.js?v=14';
@@ -33,7 +33,7 @@ import { mountHudIcons, setHudIcon } from './hud-icons.js?v=10';
 import { GUNGAME_MAP_ID, GUNGAME_MAX_PLAYERS, GUNGAME_STAGE_COUNT, gunGameWeapon, isGunGameMode, setGunGameSeed } from './gungame.js?v=3';
 import { drawCapsuleBase, drawCapsuleDome } from './capsules.js?v=1';
 import { Weather, WEATHER_TYPES } from './weather.js?v=1';
-import { WeatherFx } from './weather-fx.js?v=1';
+import { WeatherFx } from './weather-fx.js?v=2';
 
 const MAX_FIGHTERS = 24; // combattants sur la carte quand la partie est remplie avec des bots
 const DEATH_TIME = 0.7;  // durée de l'animation de mort (s)
@@ -3141,7 +3141,7 @@ function start() {
     }
 
     /* ----- Indicateurs et noms des coéquipiers réels au-dessus de leur tête ----- */
-    function drawRemoteTeammateLabels(ctx, v, time = 0) {
+    function drawRemoteTeammateLabels(ctx, v, time = 0, fogAt = null) {
         if (!teamMode) return;
         const SQUAD_COLORS = { 1: '#00e5ff', 2: '#ffd21e', 3: '#ff4fd8', 4: '#00ff88' };
         const m = 50;
@@ -3152,9 +3152,14 @@ function start() {
                       mate.y < v.minY - m || mate.y > v.maxY + m)) continue;
             const roofA = roofAlphaAt(world, mate.x, mate.y);
             if (roofA > 0.9) continue;
+            // Brouillard : un joueur d'une autre équipe garde des infos aussi floues que lui
+            const fog = fogAt && mate.team !== player.team ? fogAt(mate) : 0;
+            const labelA = (1 - roofA) * (1 - fog);
+            if (labelA < 0.05) continue;
 
             ctx.save();
-            ctx.globalAlpha = 1 - roofA;
+            ctx.globalAlpha = labelA;
+            if (fog > 0.08) ctx.filter = `blur(${(fog * 4).toFixed(1)}px)`;
             const col = SQUAD_COLORS[mate.squadSlot || 2] || '#ffd21e';
             const healthY = mate.y - mate.r - 17;
             const shieldY = healthY - 6;
@@ -3268,8 +3273,16 @@ function start() {
             } else {
                 weatherFx.drawScreen(ctx, v, null, 1, 1, time);
             }
-            bots.drawLabels(ctx, v, time, canSeeFromHouse);
-            if (isMultiplayer) drawRemoteTeammateLabels(ctx, v, time);
+            // Brouillard : centré comme le voile de weatherFx (joueur au sol, sinon centre de la vue)
+            let labelFog = null;
+            if (weatherFx.level.fog > 0.002) {
+                const onGround = player.alive && player.phase === 'ground';
+                const fx = onGround ? player.x : (v.minX + v.maxX) / 2;
+                const fy = onGround ? player.y : (v.minY + v.maxY) / 2;
+                labelFog = (f) => weatherFx.fogAt(f.x, f.y, fx, fy);
+            }
+            bots.drawLabels(ctx, v, time, canSeeFromHouse, labelFog);
+            if (isMultiplayer) drawRemoteTeammateLabels(ctx, v, time, labelFog);
             drawTeammateOffscreen(ctx);
             drawHitmarker(ctx);
         }

@@ -80,6 +80,22 @@ export class WeatherFx {
         return this.level.night > 0.002 || this.level.storm > 0.002 || this.level.fog > 0.002;
     }
 
+    /*
+       Densité du brouillard (0..1) sur le point (x, y) du monde, vu depuis (fx, fy) = centre du
+       brouillard (joueur au sol, sinon centre de la vue). Même courbe que le voile de _drawFog :
+       sert à estomper pseudos et barres de vie qui sont dessinés par-dessus la météo.
+    */
+    fogAt(x, y, fx, fy) {
+        const L = this.level.fog;
+        if (L <= 0.002) return 0;
+        const d = Math.hypot(x - fx, y - fy);
+        const g = d <= 150 ? 0
+            : d <= 375 ? (d - 150) / 225 * 0.5
+            : d <= 600 ? 0.5 + (d - 375) / 225 * 0.4
+            : 0.9;
+        return clamp01((0.16 + g) * L);
+    }
+
     // Position de la tornade (même chemin sur toutes les machines : dépend du temps de partie)
     tornadoAt(time) {
         const t = time * 0.028 + this.phase;
