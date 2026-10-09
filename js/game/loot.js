@@ -34,7 +34,7 @@ const RARITY_WEIGHTS = [
     [14, 34, 31, 16, 5]   // 1 : dans un coffre (un peu meilleur)
 ];
 
-const WEAPON_WEIGHTS = { pistol: 22, crossbow: 9, ricochet: 9, smg: 20, ar: 22, shotgun: 14, sniper: 8 };
+const WEAPON_WEIGHTS = { pistol: 22, crossbow: 9, ricochet: 9, smg: 20, ar: 22, shotgun: 14, sniper: 8, icecannon: 4 };
 const HEAL_WEIGHTS = { bandage: 35, medkit: 18, shieldPotion: 22, healingSpray: 15, stimPatch: 10 };
 const THROWABLE_WEIGHTS = { smoke: 30, explosive: 35, flash: 20, propulsion: 15 };
 const HEAL_COUNT = { bandage: 3, medkit: 1, shieldPotion: 1, healingSpray: 1, stimPatch: 1 };
@@ -236,7 +236,12 @@ export class Loot {
     rollWeapon(bonus = 0) {
         const table = RARITY_WEIGHTS[Math.max(0, Math.min(RARITY_WEIGHTS.length - 1, bonus | 0))];
         const rarity = weighted(table.slice(0, RARITIES.length).map((w, i) => [i, w]));
-        const weaponId = weighted(LOOT_WEAPONS.map(id => [id, WEAPON_WEIGHTS[id] ?? 15]));
+        const eligible = LOOT_WEAPONS.filter(id => {
+            const allowed = WEAPONS[id]?.allowedRarities;
+            return !Array.isArray(allowed) || allowed.includes(rarity);
+        });
+        const weaponPool = eligible.length ? eligible : LOOT_WEAPONS;
+        const weaponId = weighted(weaponPool.map(id => [id, WEAPON_WEIGHTS[id] ?? 15]));
         return { kind: 'weapon', weaponId, rarity, mag: WEAPONS[weaponId]?.magSize ?? 0 };
     }
 

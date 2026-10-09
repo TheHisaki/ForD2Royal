@@ -53,7 +53,10 @@ export function buildGunGameStages(matchSeed = 1) {
     for (const rarity of RARITY_SCHEDULE) {
         let pool = byRarity.get(rarity);
         if (!pool || pool.length === 0) {
-            pool = shuffle([...LOOT_WEAPONS], rng);
+            pool = shuffle(LOOT_WEAPONS.filter(id => {
+                const allowed = WEAPONS[id]?.allowedRarities;
+                return !Array.isArray(allowed) || allowed.includes(rarity);
+            }), rng);
             byRarity.set(rarity, pool);
         }
         const weaponId = pool.pop();

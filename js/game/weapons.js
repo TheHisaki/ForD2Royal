@@ -76,17 +76,23 @@ export const WEAPONS = {
         id: 'sniper', name: 'Fusil de précision', short: 'Sniper', ammo: 'heavy',
         damage: 95, fireRate: 0.8, auto: false, magSize: 1, reloadTime: 2.5,
         bulletSpeed: 3200, range: 2400, spread: 0.005, length: 74
+    }),
+    icecannon: gun({
+        id: 'icecannon', name: 'Canon à glace', short: 'Canon glace', ammo: 'medium',
+        damage: 32, fireRate: 1.2, auto: false, magSize: 5, reloadTime: 2.4,
+        bulletSpeed: 1150, range: 1050, spread: 0.035, length: 64,
+        slowDuration: 1, slowMultiplier: 0.45, allowedRarities: [3, 4]
     })
 };
 
 // Armes qu'on peut trouver au sol (la pioche n'en fait pas partie)
-export const LOOT_WEAPONS = ['pistol', 'crossbow', 'ricochet', 'smg', 'ar', 'shotgun', 'sniper'];
+export const LOOT_WEAPONS = ['pistol', 'crossbow', 'ricochet', 'smg', 'ar', 'shotgun', 'sniper', 'icecannon'];
 
 /* ===================== LANÇABLES ===================== */
 export const THROWABLES = {
-    smoke: { id: 'smoke', name: 'Grenade fumigène', short: 'Fumigène', icon: '💨', color: '#a9b8c8', fuse: 1.2, duration: 8, radius: 150, throwRange: 500, damage: 0 },
-    explosive: { id: 'explosive', name: 'Grenade explosive', short: 'Explosive', icon: '💣', color: '#ff704d', fuse: 1.4, radius: 150, throwRange: 480, damage: 72 },
-    flash: { id: 'flash', name: 'Grenade flash', short: 'Flash', icon: '✦', color: '#fff0a0', fuse: 1.1, radius: 190, throwRange: 460, damage: 0, duration: 3 },
+    smoke: { id: 'smoke', name: 'Grenade fumigène', short: 'Fumigène', icon: '💨', color: '#a9b8c8', fuse: 1.2, duration: 8, radius: 300, throwRange: 500, damage: 0 },
+    explosive: { id: 'explosive', name: 'Grenade explosive', short: 'Explosive', icon: '💣', color: '#ff704d', fuse: 1.4, radius: 150, throwRange: 480, damage: 90 },
+    flash: { id: 'flash', name: 'Grenade flash', short: 'Flash', icon: '✦', color: '#fff0a0', fuse: 1.1, radius: 190, throwRange: 460, damage: 0, duration: 4.2 },
     propulsion: { id: 'propulsion', name: 'Grenade de propulsion', short: 'Propulsion', icon: '↗', color: '#62d8ff', fuse: 0.8, radius: 120, throwRange: 440, damage: 0, impulse: 720 }
 };
 // Le légendaire est le plus dézoomé, au plancher technique global.
@@ -118,7 +124,8 @@ export const HEALS = {
     },
     stimPatch: {
         id: 'stimPatch', name: 'Patch stimulant', icon: '⚡',
-        heal: 0, shield: 0, useTime: 1.2, stack: 2, color: '#ffbd4a', mode: 'stim', speedMultiplier: 1.35, duration: 8
+        heal: 0, shield: 0, useTime: 1.2, stack: 2, color: '#ffbd4a', mode: 'stim',
+        speedMultiplier: 1.35, duration: 8, tickInterval: 0.5, tickHeal: 5
     }
 };
 
@@ -217,6 +224,45 @@ const CUSTOM_DRAW = {
         ctx.fillRect(11, -4.5, 4, 9);
         ctx.fillStyle = 'rgba(255,255,255,0.18)';
         ctx.fillRect(3, -4, 7, 2.5);
+    },
+    // Canon à glace : chambre cryogénique, bobines bleues, cristaux et embout givré
+    icecannon(ctx, band) {
+        part(ctx, 0, 22, 13, '#253653');
+        part(ctx, 8, 24, 16, '#47698f');
+        ctx.fillStyle = band;
+        ctx.fillRect(22, -6.5, 4, 13);
+        part(ctx, 28, 38, 12, '#b9eaff');
+        for (const x of [32, 42, 52, 62]) {
+            ctx.beginPath();
+            ctx.arc(x, 0, 7, -Math.PI * 0.75, Math.PI * 0.75);
+            ctx.strokeStyle = OUTLINE;
+            ctx.lineWidth = 5;
+            ctx.stroke();
+            ctx.strokeStyle = '#4fe8ff';
+            ctx.lineWidth = 2.4;
+            ctx.stroke();
+        }
+        part(ctx, 64, 17, 18, '#6fd0ff');
+        ctx.fillStyle = '#eaffff';
+        ctx.fillRect(67, -5, 9, 3);
+        // Canon conique et cristal de glace à la bouche
+        ctx.beginPath();
+        ctx.moveTo(78, -8);
+        ctx.lineTo(96, -5);
+        ctx.lineTo(101, 0);
+        ctx.lineTo(96, 5);
+        ctx.lineTo(78, 8);
+        ctx.closePath();
+        ink(ctx, lin(ctx, 78, -8, 96, 8, ['#dffaff', '#7fdcff', '#2875a8']), LW);
+        ctx.beginPath();
+        ctx.moveTo(100, 0);
+        ctx.lineTo(111, -7);
+        ctx.lineTo(107, 0);
+        ctx.lineTo(111, 7);
+        ctx.closePath();
+        ink(ctx, '#d6fbff', LW * 0.75);
+        ctx.fillStyle = 'rgba(255,255,255,0.7)';
+        ctx.fillRect(35, -5, 23, 2);
     }
 };
 
@@ -259,6 +305,14 @@ function part(ctx, x, len, thick, color, stroke = true) {
         ctx.lineWidth = LW;
         ctx.stroke();
     }
+}
+
+function ink(ctx, fill, width = LW) {
+    ctx.fillStyle = fill;
+    ctx.fill();
+    ctx.strokeStyle = OUTLINE;
+    ctx.lineWidth = width;
+    ctx.stroke();
 }
 
 // Pioche en main : même dessin que l'icône de la hotbar et le casier (js/pickaxe-art.js)

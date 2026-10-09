@@ -3489,9 +3489,57 @@ html.touch-ui #fullMapClose { width: 48px; height: 48px; top: -8px; right: -8px;
     inset: 0;
     z-index: 26;
     pointer-events: none;
-    background: #fff;
+    background: rgba(255, 255, 255, 0.96);
     opacity: 0;
     transition: opacity 0.08s linear;
+    backdrop-filter: blur(8px) saturate(0.45);
+    -webkit-backdrop-filter: blur(8px) saturate(0.45);
+}
+
+/* Fumigène : brume blanche locale uniquement quand le joueur est dans la zone */
+#smokeOverlay {
+    position: fixed;
+    inset: -8%;
+    z-index: 25;
+    pointer-events: none;
+    opacity: 0;
+    background:
+        radial-gradient(ellipse at 24% 42%, rgba(255,255,255,.9), transparent 35%),
+        radial-gradient(ellipse at 75% 58%, rgba(244,248,252,.86), transparent 42%),
+        radial-gradient(ellipse at 48% 18%, rgba(255,255,255,.72), transparent 38%),
+        rgba(232,238,244,.52);
+    mix-blend-mode: screen;
+    filter: blur(3px);
+    backdrop-filter: blur(var(--smoke-blur, 5px)) saturate(.65);
+    -webkit-backdrop-filter: blur(var(--smoke-blur, 5px)) saturate(.65);
+    transition: opacity .1s linear;
+}
+
+/* Neige du canon à glace : flocons et voile bleu pâle sur l'écran touché */
+#iceOverlay {
+    position: fixed;
+    inset: 0;
+    z-index: 25;
+    pointer-events: none;
+    opacity: 0;
+    background:
+        radial-gradient(circle at 12% 20%, rgba(255,255,255,.9) 0 2px, transparent 3px),
+        radial-gradient(circle at 74% 28%, rgba(255,255,255,.8) 0 1.5px, transparent 3px),
+        radial-gradient(circle at 42% 72%, rgba(255,255,255,.75) 0 2px, transparent 3px),
+        radial-gradient(circle at 88% 82%, rgba(255,255,255,.8) 0 1.5px, transparent 3px),
+        linear-gradient(135deg, rgba(190,240,255,.22), rgba(255,255,255,.1));
+    background-size: 170px 170px, 230px 230px, 190px 190px, 260px 260px, 100% 100%;
+    mix-blend-mode: screen;
+    filter: blur(.8px);
+    transition: opacity .08s linear;
+}
+
+#iceOverlay::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border: 14px solid rgba(190, 240, 255, .42);
+    box-shadow: inset 0 0 55px rgba(127, 216, 255, .4);
 }
 
 /* ----- HUD Gun Game ----- */
@@ -3867,6 +3915,6 @@ body.is-gungame #zoneAlert { top: calc(var(--gap) + 120px); }
 /* Carte plein écran ouverte : tout ce qui flotte hors du HUD passe sous la carte
    (le HUD lui-même, z-index 10, est déjà dessous) */
 body.map-open :is(#duelExpel, #duelScoreHud, #duelRoundResult, .dbno-banner, .revive-prompt,
-    .emote-bubble, #emoteWheel, #flashOverlay, #shortcutsPanel, #adminPanel) {
+    .emote-bubble, #emoteWheel, #flashOverlay, #smokeOverlay, #iceOverlay, #shortcutsPanel, #adminPanel) {
     z-index: 19 !important;
 }

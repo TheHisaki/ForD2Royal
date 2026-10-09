@@ -19,8 +19,8 @@ import { BotManager, roofAlphaAt } from './bots.js?v=21';
 import { SupplyDrops, SUPPLY_FALL_TIME } from './supply-drops.js?v=3';
 import { Corruption } from './corruption.js?v=12';
 import { CombatHud } from './combat-hud.js?v=14';
-import { Effects } from './effects.js?v=14';
-import { HEALS, WEAPONS, THROWABLES, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=12';
+import { Effects } from './effects.js?v=15';
+import { HEALS, WEAPONS, THROWABLES, LOOT_WEAPONS, RARITIES, sniperZoomForRarity } from './weapons.js?v=13';
 import { drawPlayer, drawDying } from './draw.js?v=12';
 import { iconCanvas } from './icons.js';
 import { SFX } from '../sfx.js?v=16';
@@ -791,7 +791,10 @@ function start() {
             netSend({ type: 'p_effect', t: target.id, e: effect, v: Math.round(factor * 100) / 100, x: Math.round(x), y: Math.round(y) });
         },
         onImpact(x, y, angle, kind, target, owner) {
-            if (canSeeFromHouse(owner)) effects.impact(x, y, angle, kind);
+            if (canSeeFromHouse(owner)) {
+                if (kind === 'ice') effects.iceImpact(x, y, angle);
+                else effects.impact(x, y, angle, kind);
+            }
             SFX.play('impact', { x, y, kind });
             if (target) {
                 // Petit recul de la cible dans le sens de la balle
@@ -1802,9 +1805,13 @@ function start() {
         const isHealing = adminWeaponSelect?.value === ADMIN_HEAL_GROUP;
         if (!adminRaritySelect) return;
 
+        const selectedWeapon = WEAPONS[adminWeaponSelect?.value];
+        const raritySource = selectedWeapon?.allowedRarities
+            ? selectedWeapon.allowedRarities.map(index => ({ value: String(index), label: RARITIES[index]?.name || String(index) }))
+            : RARITIES.map((rarity, index) => ({ value: String(index), label: rarity.name }));
         const options = isHealing
             ? Object.values(HEALS).map((heal) => ({ value: heal.id, label: heal.name }))
-            : RARITIES.map((rarity, index) => ({ value: String(index), label: rarity.name }));
+            : raritySource;
         adminRaritySelect.replaceChildren(...options.map(({ value, label }) => {
             const option = document.createElement('option');
             option.value = value;
@@ -2070,6 +2077,7 @@ function start() {
         if (Number.isFinite(m.dt)) mate.dbnoTimer = m.dt;
         if (Number.isFinite(m.fl)) mate.flashTimer = m.fl;
         if (Number.isFinite(m.st)) mate.stimTimer = m.st;
+        if (Number.isFinite(m.ice)) mate.iceSlowTimer = m.ice;
         if (Number.isFinite(m.rl)) mate.reloadTimer = m.rl;
         // Soin en cours (affichage seulement : total infini, la copie ne se soigne jamais elle-même)
         if (m.use && !mate.usingItem) mate.usingItem = { slot: mate.slot, t: 0, total: Infinity };
@@ -2210,7 +2218,7 @@ function start() {
                 const target = fighterById(msg.t);
                 if (!target || !owns(target)) break;
                 const factor = Math.max(0, Math.min(1, Number(msg.v) || 0));
-                if (msg.e === 'flash') target.flashTimer = Math.max(target.flashTimer || 0, 3 * factor);
+                if (msg.e === 'flash') target.flashTimer = Math.max(target.flashTimer || 0, (THROWABLES.flash?.duration || 4.2) * factor);
                 if (msg.e === 'propulsion') {
                     const dx = target.x - (Number(msg.x) || target.x);
                     const dy = target.y - (Number(msg.y) || target.y);
@@ -2458,6 +2466,8 @@ function start() {
     /* ----- Réanimation de coéquipier ----- */
     const revivePrompt = document.getElementById('revivePrompt');
     const flashOverlay = document.getElementById('flashOverlay');
+    const smokeOverlay = document.getElementById('smokeOverlay');
+    const iceOverlay = document.getElementById('iceOverlay');
     const reviveLabel = document.getElementById('reviveLabel');
     const reviveFill = document.getElementById('reviveFill');
     const interactPrompt = document.getElementById('interactPrompt');
@@ -2604,7 +2614,27 @@ function start() {
 
     /* ----- Petits effets liés aux personnages (atterrissage, pas, soins) ----- */
     function fighterEffects(dt) {
-        if (flashOverlay) flashOverlay.style.opacity = player.flashTimer > 0 ? String(Math.min(0.9, player.flashTimer / 1.5)) : '0';
+        if (flashOverlay) {
+            const flashStrength = player.flashTimer > 0 ? Math.min(0.97, 0.58 + player.flashTimer / 4.2 * 0.39) : 0;
+            flashOverlay.style.opacity = String(flashStrength);
+        }
+        let smokeStrength = 0;
+        if (player.alive && player.phase === 'ground') {
+            for (const zone of combat.smokeZones) {
+                const d = Math.hypot(player.x - zone.x, player.y - zone.y);
+                if (d >= zone.r + player.r) continue;
+                const inside = Math.max(0, 1 - d / Math.max(1, zone.r));
+                smokeStrength = Math.max(smokeStrength, 0.48 + inside * 0.46);
+            }
+        }
+        if (smokeOverlay) {
+            smokeOverlay.style.opacity = String(smokeStrength);
+            smokeOverlay.style.setProperty('--smoke-blur', `${5 + smokeStrength * 8}px`);
+        }
+        if (iceOverlay) {
+            const iceStrength = player.iceSlowTimer > 0 ? Math.min(0.9, 0.38 + player.iceSlowTimer * 0.5) : 0;
+            iceOverlay.style.opacity = String(iceStrength);
+        }
         for (const f of fighters) {
             if (f.hitFlash > 0) f.hitFlash = Math.max(0, f.hitFlash - dt * 5);
             if (!f.alive) continue;
@@ -3584,6 +3614,7 @@ function start() {
                 al: player.alive,
                 fl: Math.round((player.flashTimer || 0) * 10) / 10,
                 st: Math.round((player.stimTimer || 0) * 10) / 10,
+                ice: Math.round((player.iceSlowTimer || 0) * 10) / 10,
                 rl: Math.round((player.reloadTimer || 0) * 10) / 10,
                 use: !!player.usingItem,
                 rv: reviving ? [reviving.id, Math.round((reviving.reviveProgress || 0) * 100) / 100] : null

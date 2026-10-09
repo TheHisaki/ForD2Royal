@@ -36,7 +36,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/game.css?v=21">
+    <link rel="stylesheet" href="css/game.css?v=22">
     <link rel="stylesheet" href="css/settings.css?v=6">
     <link rel="stylesheet" href="css/end-screen.css?v=6">
 </head>
@@ -203,6 +203,7 @@
                         <option value="ar">Fusil d’assaut</option>
                         <option value="shotgun">Fusil à pompe</option>
                         <option value="sniper">Fusil de précision</option>
+                        <option value="icecannon">Canon à glace</option>
                         <option value="__heals__">Soin</option>
                     </select>
                     <label id="adminRarityLabel" for="adminRaritySelect">Rareté</label>
@@ -408,6 +409,8 @@
     <!-- Bords rouges quand on prend des dégâts -->
     <div id="damageVignette" aria-hidden="true"></div>
     <div id="flashOverlay" aria-hidden="true"></div>
+    <div id="smokeOverlay" aria-hidden="true"></div>
+    <div id="iceOverlay" aria-hidden="true"></div>
 
     <!-- ================= FIN DE PARTIE ================= -->
     <!-- Rempli et animé par js/game/end-screen.js (styles : css/end-screen.css) -->
@@ -675,6 +678,6 @@
     })();
     </script>
 
-    <script type="module" src="js/game/main.js?v=53"></script>
+    <script type="module" src="js/game/main.js?v=54"></script>
 </body>
 </html>

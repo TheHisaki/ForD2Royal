@@ -509,6 +509,12 @@ export class Combat {
             return;
         }
 
+        const statusWeapon = WEAPONS[weaponId];
+        if (statusWeapon?.slowDuration && !victim.dbno) {
+            victim.iceSlowTimer = Math.max(victim.iceSlowTimer || 0, statusWeapon.slowDuration);
+            victim.iceSlowMul = Math.min(victim.iceSlowMul || 0.45, statusWeapon.slowMultiplier || 0.45);
+        }
+
         // Downed player taking damage (can be finished off by enemies or corruption)
         if (victim.dbno) {
             victim.health -= amount;
@@ -691,6 +697,7 @@ export class Combat {
                     if (h.mode === 'stim') {
                         f.stimTimer = h.duration || 8;
                         f.stimSpeedMul = h.speedMultiplier || 1.25;
+                        f.stimHealTimer = h.tickInterval || 0.5;
                     } else if (h.mode !== 'spray') {
                         if (h.heal > 0) {
                             const cap = h.healCap ?? 100;
@@ -708,10 +715,33 @@ export class Combat {
                 }
             }
         }
-        if (f.stimTimer > 0) f.stimTimer = Math.max(0, f.stimTimer - dt);
+        if (f.stimTimer > 0) {
+            const interval = HEALS.stimPatch.tickInterval || 0.5;
+            let remaining = f.stimTimer;
+            f.stimHealTimer = (f.stimHealTimer || interval) - dt;
+            if (this.owns(f)) {
+                while (f.stimHealTimer <= 0 && remaining > 0) {
+                    const h = HEALS.stimPatch;
+                    const before = f.health;
+                    f.health = Math.min(h.healCap ?? 100, f.health + (h.tickHeal || 5));
+                    const healed = f.health - before;
+                    if (healed > 0) this.events.onHealed?.(f, { ...h, heal: healed, tick: true, stim: true });
+                    f.stimHealTimer += interval;
+                    remaining -= interval;
+                }
+            }
+            f.stimTimer = Math.max(0, f.stimTimer - dt);
+            if (f.stimTimer <= 0) f.stimHealTimer = 0;
+        }
+        if (f.iceSlowTimer > 0) {
+            f.iceSlowTimer = Math.max(0, f.iceSlowTimer - dt);
+            if (f.iceSlowTimer <= 0) f.iceSlowMul = 0.45;
+        }
         if (f.flashTimer > 0) f.flashTimer = Math.max(0, f.flashTimer - dt);
         const stim = f.stimTimer > 0 ? (f.stimSpeedMul || 1.25) : 1;
-        f.speedMul = f.dbno ? 0.35 : (f.usingItem ? 0.5 : stim); // soin lent, stimulant rapide
+        const slow = f.iceSlowTimer > 0 ? (f.iceSlowMul || 0.45) : 1;
+        const baseSpeed = f.dbno ? 0.35 : (f.usingItem ? 0.5 : stim);
+        f.speedMul = baseSpeed * slow; // soin lent, stimulant rapide, canon à glace ralenti
     }
 
     _updateBullets(dt) {
@@ -807,7 +837,10 @@ export class Combat {
                 const dx = b.x - t.x;
                 const dy = b.y - t.y;
                 if (dx * dx + dy * dy < rr * rr) {
-                    this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), t.shield > 0 ? 'shield' : 'health', b.visual ? null : t, b.owner);
+                    const impactKind = b.weaponId === 'icecannon'
+                        ? 'ice'
+                        : (t.shield > 0 ? 'shield' : 'health');
+                    this.events.onImpact?.(b.x, b.y, Math.atan2(uy, ux), impactKind, b.visual ? null : t, b.owner);
                     if (!b.visual) this.damage(t, b.damage, b.owner, b.weaponId);
                     return false;
                 }
@@ -846,14 +879,17 @@ export class Combat {
         const list = this.bullets;
         // Traceurs : jaunes (armes classiques), bleutés (ricochet) ; les carreaux sont dessinés à part
         const visible = this.canSee;
-        for (const [kind, color] of [['normal', '#fff3a8'], ['ricochet', '#8ff3ff']]) {
+        for (const [kind, color] of [['normal', '#fff3a8'], ['ricochet', '#8ff3ff'], ['ice', '#d6fbff']]) {
             ctx.beginPath();
             let any = false;
             for (let i = 0; i < list.length; i++) {
                 const b = list[i];
                 if (visible && !visible(b.owner)) continue;
                 if (b.weaponId === 'crossbow') continue;
-                if ((b.weaponId === 'ricochet') !== (kind === 'ricochet')) continue;
+                const isKind = kind === 'ice'
+                    ? b.weaponId === 'icecannon'
+                    : (b.weaponId !== 'icecannon' && (b.weaponId === 'ricochet') === (kind === 'ricochet'));
+                if (!isKind) continue;
                 const len = Math.min(TRACER, b.dist + 6);
                 ctx.moveTo(b.x - b.ux * len, b.y - b.uy * len);
                 ctx.lineTo(b.x, b.y);

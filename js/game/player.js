@@ -81,6 +81,9 @@ export class Player {
         this.propelY = 0;
         this.stimTimer = 0;
         this.stimSpeedMul = 1;
+        this.stimHealTimer = 0;
+        this.iceSlowTimer = 0;
+        this.iceSlowMul = 0.45;
         this.flashTimer = 0;
     }
 

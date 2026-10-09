@@ -61,6 +61,7 @@ const HEALTH_SPARKS = ['#ffffff', '#ff5470', '#ffffff', '#ff8095'];
 const HEALTH_STARS = ['#ffffff', '#ff8095'];
 const DEATH_STARS = ['#ffffff', '#cfeaff'];
 const RICO_SPARKS = ['#8ff3ff', '#d6fbff', '#ffffff'];
+const ICE_SPARKS = ['#d6fbff', '#7fe8ff', '#ffffff'];
 const FIRE = ['#ffb627', '#ff7a1a', '#ffe03d', '#ff5a2a'];
 const FIRE_SPARKS = ['#ffe03d', '#ffb627', '#ffffff'];
 const SOOT = ['#4a4550', '#5d5862', '#3a3640'];
@@ -79,7 +80,9 @@ const MUZZLE = {
     // Arbalète : pas de flamme ni de douille, juste la corde qui claque
     crossbow: { flash: 0, smoke: 0, shell: 0, back: 0, big: false, string: true },
     // Ricochet : petit flash + étincelles bleutées
-    ricochet: { flash: 13, smoke: 1, shell: 3, back: 12, big: false, sparks: RICO_SPARKS }
+    ricochet: { flash: 13, smoke: 1, shell: 3, back: 12, big: false, sparks: RICO_SPARKS },
+    // Canon à glace : éclat cyan et brume froide au départ du tir
+    icecannon: { flash: 18, smoke: 2, shell: 0, back: 24, big: true, sparks: ICE_SPARKS }
 };
 
 /* ===================== FORMES UNITAIRES (précalculées) ===================== */
@@ -875,6 +878,33 @@ export class Effects {
         st.size = 7;
         st.rot = rand(0, TAU);
         st.color = '#fff3a8';
+    }
+
+    // Impact glacé : éclats de cristal, anneau froid et petits flocons
+    iceImpact(x, y, angle) {
+        if (this._far(x, y)) return;
+        this._sparks(x, y, angle + Math.PI, 1.2, 10, 120, 320, ICE_SPARKS, 0.25, 0.5, 2.2);
+        const ring = this._spawn(RING, TOP, x, y, 0.42);
+        ring.size = 5;
+        ring.size2 = 30;
+        ring.width = 4;
+        ring.width2 = 1;
+        ring.alpha = 0.9;
+        ring.color = '#bff0ff';
+        ring.flags = GLOW;
+        ring.reach = 42;
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * TAU + rand(-0.18, 0.18);
+            const sp = rand(35, 100);
+            const p = this._spawn(STAR, TOP, x, y, rand(0.45, 0.75));
+            p.vx = Math.cos(a) * sp;
+            p.vy = Math.sin(a) * sp;
+            p.drag = 2.5;
+            p.size = rand(4, 7);
+            p.rot = rand(0, TAU);
+            p.color = pick(ICE_SPARKS);
+            p.reach = 18;
+        }
     }
 
     /* ---------- Grenades ---------- */

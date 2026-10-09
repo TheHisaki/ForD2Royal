@@ -351,6 +351,58 @@ WEAPON_ART.crossbow = {
         part(ctx, [88, -5, 98, 0, 88, 5], M3, 2);
         part(ctx, [40, -2, 48, -2, 44, -7, 38, -7], a.color, 1.8);
         part(ctx, [40, 2, 48, 2, 44, 7, 38, 7], a.color, 1.8);
+    },
+
+    icecannon: {
+        box: [0, -24, 112, 23],
+        tilt: -0.2,
+        glow: true,
+        draw(ctx, a) {
+            part(ctx, [0, -8, 24, -6, 24, 5, 7, 10, 0, 10], '#253653');
+            box(ctx, 20, -10, 18, 14, 3, '#47698f');
+            box(ctx, 34, -14, 42, 19, 5, '#b9eaff');
+            shine(ctx, 38, -11, 30, 2.5, 0.7);
+            box(ctx, 47, -12, 5, 15, 1, a.color, 2);
+            for (const x of [40, 51, 62, 73]) {
+                ctx.beginPath();
+                ctx.arc(x, -4, 7, -Math.PI * 0.75, Math.PI * 0.75);
+                ctx.strokeStyle = OUTLINE;
+                ctx.lineWidth = 5;
+                ctx.stroke();
+                ctx.strokeStyle = '#4fe8ff';
+                ctx.lineWidth = 2.5;
+                ctx.stroke();
+            }
+            ctx.beginPath();
+            ctx.moveTo(76, -12);
+            ctx.lineTo(96, -8);
+            ctx.lineTo(106, -2);
+            ctx.lineTo(96, 4);
+            ctx.lineTo(76, 8);
+            ctx.closePath();
+            paint(ctx, '#6fd0ff');
+            ctx.beginPath();
+            ctx.moveTo(104, -2);
+            ctx.lineTo(116, -10);
+            ctx.lineTo(111, -1);
+            ctx.lineTo(116, 8);
+            ctx.closePath();
+            paint(ctx, '#d6fbff');
+            for (const [x, y] of [[102, -18], [110, 16], [92, 15]]) {
+                ctx.beginPath();
+                ctx.moveTo(x, y - 4);
+                ctx.lineTo(x + 1.2, y - 1.2);
+                ctx.lineTo(x + 4, y);
+                ctx.lineTo(x + 1.2, y + 1.2);
+                ctx.lineTo(x, y + 4);
+                ctx.lineTo(x - 1.2, y + 1.2);
+                ctx.lineTo(x - 4, y);
+                ctx.lineTo(x - 1.2, y - 1.2);
+                ctx.closePath();
+                ctx.fillStyle = '#ffffff';
+                ctx.fill();
+            }
+        }
     }
 };
 
