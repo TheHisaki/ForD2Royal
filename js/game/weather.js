@@ -1,6 +1,6 @@
 /* ==================================
    MÉTÉO DE PARTIE - FOR2D ROYAL
-   Trois changements programmés à 150 s, 300 s et 450 s après le départ commun.
+   Calendrier normal : changements à 150 s, 300 s et 450 s. En 1v1, changement toutes les 30 s.
    L'hôte décide, les autres clients se calent sur le type + la séquence.
    ================================== */
 
@@ -13,6 +13,10 @@ export const WEATHER_TYPES = Object.freeze({
 
 // Une météo change toutes les 2 min 30 s pendant une partie de dix minutes.
 export const WEATHER_CHANGE_TIMES = Object.freeze([150, 300, 450]);
+// En 1v1, le rythme est accéléré à un changement toutes les 30 secondes.
+export const WEATHER_CHANGE_TIMES_1V1 = Object.freeze(
+    Array.from({ length: 19 }, (_, index) => (index + 1) * 30)
+);
 const WEATHER_POOL = ['night', 'storm', 'fog'];
 
 function weatherFrom(value) {
@@ -28,8 +32,9 @@ function seededValue(seed, index) {
 }
 
 export class Weather {
-    constructor({ seed = 1, isHost = () => false, send = () => {}, onChange = () => {} } = {}) {
+    constructor({ seed = 1, isHost = () => false, send = () => {}, onChange = () => {}, changeTimes = WEATHER_CHANGE_TIMES } = {}) {
         this.seed = Number(seed) || 1;
+        this.changeTimes = Array.isArray(changeTimes) && changeTimes.length ? changeTimes : WEATHER_CHANGE_TIMES;
         this.isHost = isHost;
         this.send = send;
         this.onChange = onChange;
@@ -51,9 +56,9 @@ export class Weather {
         if (!Number.isFinite(time)) return;
         this.lastTime = Math.max(this.lastTime, time);
         if (!this.isHost()) return;
-        while (this.scheduleIndex < WEATHER_CHANGE_TIMES.length && time >= WEATHER_CHANGE_TIMES[this.scheduleIndex]) {
+        while (this.scheduleIndex < this.changeTimes.length && time >= this.changeTimes[this.scheduleIndex]) {
             const index = this.scheduleIndex++;
-            this.setType(this.nextType(index), { at: WEATHER_CHANGE_TIMES[index], scheduled: true, announce: true, send: true });
+            this.setType(this.nextType(index), { at: this.changeTimes[index], scheduled: true, announce: true, send: true });
         }
     }
 
@@ -84,7 +89,7 @@ export class Weather {
             force: manual
         });
         if (message.scheduled === true) {
-            while (this.scheduleIndex < WEATHER_CHANGE_TIMES.length && WEATHER_CHANGE_TIMES[this.scheduleIndex] <= this.changedAt) this.scheduleIndex++;
+            while (this.scheduleIndex < this.changeTimes.length && this.changeTimes[this.scheduleIndex] <= this.changedAt) this.scheduleIndex++;
         }
         return changed;
     }
