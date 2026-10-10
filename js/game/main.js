@@ -3534,28 +3534,127 @@ function start() {
         };
     })();
 
-    const announcementOrder = { supply: 0, weather: 0 };
-    let announcementSerial = 0;
+    /*
+       ----- Pile des notifications du haut-centre -----
+       Nom du lieu, alerte de corruption, météo, ravitaillement, puis les grands bandeaux
+       (attente, capsules, élimination, K.O.) : plus aucun chevauchement.
+       - Le nom du lieu reste en haut : tout le reste commence sous lui.
+       - Alerte, météo et ravitaillement s'empilent dans leur ordre d'arrivée
+         (le plus récent en dessous) ; quand l'un part, les suivants remontent en glissant.
+       - Les grands bandeaux gardent leur place habituelle, sauf si la pile descend
+         jusqu'à eux : ils passent alors juste en dessous.
+       Chaque élément garde sa position CSS « naturelle » comme minimum (1V1, Gun Game,
+       tactile...) : on ne fait que le descendre si quelque chose l'occupe déjà.
+    */
+    const topStack = (() => {
+        const GAP = 8;
+        const $id = (id) => document.getElementById(id);
+        const location = $id('hudLocation');
+        const queued = ['zoneAlert', 'weatherAnnouncement', 'supplyAnnouncement'].map($id).filter(Boolean);
+        const banners = ['flightWait', 'capsuleHud', 'killBanner', 'dbnoBanner'].map($id).filter(Boolean);
+        const all = [...queued, ...banners];
+        const natural = new Map();   // élément -> top CSS d'origine (px, marge comprise)
+        const arrival = new Map();   // élément -> numéro d'arrivée (pour l'ordre de la pile)
+        let serial = 0;
+        let contextKey = '';
+        let layoutKey = '';
+
+        // Lecture de l'attribut seulement : aucun recalcul de mise en page à chaque image
+        const shown = (el) => !el.hidden;
+        let lastForce = 0;
+
+        // Positions CSS d'origine : relues seulement quand le contexte change
+        // (taille de fenêtre, classes 1V1 / Gun Game / tactile...)
+        function measureNatural() {
+            for (const el of all) {
+                const prevTop = el.style.top;
+                const prevMargin = el.style.marginTop;
+                el.style.transition = 'none';
+                el.style.top = '';
+                el.style.marginTop = '';
+                const wasHidden = el.hidden;
+                // Un élément caché n'a pas de position : on l'affiche le temps de la mesure
+                if (wasHidden) { el.style.visibility = 'hidden'; el.hidden = false; }
+                natural.set(el, el.offsetTop);
+                if (wasHidden) { el.hidden = true; el.style.visibility = ''; }
+                el.style.top = prevTop;
+                el.style.marginTop = prevMargin;
+                void el.offsetTop; // valide l'état sans transition avant de la rétablir
+                el.style.transition = '';
+            }
+        }
+
+        function update(force = false) {
+            if (!location) return;
+            const ctx = `${innerWidth}x${innerHeight}|${document.body.className}|${document.documentElement.className}`;
+            if (ctx !== contextKey) {
+                contextKey = ctx;
+                measureNatural();
+                force = true;
+            }
+            // Ordre d'arrivée : un élément qui (ré)apparaît passe en bas de la pile
+            const fresh = new Set();
+            for (const el of queued) {
+                if (shown(el)) {
+                    if (!arrival.has(el)) { arrival.set(el, ++serial); fresh.add(el); }
+                } else {
+                    arrival.delete(el);
+                }
+            }
+            const live = queued.filter((el) => arrival.has(el)).sort((a, b) => arrival.get(a) - arrival.get(b));
+            const big = banners.filter(shown);
+            for (const el of big) if (!el.style.top) fresh.add(el);
+            // Une fois par seconde, on recalcule quand même (police chargée, nom du lieu sur 2 lignes...)
+            const now = performance.now();
+            if (now - lastForce > 1000) { lastForce = now; force = true; }
+            const key = `${live.map((el) => el.id).join(',')}|${big.map((el) => el.id).join(',')}|${location.textContent}`;
+            if (!force && key === layoutKey) return;
+            layoutKey = key;
+
+            const place = (el, top) => {
+                // Un élément qui apparaît se pose directement à sa place ; les autres glissent
+                if (fresh.has(el)) el.style.transition = 'none';
+                el.style.marginTop = '0px';
+                el.style.top = `${Math.round(top)}px`;
+                if (fresh.has(el)) { void el.offsetTop; el.style.transition = ''; }
+            };
+            let floor = location.offsetHeight > 0 ? location.offsetTop + location.offsetHeight + GAP : 0;
+            for (const el of live) {
+                const top = Math.max(natural.get(el) ?? 0, floor);
+                place(el, top);
+                floor = top + el.offsetHeight + GAP;
+            }
+            const ordered = big.sort((a, b) => (natural.get(a) ?? 0) - (natural.get(b) ?? 0));
+            for (const el of ordered) {
+                const top = Math.max(natural.get(el) ?? 0, floor);
+                place(el, top);
+                floor = top + el.offsetHeight + GAP;
+            }
+            // Éléments cachés : position d'origine pour leur prochaine apparition
+            for (const el of all) {
+                if (!live.includes(el) && !big.includes(el)) {
+                    el.style.top = '';
+                    el.style.marginTop = '';
+                }
+            }
+        }
+
+        // Vérification légère à chaque image (lectures sans recalcul tant que rien ne change)
+        const loop = () => { update(); requestAnimationFrame(loop); };
+        requestAnimationFrame(loop);
+        return { update };
+    })();
 
     function refreshAnnouncementStack() {
-        const supplyVisible = Boolean(supplyAnn?.drop && !supplyAnn.el.hidden && !supplyAnn.el.classList.contains('is-out'));
-        const weatherVisible = Boolean(weatherAnn?.el && !weatherAnn.el.hidden && !weatherAnn.el.classList.contains('is-out'));
-        supplyAnn?.el.classList.remove('is-stacked');
-        weatherAnn?.el.classList.remove('is-stacked');
-        if (!supplyVisible || !weatherVisible) return;
-        const second = announcementOrder.supply < announcementOrder.weather ? weatherAnn : supplyAnn;
-        second?.el.classList.add('is-stacked');
+        topStack.update(true);
     }
 
-    function markAnnouncement(kind) {
-        announcementOrder[kind] = ++announcementSerial;
-        refreshAnnouncementStack();
+    function markAnnouncement() {
+        topStack.update(true);
     }
 
-    function hideAnnouncementStack(kind) {
-        if (kind === 'supply') supplyAnn?.el.classList.remove('is-stacked');
-        if (kind === 'weather') weatherAnn?.el.classList.remove('is-stacked');
-        refreshAnnouncementStack();
+    function hideAnnouncementStack() {
+        topStack.update(true);
     }
 
     function updateWeatherVisual() {

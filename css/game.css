@@ -807,8 +807,14 @@ a.hud-btn:hover .hud-ico { transform: translateX(-2px) scale(1.08); }
 
 :is(#supplyAnnouncement, #weatherAnnouncement)[hidden] { display: none; }
 
-:is(#supplyAnnouncement, #weatherAnnouncement).is-stacked {
-    top: calc(var(--gap) + var(--hud-location-height, 0px) + 84px);
+/* Pile du haut-centre (main.js, topStack) : chaque notification est posée sous la précédente
+   et glisse doucement quand celle du dessus disparaît. */
+:is(#zoneAlert, #weatherAnnouncement, #supplyAnnouncement, #killBanner, #flightWait, #capsuleHud, #dbnoBanner) {
+    transition: top 0.3s cubic-bezier(0.2, 0.8, 0.3, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    :is(#zoneAlert, #weatherAnnouncement, #supplyAnnouncement, #killBanner, #flightWait, #capsuleHud, #dbnoBanner) { transition: none; }
 }
 
 /* Liseré lumineux en haut + reflet qui balaie le bandeau à l'apparition */
