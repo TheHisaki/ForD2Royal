@@ -127,7 +127,13 @@ export function buildAvatar(colors, override = null) {
     for (const side of [-1, 1]) mesh(new THREE.BoxGeometry(3.4, 5, 2), '#141826', side * 5.5, 0, 15.2, head);
     mesh(new THREE.BoxGeometry(7, 2, 2), mixHex(c.skin, '#7a2a2a', 0.45), 0, -7, 15, head);
 
-    function pose(walk, moving, air = false) {
+    // Support de l'arme tenue à deux mains devant le torse (canon vers +Z)
+    const mount = new THREE.Group();
+    mount.position.set(0, 42, 17);
+    body.add(mount);
+
+    // aim : true = arme en main (bras tendus vers l'avant, mains sur l'arme)
+    function pose(walk, moving, air = false, aim = false) {
         const s = moving ? Math.sin(walk) : 0;
         legs[0].rotation.x = s * 0.7;
         legs[1].rotation.x = -s * 0.7;
@@ -137,6 +143,11 @@ export function buildAvatar(colors, override = null) {
             arms[1].rotation.set(Math.PI * 0.85, 0, -0.25);
             legs[0].rotation.x = 0.35;
             legs[1].rotation.x = 0.15;
+        } else if (aim) {
+            // Bras vers l'avant, un peu refermés vers l'arme (léger balancement en marchant)
+            const sway = s * 0.05;
+            arms[0].rotation.set(-Math.PI / 2 + 0.12 + sway, 0, 0.42);
+            arms[1].rotation.set(-Math.PI / 2 + 0.06 - sway, 0, -0.38);
         } else {
             arms[0].rotation.set(-s * 0.6, 0, 0.08);
             arms[1].rotation.set(s * 0.6, 0, -0.08);
@@ -157,7 +168,7 @@ export function buildAvatar(colors, override = null) {
     }
 
     pose(0, false);
-    return { root, pose, setGhost };
+    return { root, pose, setGhost, mount };
 }
 
 /* ===================== VOILE DE DESCENTE ===================== */

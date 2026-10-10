@@ -9,7 +9,7 @@
    ================================== */
 
 import * as THREE from '../vendor/three/three.module.js';
-import { flat, mergeGeometries, mixHex } from './models.js';
+import { flat, mergeGeometries, mixHex } from './models.js?v=2';
 
 export const WALL_H = 112;      // hauteur des murs
 const ROOF_OVER = 12;           // débord du toit

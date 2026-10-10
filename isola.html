@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/isola.css?v=1">
+    <link rel="stylesheet" href="css/isola.css?v=2">
 </head>
 <body>
     <canvas id="isolaCanvas" aria-label="Île d'ISOLA en 3D"></canvas>
@@ -40,8 +40,45 @@
 
         <div id="isoBush" class="iso-bush" hidden>🌿 Caché dans le buisson</div>
         <div id="isoPrompt" class="iso-prompt" hidden></div>
+        <div id="isoToast" class="iso-toast" role="status" aria-live="polite" hidden></div>
+
+        <!-- Barre du bas : soins, vie/bouclier, armes -->
+        <div id="isoBottom" class="iso-bottom" hidden>
+            <div class="iso-heals" role="group" aria-label="Soins">
+                <button type="button" class="iso-heal" data-heal="bandage">
+                    <img alt="" draggable="false"><span class="iso-heal-count">0</span><span class="iso-heal-name">Bandage</span><kbd>3</kbd>
+                </button>
+                <button type="button" class="iso-heal" data-heal="shieldPotion">
+                    <img alt="" draggable="false"><span class="iso-heal-count">0</span><span class="iso-heal-name">Potion</span><kbd>4</kbd>
+                </button>
+                <button type="button" class="iso-heal" data-heal="medkit">
+                    <img alt="" draggable="false"><span class="iso-heal-count">0</span><span class="iso-heal-name">Kit</span><kbd>5</kbd>
+                </button>
+            </div>
+
+            <div class="iso-vitals">
+                <div id="isoCast" class="iso-cast" hidden>
+                    <span id="isoCastLabel" class="iso-cast-label"></span>
+                    <span class="iso-cast-bar"><i id="isoCastFill"></i></span>
+                </div>
+                <div class="iso-bar shield" role="img" aria-label="Bouclier"><i id="isoShieldFill"></i><span id="isoShieldText">0</span></div>
+                <div class="iso-bar health" role="img" aria-label="Vie"><i id="isoHealthFill"></i><span id="isoHealthText">100</span></div>
+            </div>
+
+            <div class="iso-weapons" role="group" aria-label="Armes">
+                <button type="button" class="iso-wcard empty" data-slot="0">
+                    <kbd>1</kbd><img alt="" draggable="false" hidden><span class="iso-wname">Vide</span><span class="iso-wammo"></span>
+                </button>
+                <button type="button" class="iso-wcard empty" data-slot="1">
+                    <kbd>2</kbd><img alt="" draggable="false" hidden><span class="iso-wname">Vide</span><span class="iso-wammo"></span>
+                </button>
+            </div>
+        </div>
     </div>
 
-    <script type="module" src="js/isola/main.js?v=1"></script>
+    <!-- Chiffres de dégâts et barres au-dessus des têtes (positionnés en JS) -->
+    <div id="isoFloat" class="iso-float" aria-hidden="true"></div>
+
+    <script type="module" src="js/isola/main.js?v=2"></script>
 </body>
 </html>

@@ -689,7 +689,7 @@ class LobbyManager {
         const teamSizes = { duel: 1, solo: 1, gungame: 1, isola: 1, duo: 2, trio: 3, section: 4 };
         if (this._pendingMode === 'isola') {
             nameEl.textContent = 'ISOLA';
-            detailEl.textContent = '1 joueur · prototype 3D · carte et déplacements (bots et armes bientôt)';
+            detailEl.textContent = '1 joueur · prototype 3D · armes, soins et mannequins d\'entraînement (bots bientôt)';
             return;
         }
 
@@ -721,7 +721,7 @@ class LobbyManager {
                     : gunGame
                         ? 'Le Gun Game remplit la partie jusqu\'à 15 combattants'
                         : isola
-                            ? 'ISOLA est un prototype solo : carte et déplacements uniquement'
+                            ? 'ISOLA est un prototype solo : armes et soins, sans bots pour l\'instant'
                             : leader ? 'Les places vides de ton équipe sont prises par des bots' : 'Seul le chef du groupe peut changer cette option';
         }
 
