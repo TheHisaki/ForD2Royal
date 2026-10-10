@@ -5,9 +5,9 @@
 #lobby-screen {
     position: relative;
     overflow: hidden;
+    /* Ciel : nuit profonde en haut -> bleu vif -> horizon lumineux (la mer est dans .bg-islands) */
     background:
-        radial-gradient(ellipse 80% 60% at 50% 65%, rgba(120, 200, 255, 0.55) 0%, transparent 70%),
-        linear-gradient(180deg, var(--sky-top) 0%, var(--sky-mid) 55%, var(--sky-bottom) 100%);
+        linear-gradient(180deg, #071233 0%, #10297a 24%, #1f52c6 50%, #4592ff 68%, #9fd3ff 76%, #3d8bff 100%);
 }
 
 /* ===== DÉCOR ===== */
@@ -19,39 +19,116 @@
     overflow: hidden;
 }
 
+/* Étoiles discrètes dans le haut du ciel */
+.bg-stars {
+    position: absolute;
+    inset: 0 0 45% 0;
+    background-image:
+        radial-gradient(1.4px 1.4px at 12% 18%, #fff 98%, transparent),
+        radial-gradient(1px 1px at 27% 8%, #fff 98%, transparent),
+        radial-gradient(1.6px 1.6px at 41% 26%, #fff 98%, transparent),
+        radial-gradient(1px 1px at 58% 12%, #fff 98%, transparent),
+        radial-gradient(1.3px 1.3px at 69% 30%, #fff 98%, transparent),
+        radial-gradient(1px 1px at 83% 9%, #fff 98%, transparent),
+        radial-gradient(1.5px 1.5px at 93% 22%, #fff 98%, transparent),
+        radial-gradient(1px 1px at 5% 40%, #fff 98%, transparent),
+        radial-gradient(1px 1px at 35% 44%, #fff 98%, transparent),
+        radial-gradient(1.2px 1.2px at 77% 46%, #fff 98%, transparent);
+    background-size: 640px 360px;
+    opacity: 0.55;
+    -webkit-mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+    mask-image: linear-gradient(180deg, #000 0%, transparent 100%);
+    animation: starTwinkle 6s ease-in-out infinite alternate;
+}
+
+/* Lueur chaude à l'horizon, derrière l'escouade */
+.bg-sun {
+    position: absolute;
+    left: 50%;
+    top: 74%;
+    width: min(120vw, 1500px);
+    aspect-ratio: 2 / 1;
+    transform: translate(-50%, -50%);
+    background:
+        radial-gradient(ellipse 22% 30% at 50% 50%, rgba(255, 246, 214, 0.75) 0%, rgba(255, 220, 160, 0.3) 45%, transparent 100%),
+        radial-gradient(ellipse 50% 50% at 50% 50%, rgba(150, 215, 255, 0.45) 0%, transparent 70%);
+}
+
 .bg-rays {
     position: absolute;
     left: 50%;
-    top: 60%;
+    top: 72%;
     width: 220vmax;
     height: 220vmax;
     transform: translate(-50%, -50%);
-    background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.07) 0deg 6deg, transparent 6deg 18deg);
-    animation: spin 120s linear infinite;
-    -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 45%);
-    mask-image: radial-gradient(circle, #000 0%, transparent 45%);
+    background: repeating-conic-gradient(from 0deg, rgba(255, 255, 255, 0.06) 0deg 5deg, transparent 5deg 15deg);
+    animation: spin 160s linear infinite;
+    -webkit-mask-image: radial-gradient(circle, #000 0%, transparent 32%);
+    mask-image: radial-gradient(circle, #000 0%, transparent 32%);
 }
 
+/* Nuages "cartoon" : bosses nettes + ventre bleuté */
 .bg-cloud {
     position: absolute;
-    background: #fff;
-    border-radius: 50%;
-    opacity: 0.18;
-    filter: blur(18px);
+    width: 340px;
+    height: 130px;
+    background:
+        radial-gradient(70px 60px at 28% 62%, #fff 97%, transparent 100%),
+        radial-gradient(86px 74px at 50% 46%, #fff 97%, transparent 100%),
+        radial-gradient(64px 54px at 73% 60%, #fff 97%, transparent 100%),
+        radial-gradient(150px 34px at 50% 78%, #fff 97%, transparent 100%);
+    opacity: 0.95;
+    filter: drop-shadow(0 9px 0 rgba(170, 205, 255, 0.85)) drop-shadow(0 14px 18px rgba(4, 14, 60, 0.25));
     animation: drift linear infinite;
+    will-change: transform;
 }
 
-.cloud-1 { width: 380px; height: 110px; top: 18%; animation-duration: 90s; animation-delay: -20s; }
-.cloud-2 { width: 520px; height: 140px; top: 38%; animation-duration: 130s; animation-delay: -70s; opacity: 0.12; }
-.cloud-3 { width: 300px; height: 90px;  top: 8%;  animation-duration: 75s;  animation-delay: -45s; }
+/* Nuages presque opaques : un blanc transparent sur le bleu nuit paraîtrait gris */
+.cloud-1 { top: 20%; scale: 0.6;  animation-duration: 120s; animation-delay: -25s; }
+.cloud-2 { top: 44%; scale: 0.95; animation-duration: 160s; animation-delay: -95s; }
+.cloud-3 { top: 11%; scale: 0.4;  animation-duration: 95s;  animation-delay: -60s; opacity: 0.8; }
+.cloud-4 { top: 56%; scale: 0.7;  animation-duration: 140s; animation-delay: -10s; }
 
+/* Vaisseau qui traverse le ciel */
 .bg-ship {
     position: absolute;
-    top: 14%;
+    top: 16%;
+    left: 0;
     font-size: 34px;
-    opacity: 0.7;
+    opacity: 0.8;
     filter: drop-shadow(0 4px 6px rgba(0, 0, 0, 0.4));
-    animation: bus 40s linear infinite;
+    animation: ship 48s linear infinite;
+}
+
+/* Mer et îles : bande du bas, horizon vers 74 % de la hauteur */
+.bg-islands {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    width: 100%;
+    height: 45%;
+    display: block;
+}
+
+.bg-sea-glints { animation: seaGlint 4.5s ease-in-out infinite alternate; }
+
+/* Poussières lumineuses qui montent doucement au-dessus de la plateforme */
+.bg-motes {
+    position: absolute;
+    left: 50%;
+    bottom: 12%;
+    width: min(70vw, 900px);
+    height: 55%;
+    transform: translateX(-50%);
+    background-image:
+        radial-gradient(circle, rgba(255, 255, 255, 0.85) 0 1.5px, transparent 2.5px),
+        radial-gradient(circle, rgba(190, 230, 255, 0.7) 0 1px, transparent 2px);
+    background-size: 150px 170px, 95px 120px;
+    background-position: 0 0, 40px 60px;
+    -webkit-mask-image: radial-gradient(ellipse 50% 50% at 50% 70%, #000 0%, transparent 100%);
+    mask-image: radial-gradient(ellipse 50% 50% at 50% 70%, #000 0%, transparent 100%);
+    opacity: 0.6;
+    animation: motesRise 22s linear infinite;
 }
 
 @keyframes spin  { to { transform: translate(-50%, -50%) rotate(360deg); } }
@@ -60,6 +137,13 @@
     0%   { transform: translateX(-10vw) translateY(0); }
     50%  { transform: translateX(55vw) translateY(-12px); }
     100% { transform: translateX(115vw) translateY(0); }
+}
+@keyframes starTwinkle { from { opacity: 0.35; } to { opacity: 0.7; } }
+@keyframes seaGlint    { from { opacity: 0.45; } to { opacity: 1; } }
+@keyframes motesRise   { to { background-position: 0 -340px, 40px -180px; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .bg-stars, .bg-rays, .bg-cloud, .bg-ship, .bg-sea-glints, .bg-motes { animation: none; }
 }
 
 /* Tout le contenu passe au-dessus du décor */
@@ -495,35 +579,77 @@
    Scène centrale des joueurs : flex centré pour Solo, Duo, Trio et Section
 */
 .players-area {
+    /* Taille des personnages relative à la largeur de la scène (cqw) */
+    container-type: inline-size;
+    --stage-pad: clamp(44px, 10vh, 96px);
     position: relative;
     display: flex;
     justify-content: center;
     align-items: flex-end;
-    gap: clamp(20px, 3.8vw, 54px);
-    padding: 20px 10px 7%;
+    gap: clamp(14px, 3cqw, 48px);
+    padding: 20px 10px var(--stage-pad);
     min-width: 0;
     width: 100%;
     margin: 0 auto;
 }
 
-/* Sol lumineux commun à tous les personnages */
+/*
+   Plateforme flottante commune : un disque en perspective (dessus clair + liseré lumineux)
+   posé sur une tranche plus sombre, avec une ombre portée sur la mer.
+   Sa largeur suit le nombre de places du mode.
+*/
 .stage-floor {
     position: absolute;
     left: 50%;
-    bottom: 2%;
-    width: 100%;
-    max-width: 900px;
-    height: 28%;
-    transform: translateX(-50%);
-    background:
-        radial-gradient(ellipse 55% 42% at 50% 55%, rgba(200, 240, 255, 0.55) 0%, transparent 70%),
-        radial-gradient(ellipse at center, rgba(80, 150, 255, 0.25) 0%, transparent 70%);
+    bottom: var(--stage-pad);
+    width: min(94%, 860px);
+    aspect-ratio: 6.4 / 1;
+    transform: translate(-50%, 50%);
+    isolation: isolate;
     pointer-events: none;
+    transition: width 0.45s cubic-bezier(0.2, 0.9, 0.3, 1);
 }
+
+/* Dessus du disque */
+.stage-floor::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    border-radius: 50%;
+    background:
+        repeating-radial-gradient(ellipse at 50% 50%, transparent 0 9%, rgba(255, 255, 255, 0.07) 9% 9.6%),
+        radial-gradient(ellipse at 50% 38%, #5f9dff 0%, #3a72e6 40%, #2552c4 72%, #1b3f9e 100%);
+    border: 2px solid rgba(160, 225, 255, 0.85);
+    box-shadow:
+        inset 0 5px 0 rgba(255, 255, 255, 0.28),
+        inset 0 -10px 24px rgba(8, 20, 70, 0.45),
+        0 0 28px rgba(110, 200, 255, 0.55);
+}
+
+/* Tranche + ombre portée */
+.stage-floor::after {
+    content: '';
+    position: absolute;
+    left: 1%;
+    right: 1%;
+    top: 22%;
+    height: 100%;
+    z-index: 0;
+    border-radius: 50%;
+    background: linear-gradient(180deg, #16357f 0%, #0c1f55 100%);
+    box-shadow:
+        0 1.4em 2.4em rgba(4, 12, 48, 0.55),
+        0 0 0 2px rgba(90, 170, 255, 0.35);
+}
+
+.players-area.is-solo .stage-floor    { width: min(70%, 380px); }
+.players-area.is-duo .stage-floor     { width: min(86%, 560px); }
+.players-area.is-trio .stage-floor    { width: min(92%, 720px); }
 
 .player-slot {
     /* Toutes les tailles du personnage sont en "em" : on règle juste --u */
-    --u: clamp(6px, min(1.4vw, 1.5vh), 12px);
+    --u: clamp(6px, min(1.8cqw, 1.9vh), 15px);
     font-size: var(--u);
     position: relative;
     display: flex;
@@ -534,72 +660,56 @@
     min-width: 10em;
     max-width: 14em;
     animation: fadeIn 0.5s ease-out backwards;
-    transition: transform 0.3s ease, font-size 0.3s ease;
 }
 
-/* Ordre naturel et symétrique pour chaque mode */
+/* Faisceau de lumière qui tombe sur chaque place */
+.player-slot::before {
+    content: '';
+    position: absolute;
+    z-index: -1;
+    left: 50%;
+    bottom: 0.6em;
+    width: 13em;
+    height: 34em;
+    transform: translateX(-50%);
+    background: linear-gradient(0deg, rgba(210, 240, 255, 0.24) 0%, rgba(210, 240, 255, 0.08) 55%, transparent 100%);
+    clip-path: polygon(36% 0, 64% 0, 100% 100%, 0 100%);
+    pointer-events: none;
+}
+
+.slot-1::before {
+    background: linear-gradient(0deg, rgba(255, 238, 190, 0.32) 0%, rgba(255, 238, 190, 0.1) 55%, transparent 100%);
+}
+
+.player-slot.is-empty::before { opacity: 0.45; }
+
+/* Ordre symétrique : [ 3 ] [ 1 = toi ] [ 2 ] [ 4 ] */
 .slot-1 { order: 2; z-index: 3; font-size: calc(var(--u) * 1.08); }
 .slot-2 { order: 3; z-index: 2; }
 .slot-3 { order: 1; z-index: 2; }
 .slot-4 { order: 4; z-index: 1; }
 
-/* En SOLO : centré et agrandi */
-.players-area.is-solo {
-    gap: 0;
-}
-.players-area.is-solo .slot-1 {
-    font-size: calc(var(--u) * 1.55);
-}
+/* SOLO : seul au centre, en grand */
+.players-area.is-solo { gap: 0; }
+.players-area.is-solo .slot-1 { font-size: calc(var(--u) * 1.4); }
 
-/* En DUO : les 2 joueurs côte à côte bien centrés */
-.players-area.is-duo {
-    gap: clamp(32px, 6vw, 72px);
-}
-.players-area.is-duo .slot-1 {
-    order: 1;
-    font-size: calc(var(--u) * 1.15);
-}
-.players-area.is-duo .slot-2 {
-    order: 2;
-    font-size: calc(var(--u) * 1.15);
-}
+/* DUO : côte à côte au premier rang */
+.players-area.is-duo { gap: clamp(28px, 7cqw, 80px); }
+.players-area.is-duo .slot-1 { order: 1; font-size: calc(var(--u) * 1.15); }
+.players-area.is-duo .slot-2 { order: 2; font-size: calc(var(--u) * 1.15); }
 
-/* En TRIO : Slot 3 (gauche), Slot 1 (centre, devant), Slot 2 (droite) */
-.players-area.is-trio {
-    gap: clamp(24px, 4vw, 56px);
-}
-.players-area.is-trio .slot-1 {
-    order: 2;
-    font-size: calc(var(--u) * 1.15);
-    transform: translateY(-0.4em);
-}
-.players-area.is-trio .slot-3 {
-    order: 1;
-}
-.players-area.is-trio .slot-2 {
-    order: 3;
-}
+/* TRIO : formation en V, toi devant au centre, les deux autres un pas en arrière */
+.players-area.is-trio { gap: clamp(18px, 4.5cqw, 60px); }
+.players-area.is-trio .slot-1 { order: 2; font-size: calc(var(--u) * 1.18); }
+.players-area.is-trio .slot-3 { order: 1; margin-bottom: 2.4em; }
+.players-area.is-trio .slot-2 { order: 3; margin-bottom: 2.4em; }
 
-/* En SECTION : Slot 3 (gauche ext), Slot 1 (gauche int), Slot 2 (droite int), Slot 4 (droite ext) */
-.players-area.is-section {
-    gap: clamp(14px, 2.5vw, 36px);
-}
-.players-area.is-section .slot-1 {
-    order: 2;
-    font-size: calc(var(--u) * 1.08);
-    transform: translateY(-0.3em);
-}
-.players-area.is-section .slot-2 {
-    order: 3;
-    font-size: calc(var(--u) * 1.08);
-    transform: translateY(-0.3em);
-}
-.players-area.is-section .slot-3 {
-    order: 1;
-}
-.players-area.is-section .slot-4 {
-    order: 4;
-}
+/* SECTION : rang avant (1 et 2) et rang arrière sur les côtés (3 et 4) */
+.players-area.is-section { gap: clamp(8px, 2.6cqw, 40px); }
+.players-area.is-section .slot-1 { order: 2; font-size: calc(var(--u) * 1.1); }
+.players-area.is-section .slot-2 { order: 3; font-size: calc(var(--u) * 1.1); }
+.players-area.is-section .slot-3 { order: 1; font-size: calc(var(--u) * 0.94); margin-bottom: 2.6em; }
+.players-area.is-section .slot-4 { order: 4; font-size: calc(var(--u) * 0.94); margin-bottom: 2.6em; }
 
 /* Emplacements masqués selon le mode (SOLO = 1, DUO = 2...) */
 .player-slot.is-hidden { display: none; }
@@ -695,15 +805,19 @@
     padding-bottom: 0.6em;
 }
 
+/* Petit socle sous chaque personnage : halo clair + ombre de contact sous les pieds */
 .platform-glow {
     position: absolute;
     left: 50%;
     bottom: -0.9em;
-    width: 11em;
-    height: 2.8em;
+    width: 10.5em;
+    height: 2.6em;
     transform: translateX(-50%);
     border-radius: 50%;
-    background: radial-gradient(ellipse, rgba(4, 10, 40, 0.5) 0%, rgba(4, 10, 40, 0.2) 45%, transparent 70%);
+    background:
+        radial-gradient(ellipse 34% 36% at 50% 50%, rgba(4, 12, 48, 0.55) 0%, rgba(4, 12, 48, 0.2) 60%, transparent 100%),
+        radial-gradient(ellipse at 50% 50%, rgba(200, 238, 255, 0.4) 0%, rgba(140, 210, 255, 0.16) 45%, transparent 70%);
+    box-shadow: inset 0 0 0 0.12em rgba(200, 240, 255, 0.28);
 }
 
 /* Anneau lumineux quand le joueur est prêt */
@@ -1140,21 +1254,23 @@
 .char-leg.right::after { left: -0.3em; }
 
 /* ===== EMPLACEMENT VIDE : silhouette pleine + bouton "+" ===== */
+/* Place libre : silhouette "hologramme" bleutée */
 .player-slot.is-empty .player-character {
-    --skin: rgba(10, 30, 90, 0.35);
-    --hair: rgba(10, 30, 90, 0.35);
-    --outfit: rgba(10, 30, 90, 0.35);
-    --outfit-dark: rgba(10, 30, 90, 0.35);
-    --pants: rgba(10, 30, 90, 0.35);
-    --shoes: rgba(10, 30, 90, 0.35);
-    --pack: rgba(10, 30, 90, 0.25);
-    --accent: rgba(10, 30, 90, 0.35);
-    --lens: rgba(10, 30, 90, 0.35);
-    --sole: rgba(10, 30, 90, 0.35);
-    --belt: rgba(10, 30, 90, 0.35);
-    --strap: rgba(10, 30, 90, 0.35);
-    --outline: rgba(255, 255, 255, 0.14);
-    filter: none;
+    --skin: rgba(150, 205, 255, 0.2);
+    --hair: rgba(150, 205, 255, 0.2);
+    --outfit: rgba(150, 205, 255, 0.2);
+    --outfit-dark: rgba(150, 205, 255, 0.2);
+    --pants: rgba(150, 205, 255, 0.2);
+    --shoes: rgba(150, 205, 255, 0.2);
+    --pack: rgba(150, 205, 255, 0.14);
+    --accent: rgba(150, 205, 255, 0.2);
+    --lens: rgba(150, 205, 255, 0.2);
+    --sole: rgba(150, 205, 255, 0.2);
+    --belt: rgba(150, 205, 255, 0.2);
+    --strap: rgba(150, 205, 255, 0.2);
+    --outline: rgba(220, 240, 255, 0.45);
+    filter: drop-shadow(0 0 0.6em rgba(120, 200, 255, 0.35));
+    opacity: 0.85;
 }
 
 /* Silhouette : pas de visage, d'ombres ni de reflets */
