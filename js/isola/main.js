@@ -26,9 +26,12 @@ import { buildMapImage } from '../game/hud.js?v=19';
 import { makeIcon, makeHealIcon } from '../game/icons.js';
 import { SFX } from '../sfx.js?v=17';
 import { Cosmetics } from '../cosmetics.js?v=10';
-import { Ground } from './ground.js?v=1';
-import { Props } from './props.js?v=2';
-import { buildAvatar, buildGlider, buildAirship } from './models.js?v=2';
+import { Ground } from './ground.js?v=2';
+import { Props } from './props.js?v=4';
+import { buildAirship } from './models.js?v=2';
+import { buildAvatar, buildGliderFor, loadoutFrom } from './skins.js?v=1';
+import { Water, WATER_Y } from './water.js?v=1';
+import { Foliage } from './foliage.js?v=1';
 import { buildGun, buildDummy } from './items.js?v=1';
 import {
     Arsenal, equipFighter, ISO_WEAPONS, ISO_HEALS, ISO_HEAL_IDS, AMMO_NAMES,
@@ -72,25 +75,12 @@ const FIRE_SHAKE = { pistol: 2.5, smg: 1.6, ar: 2.6, shotgun: 7 };
 
 // Lumière du soleil (direction vers le soleil) : ombres vers la droite et le bas de l'écran
 const SUN_DIR = new THREE.Vector3(-0.5, 1, -0.38).normalize();
+const SHADOW_PX = 2048;      // résolution de la carte d'ombres
+const SHADOW_MARGIN = 260;   // les objets juste hors de l'écran projettent aussi leur ombre dedans
 
 function setLoading(text) {
     const el = $('isoLoadingText');
     if (el) el.textContent = text;
-}
-
-// Couleurs du skin équipé dans le casier du lobby
-function equippedLook() {
-    const colors = { skin: '#f2c29b', hair: '#3b2415', outfit: '#ff4d5a', pack: '#ffc93c' };
-    let glider = null;
-    try {
-        const eq = Cosmetics.equipped;
-        if (eq?.game) Object.assign(colors, eq.game);
-        const pack = Cosmetics.equippedOf('backpack');
-        if (pack?.color && !pack.none) colors.pack = pack.color;
-        const g = Cosmetics.equippedOf('glider');
-        if (Array.isArray(g?.colors)) glider = g.colors;
-    } catch { /* profil illisible : couleurs par défaut */ }
-    return { colors, glider };
 }
 
 // Trajet du dirigeable : traverse l'île en passant près du centre, direction au hasard
@@ -144,18 +134,21 @@ async function start() {
     renderer.shadowMap.type = THREE.PCFShadowMap;
 
     const scene = new THREE.Scene();
-    scene.background = new THREE.Color('#2f7fd0');
-    scene.fog = new THREE.Fog('#4f9be0', 3400, 9000);
+    scene.background = new THREE.Color('#1f73cf');
+    scene.fog = new THREE.Fog('#3d8fe0', 3600, 9500);
 
     const camera = new THREE.PerspectiveCamera(CAM.fov, innerWidth / innerHeight, 20, 16000);
 
-    const hemi = new THREE.HemisphereLight('#eef8ff', '#6f8f4a', 1.3);
-    const sun = new THREE.DirectionalLight('#fff3df', 2.4);
+    // Lumière vive de plein jour : ciel bleuté pour les ombres, soleil chaud
+    const hemi = new THREE.HemisphereLight('#dcefff', '#7f9c55', 1.45);
+    const sun = new THREE.DirectionalLight('#fff0d4', 2.55);
     sun.castShadow = true;
-    sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { left: -1300, right: 1300, top: 1300, bottom: -1300, near: 100, far: 6000 });
-    sun.shadow.bias = -0.0004;
-    sun.shadow.normalBias = 1.5;
+    sun.shadow.mapSize.set(SHADOW_PX, SHADOW_PX);
+    Object.assign(sun.shadow.camera, { left: -900, right: 900, top: 900, bottom: -900, near: 50, far: 7000 });
+    sun.shadow.bias = -0.0003;
+    sun.shadow.normalBias = 2.2;
+    sun.shadow.radius = 2.2;      // bords d'ombre adoucis (filtrage PCF)
+    sun.shadow.intensity = 0.82;  // ombres colorées par le ciel, jamais noires
     scene.add(hemi, sun, sun.target);
 
     setLoading('Peinture du terrain…');
@@ -164,6 +157,12 @@ async function start() {
     setLoading('Plantation des arbres…');
     await nextFrame();
     const props = new Props(scene, world);
+    setLoading('Remplissage de l’océan…');
+    await nextFrame();
+    const water = new Water(scene, world);
+    setLoading('Pousse des herbes…');
+    await nextFrame();
+    const foliage = new Foliage(scene, world);
 
     /* ----- Butin au sol ----- */
     setLoading('Dépôt des armes…');
@@ -175,10 +174,21 @@ async function start() {
     loot.onRemove = (it) => lootView.remove(it);
 
     /* ----- Joueur ----- */
-    const { colors, glider: gliderColors } = equippedLook();
+    // Chargement du casier : tenue, sac à dos, planeur, pioche
+    // (test : isola.html?skin=chevalier&sac=sac-oeuf&planeur=phenix-solaire, sans rien enregistrer)
+    const qp = new URLSearchParams(location.search);
+    const QP_KEYS = { outfit: 'skin', backpack: 'sac', glider: 'planeur', pickaxe: 'pioche' };
+    const testSource = ['skin', 'sac', 'planeur', 'pioche'].some(k => qp.has(k)) ? {
+        get equipped() { return this.equippedOf('outfit'); },
+        equippedOf(type) {
+            const it = qp.get(QP_KEYS[type]) ? Cosmetics.getItem(qp.get(QP_KEYS[type])) : null;
+            return it && it.type === type ? it : Cosmetics.equippedOf(type);
+        }
+    } : Cosmetics;
+    const loadout = loadoutFrom(testSource);
     const route = shipRoute(world);
     const player = new Player(route.ax, route.ay, world);
-    player.colors = { ...player.colors, ...colors };
+    player.colors = { ...player.colors, ...loadout.game };
     player.phase = 'ship';
     equipFighter(player);
     const fighters = [player];
@@ -187,7 +197,7 @@ async function start() {
     let airVy = 0;
     let shipT = 0;
 
-    const avatar = buildAvatar(colors);
+    const avatar = buildAvatar(loadout);
     scene.add(avatar.root);
     /*
        Silhouette visible à travers les arbres, murs et toits.
@@ -196,13 +206,15 @@ async function start() {
        le vrai personnage par-dessus. Le personnage ne se cache donc pas lui-même.
     */
     const xrayMat = new THREE.MeshBasicMaterial({ color: '#9fdcff', depthWrite: false, depthFunc: THREE.GreaterDepth });
-    const xray = buildAvatar(colors, xrayMat);
+    const xray = buildAvatar(loadout, xrayMat);
     xray.root.traverse(o => { o.renderOrder = 1; });
     avatar.root.traverse(o => { o.renderOrder = 2; });
     scene.add(xray.root);
     for (const a of [avatar, xray]) a.root.scale.setScalar(AVATAR_SCALE);
 
-    const glider = buildGlider(gliderColors || undefined);
+    // Planeur du casier (dessin animé des planeurs à forme, voile 3D sinon)
+    const gliderKit = buildGliderFor(loadout);
+    const glider = gliderKit.obj;
     glider.visible = false;
     avatar.root.add(glider);
 
@@ -695,11 +707,58 @@ async function start() {
         } else {
             shake = 0;
         }
-        // Ombres : la zone d'ombre suit la caméra (au sol)
-        const gx = camTarget.x;
-        const gz = camTarget.z;
-        sun.target.position.set(gx, 0, gz);
-        sun.position.set(gx + SUN_DIR.x * 2600, SUN_DIR.y * 2600, gz + SUN_DIR.z * 2600);
+        fitShadow();
+    }
+
+    /*
+       Ombres nettes et stables :
+       - la zone d'ombre est ajustée à ce que la caméra voit au sol (les 4 coins de
+         l'écran projetés sur le sol), plus une marge : toujours la bonne résolution,
+         et plus de bord d'ombre coupé en carré pendant le vol ;
+       - sa taille change par paliers et sa position est calée sur la grille des
+         texels de la carte d'ombres : les bords ne « grouillent » plus quand on bouge.
+    */
+    const groundPlane = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);
+    const lightX = new THREE.Vector3().crossVectors(new THREE.Vector3(0, 1, 0), SUN_DIR).normalize();
+    const lightY = new THREE.Vector3().crossVectors(SUN_DIR, lightX).normalize();
+    const corners = [[-1, -1], [1, -1], [1, 1], [-1, 1]];
+    const cornerNdc = new THREE.Vector2();
+    const shadowRay = new THREE.Raycaster();
+    const hit = new THREE.Vector3();
+    const center = new THREE.Vector3();
+    const cornerPts = new Float32Array(8);
+    let shadowR = 0;
+    function fitShadow() {
+        camera.updateMatrixWorld();
+        let cx = 0;
+        let cz = 0;
+        corners.forEach(([x, y], i) => {
+            cornerNdc.set(x, y);
+            shadowRay.setFromCamera(cornerNdc, camera);
+            if (!shadowRay.ray.intersectPlane(groundPlane, hit)) {
+                hit.copy(shadowRay.ray.direction).multiplyScalar(6000).add(shadowRay.ray.origin);
+            }
+            cornerPts[i * 2] = hit.x;
+            cornerPts[i * 2 + 1] = hit.z;
+            cx += hit.x / 4;
+            cz += hit.z / 4;
+        });
+        let R = 0;
+        for (let i = 0; i < 4; i++) R = Math.max(R, Math.hypot(cornerPts[i * 2] - cx, cornerPts[i * 2 + 1] - cz));
+        R = Math.min(3400, Math.ceil((R + SHADOW_MARGIN) / 100) * 100);
+        if (R !== shadowR) {
+            shadowR = R;
+            Object.assign(sun.shadow.camera, { left: -R, right: R, top: R, bottom: -R });
+            sun.shadow.camera.updateProjectionMatrix();
+        }
+        const texel = (2 * R) / SHADOW_PX;
+        center.set(cx, 0, cz);
+        const u = Math.round(center.dot(lightX) / texel) * texel;
+        const v = Math.round(center.dot(lightY) / texel) * texel;
+        const w = center.dot(SUN_DIR);
+        center.copy(lightX).multiplyScalar(u).addScaledVector(lightY, v).addScaledVector(SUN_DIR, w);
+        sun.target.position.copy(center);
+        sun.position.copy(center).addScaledVector(SUN_DIR, 3200);
     }
 
     function updateAim() {
@@ -741,15 +800,15 @@ async function start() {
         dotMat.opacity = w ? 0.85 : 0.3;
         for (let i = 0; i < DOTS; i++) {
             const t = startD + (i / (DOTS - 1)) * (range - startD);
-            dummy.position.set(player.x + ux * t, 5, player.y + uy * t);
+            dummy.position.set(player.x + ux * t, WATER_Y + 3, player.y + uy * t);
             dummy.scale.setScalar(t > block ? 0.001 : 1 - (i / DOTS) * 0.45);
             dummy.updateMatrix();
             dots.setMatrixAt(i, dummy.matrix);
         }
         dots.instanceMatrix.needsUpdate = true;
-        reticle.position.set(aim.x, 3, aim.y);
+        reticle.position.set(aim.x, WATER_Y + 2, aim.y);
         blockMark.visible = Boolean(w) && block < range;
-        if (blockMark.visible) blockMark.position.set(player.x + ux * block, 4, player.y + uy * block);
+        if (blockMark.visible) blockMark.position.set(player.x + ux * block, WATER_Y + 2.5, player.y + uy * block);
 
         const spread = w?.spread || 0;
         wedge.visible = spread > 0.06;
@@ -757,7 +816,7 @@ async function start() {
             let g = wedgeGeos.get(w.id);
             if (!g) wedgeGeos.set(w.id, (g = new THREE.CircleGeometry(1, 18, -spread, spread * 2).rotateX(-Math.PI / 2)));
             wedge.geometry = g;
-            wedge.position.set(player.x, 3, player.y);
+            wedge.position.set(player.x, WATER_Y + 1, player.y);
             wedge.rotation.y = -player.angle;
             wedge.scale.set(Math.min(range, block), 1, Math.min(range, block));
         }
@@ -864,10 +923,12 @@ async function start() {
             a.root.position.set(player.x, altitude, player.y);
             a.root.rotation.y = Math.PI / 2 - player.angle;
             a.pose(player.walkTime * 11, onGround && player.moving, player.phase === 'air', aiming);
+            a.animate(time);
             a.mount.visible = aiming;
             a.mount.position.z = 17 - player.kick * 5;
         }
-        ring.position.set(player.x, 1.5, player.y);
+        for (const s of showcase) s.animate(time);
+        ring.position.set(player.x, player.inWater ? WATER_Y + 1.5 : 1.5, player.y);
         updateDots();
 
         // Dirigeable : avance jusqu'au bout de son trajet puis disparaît
@@ -883,6 +944,9 @@ async function start() {
 
         placeCamera(dt);
         ground.update(camTarget.x, camTarget.z);
+        water.update(time);
+        foliage.update(time);
+        if (glider.visible) gliderKit.update(time);
         lootView.update(time, camTarget.x, camTarget.z, pick.mode === 'take' ? pick.item : null,
             pick.item ? pick.t / (PICK_TIME[pick.item.kind] || 0.4) : 0);
         fx.update(dt, arsenal.bullets);
@@ -923,9 +987,45 @@ async function start() {
         player.shield = 25;
     }
 
+    // Vitrine (test) : isola.html?spawn=cite&vitrine=1 pose toutes les tenues avec un sac différent
+    const showcase = [];
+    if (params.get('vitrine') === '1' && player.phase === 'ground') {
+        const packs = Cosmetics.ITEMS.filter(it => it.type === 'backpack');
+        const gliders = Cosmetics.ITEMS.filter(it => it.type === 'glider');
+        Cosmetics.SKINS.forEach((skin, i) => {
+            const pack = packs[i % packs.length];
+            const lo = loadoutFrom({
+                equipped: skin,
+                equippedOf: (t) => (t === 'backpack' ? pack : t === 'glider' ? gliders[i % gliders.length] : Cosmetics.equippedOf(t))
+            });
+            const a = buildAvatar(lo);
+            a.root.scale.setScalar(AVATAR_SCALE);
+            const col = i % 6;
+            const row = Math.floor(i / 6);
+            a.root.position.set(player.x - 330 + col * 130, 0, player.y - 220 + row * 150);
+            a.root.rotation.y = i % 2 ? Math.PI * 0.85 : Math.PI * 0.15;  // dos et face en alternance
+            scene.add(a.root);
+            showcase.push(a);
+        });
+    }
+
     // Premières tuiles autour du départ avant d'afficher quoi que ce soit
     placeCamera(0, true);
     ground.update(camTarget.x, camTarget.z, true);
+
+    // Shaders compilés à l'avance (en parallèle si le navigateur le permet) :
+    // pas de gel de la première image de jeu
+    setLoading('Préparation du rendu…');
+    await nextFrame();
+    try {
+        glider.visible = true;           // le planeur aussi, pour qu'il ne fige pas le saut
+        // Au plus 4 s : sinon on lance quand même (les derniers shaders se compileront au vol)
+        await Promise.race([
+            renderer.compileAsync(scene, camera),
+            new Promise(r => setTimeout(r, 4000))
+        ]);
+    } catch { /* compilation au premier rendu */ }
+    glider.visible = player.phase === 'air';
 
     let last = performance.now();
     let time = 0;
@@ -945,7 +1045,7 @@ async function start() {
 
     // Debug / tests : accès depuis la console
     window.ISOLA = {
-        world, player, scene, camera, jump, loot, arsenal, dummies, fighters,
+        world, player, scene, camera, jump, loot, arsenal, dummies, fighters, loadout, renderer,
         get altitude() { return altitude; },
         aimAt(x, y) { aim.x = x; aim.y = y; player.angle = Math.atan2(y - player.y, x - player.x); }
     };
