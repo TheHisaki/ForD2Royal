@@ -3901,7 +3901,8 @@ function start() {
         if (winner.team === 1) duelScore1 = Math.min(2, duelScore1 + 1);
         else duelScore2 = Math.min(2, duelScore2 + 1);
         duelHist = (duelHist + (winner.team === 1 ? '1' : '2')).slice(0, 3);
-        const final = duelRound >= 3;
+        // Meilleur des 3 : le duel s'arrête dès qu'un joueur a 2 manches (2-0 ou 2-1)
+        const final = duelScore1 >= 2 || duelScore2 >= 2 || duelRound >= 3;
         const matchWinnerTeam = duelScore1 > duelScore2 ? 1 : 2;
         const resultTeam = final ? matchWinnerTeam : winner.team;
         stats.place = resultTeam === player.team ? 1 : 2;
