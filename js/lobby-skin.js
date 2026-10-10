@@ -1056,6 +1056,20 @@ export function mountLobbySkins(root = document) {
         body.innerHTML = svgOf('default', look.hair, look.goggles);
         body.dataset.skin = key;
     });
+    revealLobbyStage();
+}
+
+/*
+   Au chargement, la scène du lobby reste cachée (classe is-booting, voir css/lobby.css)
+   tant que le salon n'a pas posé le bon mode, le bon pseudo et les vrais skins :
+   sinon on voit une fraction de seconde 4 places « En attente… » et le personnage par défaut.
+*/
+function revealLobbyStage() {
+    if (typeof document === 'undefined' || !window.lobbyManager) return;
+    const stage = document.querySelector('.players-area.is-booting');
+    if (!stage) return;
+    // Une image de plus : le navigateur applique d'abord les classes du mode et les skins
+    requestAnimationFrame(() => stage.classList.remove('is-booting'));
 }
 
 if (typeof window !== 'undefined') {

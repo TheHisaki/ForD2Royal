@@ -643,6 +643,22 @@
         0 0 0 2px rgba(90, 170, 255, 0.35);
 }
 
+/*
+   Chargement : la scène reste invisible tant que le salon n'a pas appliqué le mode, le pseudo
+   et les skins (js/lobby-skin.js retire is-booting). Elle apparaît ensuite en fondu.
+   Sécurité : si le script ne répond pas, elle s'affiche quand même après 2,5 s.
+*/
+.players-area.is-booting > *,
+.players-area.is-booting > .stage-floor {
+    opacity: 0;
+    animation: stageFallback 0.4s ease-out 2.5s forwards;
+}
+
+.players-area > .stage-floor { animation: stageFadeIn 0.45s ease-out backwards; }
+
+@keyframes stageFallback { to { opacity: 1; } }
+@keyframes stageFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
 .players-area.is-solo .stage-floor    { width: min(70%, 380px); }
 .players-area.is-duo .stage-floor     { width: min(86%, 560px); }
 .players-area.is-trio .stage-floor    { width: min(92%, 720px); }

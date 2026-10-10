@@ -1691,4 +1691,7 @@ let lobbyManager;
 document.addEventListener('DOMContentLoaded', () => {
     lobbyManager = new LobbyManager();
     window.lobbyManager = lobbyManager;
+    // Skins définitifs (le salon est maintenant connu) : retire aussi le cache de chargement
+    // de la scène (voir revealLobbyStage dans js/lobby-skin.js)
+    window.mountLobbySkins?.();
 });
