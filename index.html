@@ -42,7 +42,7 @@
     <link rel="stylesheet" href="css/settings.css">
     <link rel="stylesheet" href="css/store.css">
     <link rel="stylesheet" href="css/hub.css">
-    <link rel="stylesheet" href="css/mode-selector.css?v=2">
+    <link rel="stylesheet" href="css/mode-selector.css?v=3">
     <link rel="stylesheet" href="css/welcome.css">
 </head>
 <body>
@@ -996,6 +996,38 @@
                             </div>
                             <div class="mode-card-lock"><span class="lock-text">🔒 Min. 2 joueurs</span></div>
                         </div>
+
+                        <!-- ISOLA : battle royale en 3D vue de dessus (prototype) -->
+                        <div class="mode-card mode-card-wide mode-card-feature" data-mode="isola" tabindex="0" role="button" aria-pressed="false">
+                            <div class="mode-card-art">
+                                <span class="mode-card-new">Nouveau</span>
+                                <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
+                                    <ellipse class="op-glow" cx="100" cy="112" rx="88" ry="12"/>
+                                    <!-- Petite île en perspective : dalle, maison, arbres -->
+                                    <path class="iso-ground" d="M100 52l78 30-78 30-78-30z"/>
+                                    <path class="iso-side" d="M22 82l78 30v8l-78-30zM178 82l-78 30v8l78-30z"/>
+                                    <path class="iso-wall" d="M112 62l26 10v20l-26-10z"/>
+                                    <path class="iso-wall-dark" d="M138 72l16-6v20l-16 6z"/>
+                                    <path class="iso-roof" d="M110 61l17-17 29 21-18 8z"/>
+                                    <circle class="iso-tree" cx="50" cy="70" r="11"/>
+                                    <circle class="iso-tree" cx="66" cy="62" r="8"/>
+                                    <ellipse class="iso-ring" cx="92" cy="92" rx="13" ry="5"/>
+                                    <use class="op-figure op-c1" href="#op-bust" x="76" y="50" width="32" height="43"/>
+                                    <path class="op-spark" d="M172 30l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
+                                </svg>
+                            </div>
+                            <div class="mode-card-body">
+                                <div class="mode-card-name">ISOLA</div>
+                                <p class="mode-card-desc">La même île, en 3D vue de dessus : largage en dirigeable, voile dirigée et nouvelle façon de jouer.</p>
+                                <ul class="mode-tags" aria-label="Particularités">
+                                    <li>Vue 3D</li>
+                                    <li>Prototype</li>
+                                    <li>Solo</li>
+                                </ul>
+                                <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i></span>1 joueur · bots et armes bientôt</span>
+                            </div>
+                            <div class="mode-card-lock"><span class="lock-text">🔒 Prototype : 1 joueur</span></div>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -1210,7 +1242,7 @@
     <script type="module" src="js/lobby-admin.js?v=2"></script>
     <script src="js/network.js?v=12"></script>
     <script src="js/friends.js?v=4"></script>
-    <script src="js/lobby.js?v=13"></script>
+    <script src="js/lobby.js?v=14"></script>
     <script src="js/main.js"></script>
 </body>
 </html>

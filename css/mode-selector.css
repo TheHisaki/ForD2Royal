@@ -233,6 +233,38 @@
     background: linear-gradient(135deg, #c2410c 0%, #f97316 60%, #fbbf24 100%);
 }
 
+.mode-card[data-mode="isola"] .mode-card-art {
+    background: linear-gradient(135deg, #0f766e 0%, #22c55e 55%, #a3e635 100%);
+}
+
+/* ISOLA : carte mise en avant sur toute la largeur de la grille arcade */
+.mode-card-feature { grid-column: 1 / -1; }
+
+.mode-card-new {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 2;
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: #ffd21e;
+    color: #0b1430;
+    font-family: var(--font-display);
+    font-size: 15px;
+    letter-spacing: 1px;
+    transform: skewX(-8deg);
+    box-shadow: 0 3px 8px rgba(0, 0, 0, 0.3);
+}
+
+/* Petite île isométrique de la carte ISOLA */
+.iso-ground    { fill: #7ed957; stroke: #0b1430; stroke-width: 2; stroke-linejoin: round; }
+.iso-side      { fill: #c98a4a; stroke: #0b1430; stroke-width: 2; stroke-linejoin: round; }
+.iso-wall      { fill: #f3efe6; stroke: #0b1430; stroke-width: 2; stroke-linejoin: round; }
+.iso-wall-dark { fill: #cfc7b8; stroke: #0b1430; stroke-width: 2; stroke-linejoin: round; }
+.iso-roof      { fill: #e8473c; stroke: #0b1430; stroke-width: 2; stroke-linejoin: round; }
+.iso-tree      { fill: #2fa34a; stroke: #0b1430; stroke-width: 2; }
+.iso-ring      { fill: none; stroke: #2f7dff; stroke-width: 3; }
+
 /* ----- Illustration SVG du mode (soldats casqués, sprite dans index.html) ----- */
 .op-sprite {
     position: absolute;

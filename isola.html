@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1d4a">
+    <title>ISOLA · FOR2D ROYAL</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/isola.css?v=1">
+</head>
+<body>
+    <canvas id="isolaCanvas" aria-label="Île d'ISOLA en 3D"></canvas>
+
+    <!-- Chargement -->
+    <div id="isoLoading" class="iso-loading" role="status" aria-live="polite">
+        <div class="iso-logo">ISO<span>LA</span></div>
+        <p id="isoLoadingText">Chargement…</p>
+        <div class="iso-spinner" aria-hidden="true"></div>
+    </div>
+
+    <!-- HUD -->
+    <div class="iso-hud">
+        <div class="iso-top-left">
+            <a class="iso-back" href="index.html" aria-label="Retour au lobby">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7"/></svg>
+                Lobby
+            </a>
+            <div class="iso-badge">ISOLA <span>prototype</span></div>
+        </div>
+
+        <div id="isoLocation" class="iso-location" aria-live="polite">
+            <span class="iso-loc-name">—</span>
+            <span class="iso-loc-sub"></span>
+        </div>
+
+        <canvas id="isoMinimap" class="iso-minimap" width="200" height="200" aria-label="Minimap"></canvas>
+
+        <div id="isoBush" class="iso-bush" hidden>🌿 Caché dans le buisson</div>
+        <div id="isoPrompt" class="iso-prompt" hidden></div>
+    </div>
+
+    <script type="module" src="js/isola/main.js?v=1"></script>
+</body>
+</html>

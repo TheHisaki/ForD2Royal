@@ -1,0 +1,255 @@
+/* ==================================
+   ISOLA - HUD du mode 3D (prototype)
+   ================================== */
+
+:root {
+    --iso-dark: #0b1d4a;
+    --iso-panel: rgba(8, 20, 56, 0.72);
+    --iso-yellow: #ffe03d;
+    --iso-blue: #2f7dff;
+    --iso-font-display: 'Bebas Neue', Impact, sans-serif;
+    --iso-font-body: 'Rubik', system-ui, sans-serif;
+    --iso-gap: max(14px, env(safe-area-inset-top, 0px));
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    height: 100%;
+    overflow: hidden;
+    background: #2f7fd0;
+    color: #fff;
+    font-family: var(--iso-font-body);
+    -webkit-font-smoothing: antialiased;
+    user-select: none;
+}
+
+#isolaCanvas {
+    position: fixed;
+    inset: 0;
+    width: 100vw;
+    height: 100vh;
+    display: block;
+    cursor: crosshair;
+    touch-action: none;
+}
+
+/* ----- Chargement ----- */
+.iso-loading {
+    position: fixed;
+    inset: 0;
+    z-index: 50;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 14px;
+    background: radial-gradient(ellipse at 50% 40%, #2a6fd6 0%, #123a8f 55%, #0b1d4a 100%);
+    transition: opacity 0.5s ease, visibility 0s 0.5s;
+}
+
+.iso-loading.done { opacity: 0; visibility: hidden; pointer-events: none; }
+
+.iso-logo {
+    font-family: var(--iso-font-display);
+    font-size: clamp(64px, 12vw, 130px);
+    letter-spacing: 6px;
+    line-height: 1;
+    text-shadow: 0 6px 0 #0b1d4a, 0 14px 30px rgba(0, 0, 0, 0.45);
+}
+
+.iso-logo span { color: var(--iso-yellow); }
+
+.iso-loading p {
+    margin: 0;
+    font-weight: 600;
+    color: rgba(255, 255, 255, 0.82);
+}
+
+.iso-spinner {
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    border: 4px solid rgba(255, 255, 255, 0.2);
+    border-top-color: var(--iso-yellow);
+    animation: isoSpin 0.8s linear infinite;
+}
+
+@keyframes isoSpin { to { transform: rotate(360deg); } }
+
+/* ----- HUD ----- */
+.iso-hud {
+    position: fixed;
+    inset: 0;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.iso-top-left {
+    position: absolute;
+    top: var(--iso-gap);
+    left: var(--iso-gap);
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.iso-back {
+    pointer-events: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 8px 14px 8px 10px;
+    border-radius: 10px;
+    background: var(--iso-panel);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: #fff;
+    text-decoration: none;
+    font-family: var(--iso-font-display);
+    font-size: 20px;
+    letter-spacing: 1px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+.iso-back svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 3; stroke-linecap: round; stroke-linejoin: round; }
+.iso-back:hover { background: rgba(47, 125, 255, 0.75); }
+.iso-back:focus-visible { outline: 3px solid var(--iso-yellow); outline-offset: 2px; }
+
+.iso-badge {
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: var(--iso-yellow);
+    color: var(--iso-dark);
+    font-family: var(--iso-font-display);
+    font-size: 20px;
+    letter-spacing: 2px;
+    transform: skewX(-8deg);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.iso-badge span {
+    margin-left: 4px;
+    font-family: var(--iso-font-body);
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    opacity: 0.75;
+}
+
+/* Lieu au centre-haut */
+.iso-location {
+    position: absolute;
+    top: var(--iso-gap);
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    text-shadow: 0 3px 0 rgba(11, 29, 74, 0.75), 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+.iso-loc-name {
+    font-family: var(--iso-font-display);
+    font-size: clamp(26px, 3vw, 42px);
+    letter-spacing: 2px;
+    line-height: 1;
+}
+
+.iso-loc-sub {
+    margin-top: 2px;
+    font-size: 12px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+    color: var(--iso-yellow);
+}
+
+.iso-location.pop { animation: isoPop 0.5s cubic-bezier(0.2, 1.4, 0.4, 1); }
+
+@keyframes isoPop {
+    from { opacity: 0; transform: translateX(-50%) translateY(-10px) scale(0.86); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0) scale(1); }
+}
+
+/* Minimap en haut à droite (comme dans Battlelands) */
+.iso-minimap {
+    position: absolute;
+    top: var(--iso-gap);
+    right: var(--iso-gap);
+    width: clamp(130px, 15vw, 200px);
+    height: clamp(130px, 15vw, 200px);
+    border-radius: 14px;
+    border: 4px solid rgba(11, 29, 74, 0.85);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.35);
+    background: #1d5fae;
+}
+
+/* Consigne en bas au centre */
+.iso-prompt {
+    position: absolute;
+    left: 50%;
+    bottom: max(26px, env(safe-area-inset-bottom, 0px));
+    transform: translateX(-50%);
+    padding: 10px 18px;
+    border-radius: 12px;
+    background: var(--iso-panel);
+    border: 1px solid rgba(255, 255, 255, 0.16);
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.3);
+    font-family: var(--iso-font-display);
+    font-size: 22px;
+    letter-spacing: 1px;
+    white-space: nowrap;
+    animation: isoPrompt 0.35s ease-out;
+}
+
+.iso-prompt[hidden] { display: none; }
+
+.iso-prompt kbd {
+    display: inline-block;
+    margin: 0 4px 0 10px;
+    padding: 1px 8px;
+    border-radius: 6px;
+    background: var(--iso-yellow);
+    color: var(--iso-dark);
+    font: inherit;
+    font-size: 18px;
+}
+
+.iso-prompt kbd:first-child { margin-left: 0; }
+
+@keyframes isoPrompt {
+    from { opacity: 0; transform: translateX(-50%) translateY(10px); }
+    to   { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+/* Caché dans un buisson */
+.iso-bush {
+    position: absolute;
+    left: 50%;
+    bottom: calc(max(26px, env(safe-area-inset-bottom, 0px)) + 62px);
+    transform: translateX(-50%);
+    padding: 6px 14px;
+    border-radius: 999px;
+    background: rgba(31, 160, 74, 0.88);
+    font-weight: 800;
+    font-size: 13px;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.3);
+}
+
+.iso-bush[hidden] { display: none; }
+
+@media (max-width: 700px) {
+    .iso-badge span { display: none; }
+    .iso-prompt { font-size: 16px; padding: 8px 12px; }
+    .iso-prompt kbd { font-size: 14px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .iso-location.pop, .iso-prompt, .iso-spinner { animation: none; }
+}
