@@ -39,6 +39,8 @@ import {
 } from './arsenal.js?v=1';
 import { IsoLoot, PICK_TIME, itemLabel, itemColor, itemSub } from './loot.js?v=1';
 import { LootView, CombatFx } from './fx.js?v=1';
+import { IsoBotManager } from './bots.js?v=1';
+import { IsoMap } from './map.js?v=1';
 
 const TAU = Math.PI * 2;
 const $ = (id) => document.getElementById(id);
@@ -351,6 +353,7 @@ async function start() {
             }
         },
         onKill(killer, victim) {
+            if (victim.isBot) botManager?.onKill(victim);
             if (victim.isDummy) {
                 victim.respawn = DUMMY_RESPAWN;
                 fx.burst(victim.x, victim.y, '#d9c27a', 14);
@@ -360,6 +363,12 @@ async function start() {
                 }
             }
         }
+    });
+
+    const botCountParam = Number(new URLSearchParams(location.search).get('bots'));
+    const botCount = Number.isFinite(botCountParam) ? Math.max(0, Math.min(16, Math.floor(botCountParam))) : 8;
+    botManager = new IsoBotManager({
+        world, player, fighters, arsenal, loot, scene, fx, xrayMaterial: xrayMat, count: botCount
     });
 
     function updateDummies(dt) {
@@ -489,11 +498,15 @@ async function start() {
             else if (ISO_HEAL_IDS[i - 2]) tryHeal(ISO_HEAL_IDS[i - 2]);
         },
         onReload: () => { if (player.phase === 'ground') arsenal.reload(player); },
-        onInteract: interact
+        onInteract: interact,
+        onMapHold: (down) => isoMap.setOpen(down),
+        onMap: () => isoMap.toggle()
     });
 
     /* ----- HUD ----- */
     const mapImage = buildMapImage(world, 1024);
+    const isoMap = new IsoMap({ world, player, fighters, mapImage, route });
+    let botManager = null;
     const mini = $('isoMinimap');
     const miniCtx = mini?.getContext('2d');
     const locName = document.querySelector('#isoLocation .iso-loc-name');
@@ -840,7 +853,7 @@ async function start() {
             return `Ramassage… ${label}`;
         }
         if (!player.weapons.some(Boolean) && groundTime < 14) return 'Marche sur une arme pour la ramasser';
-        if (groundTime < 6) return '<kbd>ZQSD</kbd> Se déplacer · <kbd>CLIC</kbd> Tirer · <kbd>1</kbd><kbd>2</kbd> Armes · <kbd>3</kbd><kbd>4</kbd><kbd>5</kbd> Soins';
+        if (groundTime < 6) return '<kbd>ZQSD</kbd> Se déplacer · <kbd>CLIC</kbd> Tirer · <kbd>1</kbd><kbd>2</kbd> Armes · <kbd>3</kbd><kbd>4</kbd><kbd>5</kbd> Soins · <kbd>TAB</kbd> Carte';
         return '';
     }
 
@@ -894,6 +907,7 @@ async function start() {
             setPrompt(groundPrompt());
         }
 
+        botManager?.update(dt, time);
         arsenal.update(dt);
         updateDummies(dt);
         if (player.heal) {
@@ -955,6 +969,7 @@ async function start() {
         updateLocation(player.x, player.y);
         updateHud();
         drawMinimap(player.x, player.y, player.angle, player.phase);
+        isoMap.update(time);
     }
 
     function resize() {
@@ -1046,6 +1061,8 @@ async function start() {
     // Debug / tests : accès depuis la console
     window.ISOLA = {
         world, player, scene, camera, jump, loot, arsenal, dummies, fighters, loadout, renderer,
+        get bots() { return botManager?.bots || []; },
+        map: isoMap,
         get altitude() { return altitude; },
         aimAt(x, y) { aim.x = x; aim.y = y; player.angle = Math.atan2(y - player.y, x - player.x); }
     };

@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/isola.css?v=2">
+    <link rel="stylesheet" href="css/isola.css?v=3">
 </head>
 <body>
     <canvas id="isolaCanvas" aria-label="Île d'ISOLA en 3D"></canvas>
@@ -76,9 +76,21 @@
         </div>
     </div>
 
+    <!-- Carte tactique : Tab maintenu ou M pour basculer -->
+    <div id="isoMap" class="iso-map" hidden role="dialog" aria-label="Carte d'ISOLA">
+        <div class="iso-map-panel">
+            <div class="iso-map-head">
+                <div><strong>CARTE ISOLA</strong><span>Position, villes et trajet du dirigeable</span></div>
+                <button id="isoMapClose" type="button" aria-label="Fermer la carte">×</button>
+            </div>
+            <canvas id="isoFullMap" aria-label="Grande carte d'ISOLA"></canvas>
+            <div class="iso-map-foot"><kbd>TAB</kbd> Maintenir pour consulter · <kbd>M</kbd> Ouvrir / fermer</div>
+        </div>
+    </div>
+
     <!-- Chiffres de dégâts et barres au-dessus des têtes (positionnés en JS) -->
     <div id="isoFloat" class="iso-float" aria-hidden="true"></div>
 
-    <script type="module" src="js/isola/main.js?v=3"></script>
+    <script type="module" src="js/isola/main.js?v=4"></script>
 </body>
 </html>

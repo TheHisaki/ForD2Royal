@@ -593,3 +593,115 @@ html, body {
     .iso-location.pop, .iso-prompt, .iso-spinner, .iso-toast.pop { animation: none; }
     .iso-bar i { transition: none; }
 }
+
+/* ----- Carte tactique plein écran ----- */
+.iso-map {
+    position: fixed;
+    inset: 0;
+    z-index: 30;
+    display: grid;
+    place-items: center;
+    padding: max(16px, env(safe-area-inset-top, 0px)) 16px max(16px, env(safe-area-inset-bottom, 0px));
+    background: rgba(4, 12, 34, 0.78);
+    backdrop-filter: blur(7px);
+    pointer-events: auto;
+}
+
+.iso-map[hidden] { display: none; }
+
+.iso-map-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    max-width: 94vw;
+    max-height: 94vh;
+}
+
+.iso-map-head {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 20px;
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(8, 20, 56, 0.94);
+    border: 1px solid rgba(255, 255, 255, 0.22);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+}
+
+.iso-map-head strong {
+    display: block;
+    color: var(--iso-yellow);
+    font-family: var(--iso-font-display);
+    font-size: 28px;
+    letter-spacing: 2px;
+    line-height: 1;
+}
+
+.iso-map-head span {
+    display: block;
+    margin-top: 3px;
+    color: rgba(255, 255, 255, 0.72);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    text-transform: uppercase;
+}
+
+#isoMapClose {
+    width: 36px;
+    height: 36px;
+    border: 1px solid rgba(255, 255, 255, 0.25);
+    border-radius: 9px;
+    background: rgba(255, 255, 255, 0.1);
+    color: #fff;
+    cursor: pointer;
+    font: 32px/30px var(--iso-font-body);
+    transition: background 0.15s ease, transform 0.15s ease;
+}
+
+#isoMapClose:hover { background: #e23c58; transform: scale(1.05); }
+#isoMapClose:focus-visible { outline: 3px solid var(--iso-yellow); outline-offset: 2px; }
+
+#isoFullMap {
+    display: block;
+    width: min(86vw, 78vh);
+    height: min(86vw, 78vh);
+    border: 5px solid var(--iso-dark);
+    border-radius: 16px;
+    background: #1d5fae;
+    box-shadow: 0 14px 38px rgba(0, 0, 0, 0.48), 0 0 0 2px rgba(255, 224, 61, 0.5);
+    image-rendering: auto;
+}
+
+.iso-map-foot {
+    padding: 7px 14px;
+    border-radius: 999px;
+    background: rgba(8, 20, 56, 0.9);
+    color: rgba(255, 255, 255, 0.82);
+    font-family: var(--iso-font-display);
+    font-size: 18px;
+    letter-spacing: 1px;
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.28);
+}
+
+.iso-map-foot kbd {
+    display: inline-block;
+    margin: 0 4px;
+    padding: 1px 8px;
+    border-radius: 5px;
+    background: var(--iso-yellow);
+    color: var(--iso-dark);
+    font: inherit;
+    font-size: 15px;
+}
+
+@media (max-width: 600px) {
+    .iso-map-head strong { font-size: 22px; }
+    .iso-map-head span { font-size: 9px; }
+    .iso-map-foot { font-size: 14px; }
+    .iso-map-foot kbd { font-size: 12px; }
+}
