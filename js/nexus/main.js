@@ -8,11 +8,26 @@
 import { HERO_BY_ID, ROLES } from './heroes.js?v=4';
 import { drawPortrait } from './sprites.js?v=3';
 import { KAIRO, buildMapLayers, placeAt } from './map.js?v=2';
+import { DOCKS, buildDocksLayers } from './docks.js?v=1';
+import { ESCORT } from './escort.js?v=1';
 import { HeroSelect } from './select.js?v=5';
-import { Game, RULES } from './game.js?v=5';
-import { BotBrain } from './bots.js?v=4';
-import { renderGame } from './render.js?v=4';
+import { MapVote, isAdminPlayer } from './vote.js?v=1';
+import { Game, RULES } from './game.js?v=6';
+import { BotBrain } from './bots.js?v=5';
+import { renderGame } from './render.js?v=5';
 import { NexusAudio } from './audio.js?v=2';
+
+// Cartes jouables (dans l'ordre du vote)
+const MAPS = [KAIRO, DOCKS];
+
+// Calques dessinés une seule fois par carte (vote + partie)
+const LAYERS = new Map();
+function layersFor(map) {
+    if (!LAYERS.has(map.id)) LAYERS.set(map.id, map.mode === 'escort' ? buildDocksLayers(map) : buildMapLayers(map));
+    return LAYERS.get(map.id);
+}
+
+const fmtTime = (s) => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
 
 // Sons d'interface (non spatialisés)
 const SFX = { play: (name, opts = {}) => NexusAudio.play(name, { ...opts, ui: true }) };
@@ -61,7 +76,6 @@ class Match {
         this.canvas = $('nxCanvas');
         this.ctx = this.canvas.getContext('2d');
         this.map = KAIRO;
-        this.layers = buildMapLayers(this.map);
         this.keys = new Set();
         this.mouse = { x: innerWidth / 2, y: innerHeight / 2, left: false, right: false };
         this.pending = {};
@@ -110,9 +124,13 @@ class Match {
         this.canvas.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
     }
 
-    start({ allies, enemies }) {
-        this.game = new Game({ map: this.map, allies, enemies, events: this.events() });
+    start({ allies, enemies, map = this.map }) {
+        this.map = map;
+        this.layers = layersFor(map);
+        this.game = new Game({ map, allies, enemies, events: this.events() });
+        this.escort = this.game.escort;
         this.me = this.game.player;
+        this.setupObjectiveHud();
         this.bots = new BotBrain(this.game);
         this.acc = 0;
         this.endShown = false;
@@ -170,14 +188,33 @@ class Match {
     events() {
         return {
             onRoundStart: (n) => {
-                this.banner(`MANCHE ${n}`, `Le point se déverrouille dans ${RULES.pointLock} s`, 'neutral');
-                this.toast('Point verrouillé : préparez-vous devant le point');
                 this.lastTick = null;
-                SFX.play('whoosh');
+                // La 1re manche démarre pendant la création de la partie : on attend que tout soit prêt
+                setTimeout(() => this.roundIntro(n), 0);
             },
             onPointUnlocked: () => {
-                this.banner('POINT DÉVERROUILLÉ', 'Prenez le contrôle du point !', 'neutral');
+                const e = this.game.escort;
+                if (e) {
+                    const atk = e.attack === this.me.team;
+                    this.banner(atk ? 'LES PORTES S\'OUVRENT' : 'L\'ATTAQUE COMMENCE', atk ? 'Poussez le convoi !' : 'Arrêtez le convoi !', 'neutral');
+                } else this.banner('POINT DÉVERROUILLÉ', 'Prenez le contrôle du point !', 'neutral');
                 SFX.play('pointUnlock');
+            },
+            onCheckpoint: (team, stage) => {
+                const ours = team === this.me.team;
+                const name = this.map.checkpointNames[stage - 1];
+                const bonus = ESCORT.checkpointBonus[stage - 1] || 0;
+                this.banner(ours ? `POINT DE PASSAGE ${name} ATTEINT` : `POINT DE PASSAGE ${name} PERDU`, `+${fmtTime(bonus)} · les bases avancent`, ours ? 'good' : 'bad');
+                SFX.play(ours ? 'captureAlly' : 'captureEnemy');
+                this.buildEscortTrack();
+            },
+            onEscortRoundEnd: (res, over) => {
+                if (over) return; // onMatchEnd s'en occupe
+                const ours = res.team === this.me.team;
+                const pct = Math.round((res.s / this.map.pathLength) * 100);
+                const title = res.complete ? (ours ? 'CONVOI LIVRÉ' : 'CONVOI LIVRÉ PAR L\'ADVERSAIRE') : ours ? 'ATTAQUE TERMINÉE' : 'DÉFENSE TERMINÉE';
+                this.banner(title, `${pct} % de la route · on change de côté`, ours === res.complete ? 'good' : 'bad');
+                SFX.play(ours === res.complete ? 'roundWin' : 'roundLose');
             },
             onCapture: (team) => {
                 const ours = team === this.me.team;
@@ -185,7 +222,8 @@ class Match {
                 SFX.play(ours ? 'captureAlly' : 'captureEnemy');
             },
             onOvertime: () => {
-                this.banner('PROLONGATION', 'Restez sur le point !', 'warn');
+                const e = this.game.escort;
+                this.banner('PROLONGATION', !e ? 'Restez sur le point !' : e.attack === this.me.team ? 'Restez sur le convoi !' : 'Chassez-les du convoi !', 'warn');
                 SFX.play('overtime');
             },
             onRoundEnd: (team, over) => {
@@ -197,9 +235,10 @@ class Match {
             },
             onMatchEnd: (team) => {
                 const ours = team === this.me.team;
-                this.banner(ours ? 'VICTOIRE' : 'DÉFAITE', '', ours ? 'good' : 'bad');
-                SFX.play(ours ? 'roundWin' : 'roundLose');
-                setTimeout(() => this.showEnd(ours), 2600);
+                const draw = team === 'draw';
+                this.banner(draw ? 'ÉGALITÉ' : ours ? 'VICTOIRE' : 'DÉFAITE', '', draw ? 'warn' : ours ? 'good' : 'bad');
+                SFX.play(ours || draw ? 'roundWin' : 'roundLose');
+                setTimeout(() => this.showEnd(ours, draw), 2600);
             },
             onKill: (killer, victim, how) => {
                 this.addFeed(killer, victim, how);
@@ -259,6 +298,105 @@ class Match {
         };
     }
 
+    roundIntro(n) {
+        const g = this.game;
+        if (!g || !this.me) return;
+        const e = g.escort;
+        if (e) {
+            const atk = e.attack === this.me.team;
+            this.banner(`MANCHE ${n} · ${atk ? 'ATTAQUE' : 'DÉFENSE'}`, atk ? `Les portes s'ouvrent dans ${ESCORT.setup} s` : `Placez-vous devant le convoi (${ESCORT.setup} s)`, 'neutral');
+            const t = e.target;
+            this.toast(atk
+                ? (t ? (t.complete ? `Livrez le convoi avec plus de ${fmtTime(t.timeLeft)} restantes` : `Dépassez ${Math.round((t.s / this.map.pathLength) * 100)} % de la route pour gagner`) : 'Escortez le convoi jusqu\'au terminal')
+                : (t ? 'Empêchez-les de faire mieux que vous' : 'Empêchez le convoi d\'avancer'));
+            this.buildEscortTrack();
+        } else {
+            this.banner(`MANCHE ${n}`, `Le point se déverrouille dans ${RULES.pointLock} s`, 'neutral');
+            this.toast('Point verrouillé : préparez-vous devant le point');
+        }
+        SFX.play('whoosh');
+    }
+
+    // Contrôle ou Escorte : on affiche le bon bandeau d'objectif
+    setupObjectiveHud() {
+        const e = this.game.escort;
+        $('nxEscort').hidden = !e;
+        $('nxScoreBlue').hidden = Boolean(e);
+        $('nxScoreRed').hidden = Boolean(e);
+        document.querySelector('#nxObjective .nx-point').hidden = Boolean(e);
+        for (const th of document.querySelectorAll('.nx-obj-col')) th.textContent = e ? 'Convoi' : 'Point';
+        $('nxObjective').classList.toggle('is-escort', Boolean(e));
+        if (e) this.buildEscortTrack();
+    }
+
+    // Repères des points de passage sur la barre de progression
+    buildEscortTrack() {
+        const e = this.game?.escort;
+        if (!e) return;
+        const track = $('nxEscTrack');
+        for (const el of track.querySelectorAll('.nx-esc-cp')) el.remove();
+        this.map.checkpoints.forEach((s, i) => {
+            const cp = document.createElement('span');
+            cp.className = `nx-esc-cp ${i < e.stage ? 'is-reached' : ''} ${i === this.map.checkpoints.length - 1 ? 'is-end' : ''}`;
+            cp.style.left = `${(s / this.map.pathLength) * 100}%`;
+            cp.textContent = this.map.checkpointNames[i] === 'Arrivée' ? '★' : this.map.checkpointNames[i];
+            track.appendChild(cp);
+        });
+        const mine = e.attack === this.me.team;
+        track.classList.toggle('is-mine', mine);
+        track.classList.toggle('is-theirs', !mine);
+    }
+
+    updateEscortHud(mine, theirs) {
+        const g = this.game;
+        const e = g.escort;
+        const atk = e.attack === mine;
+        this.setText('nxEscRole', atk ? 'ATTAQUE' : 'DÉFENSE');
+        $('nxEscRole').classList.toggle('is-attack', atk);
+        const time = g.phase === 'setup' ? e.setupLeft : e.timeLeft;
+        this.setText('nxEscTime', e.overtime ? 'PROLONGATION' : fmtTime(Math.max(0, Math.ceil(time))));
+        const pct = e.progress * 100;
+        $('nxEscFill').style.width = `${pct}%`;
+        $('nxEscCart').style.left = `${pct}%`;
+        const t = e.target;
+        const tgt = $('nxEscTarget');
+        tgt.hidden = !(t && !t.complete);
+        if (t) tgt.style.left = `${(t.s / this.map.pathLength) * 100}%`;
+        const c = e.count || { blue: 0, red: 0 };
+        const nA = c[e.attack];
+        let state, sub;
+        if (g.phase === 'setup') {
+            state = atk ? `PORTES FERMÉES · ${Math.ceil(e.setupLeft)} s` : `PRÉPARATION · ${Math.ceil(e.setupLeft)} s`;
+            sub = `Manche ${g.round} sur 2 · ${atk ? 'tu attaques' : 'tu défends'}`;
+        } else if (g.phase === 'roundEnd' || g.phase === 'matchEnd') {
+            state = 'FIN DE LA MANCHE';
+            sub = `${Math.round(pct)} % de la route`;
+        } else if (e.state === 'contested') {
+            state = 'CONVOI CONTESTÉ';
+            sub = `${c[mine]} contre ${c[theirs]}`;
+        } else if (e.state === 'push') {
+            state = 'LE CONVOI AVANCE';
+            sub = atk ? `${nA} sur le convoi · vitesse ×${ESCORT.speedMul[Math.min(3, nA)].toFixed(2).replace('.', ',')}` : 'Montez sur le convoi pour l\'arrêter !';
+        } else if (e.state === 'back') {
+            state = 'LE CONVOI RECULE';
+            sub = atk ? 'Retournez au convoi !' : 'Tenez-les à distance';
+        } else if (e.state === 'blocked') {
+            state = atk ? 'CONVOI BLOQUÉ' : 'CONVOI ARRÊTÉ';
+            sub = atk ? 'Chassez les défenseurs du convoi' : 'Restez près du convoi';
+        } else {
+            state = 'CONVOI À L\'ARRÊT';
+            const back = Math.ceil(ESCORT.rollbackDelay - e.idle);
+            sub = back > 0 ? `Il recule dans ${back} s sans attaquant` : 'Personne sur le convoi';
+        }
+        if (e.overtime) sub = atk ? 'Restez sur le convoi !' : 'Chassez-les du convoi !';
+        this.setText('nxEscState', state);
+        this.setText('nxEscSub', sub);
+        const box = $('nxEscort');
+        box.classList.toggle('is-contested', e.state === 'contested' && g.phase === 'live');
+        box.classList.toggle('is-back', e.state === 'back' && g.phase === 'live');
+        $('nxObjective').classList.toggle('is-overtime', Boolean(e.overtime));
+    }
+
     /* ----- Boucle ----- */
 
     frame(dt) {
@@ -284,6 +422,7 @@ class Match {
     }
 
     addShake(power) {
+        if (!Number.isFinite(power) || power <= 0) { if (!Number.isFinite(power)) window.__nxBad = `shake ${power}`; return; }
         this.shake = Math.min(1.2, (this.shake || 0) + power);
     }
 
@@ -312,7 +451,12 @@ class Match {
             if (o.kind === 'mechBomb') loops.push({ id: `bomb${o.owner.id}`, kind: 'mechBomb', x: o.x, y: o.y, fuse: o.fuse });
         }
         const p = g.map.point;
-        if (g.phase === 'live') {
+        if (g.phase === 'live' && g.escort) {
+            const e = g.escort;
+            const near = e.inRange(me);
+            if (g.contested) loops.push({ id: 'contested', kind: 'contested', x: p.x, y: p.y, vol: near ? 1 : 0.5 });
+            else if (e.state === 'push') loops.push({ id: 'capture', kind: 'capture', x: p.x, y: p.y, progress: e.progress * 100, vol: near ? 1 : 0.5 });
+        } else if (g.phase === 'live') {
             if (g.contested) loops.push({ id: 'contested', kind: 'contested', x: p.x, y: p.y, vol: g.onPoint(me) ? 1 : 0.5 });
             else if (g.progress.value > 0 && g.progress.team) loops.push({ id: 'capture', kind: 'capture', x: p.x, y: p.y, progress: g.progress.value, vol: g.onPoint(me) ? 1.2 : 0.6 });
         }
@@ -364,6 +508,9 @@ class Match {
             target.y = hh * 2 >= this.map.height ? this.map.height / 2 : Math.max(hh, Math.min(this.map.height - hh, target.y));
         }
         const a = Math.min(1, dt * 9);
+        // Sécurité : une position invalide ne doit jamais « perdre » la caméra
+        if (![target.x, target.y, target.scale].every(Number.isFinite)) { window.__nxBad = `target ${JSON.stringify(target)}`; return; }
+        if (![this.cam.x, this.cam.y, this.cam.scale].every(Number.isFinite)) this.cam = { ...target };
         this.cam.x += (target.x - this.cam.x) * a;
         this.cam.y += (target.y - this.cam.y) * a;
         this.cam.scale += (target.scale - this.cam.scale) * a;
@@ -530,6 +677,16 @@ class Match {
         const mine = me.team, theirs = mine === 'blue' ? 'red' : 'blue';
 
         // Objectif
+        if (g.escort) this.updateEscortHud(mine, theirs);
+        else this.updateControlHud(mine, theirs);
+
+        // Portraits (morts grisés avec leur temps de réapparition)
+        this.updatePortraits(mine);
+        this.updateHeroHud();
+    }
+
+    updateControlHud(mine, theirs) {
+        const g = this.game;
         this.setText('nxPctBlue', `${Math.floor(g.score[mine])}%`);
         this.setText('nxPctRed', `${Math.floor(g.score[theirs])}%`);
         $('nxScoreBlue').classList.toggle('is-owner', g.owner === mine);
@@ -570,8 +727,10 @@ class Match {
         icon.style.setProperty('--p', `${g.progress.value}%`);
         icon.style.setProperty('--pc', pTeam);
         $('nxObjective').classList.toggle('is-overtime', Boolean(g.overtime));
+    }
 
-        // Portraits (morts grisés avec leur temps de réapparition)
+    updatePortraits(mine) {
+        const g = this.game;
         for (const p of this.portraitEls) {
             p.f = g.fighters.find(f => f.id === p.id);
             if (!p.f) continue;
@@ -581,7 +740,11 @@ class Match {
             if (p.t.textContent !== t) p.t.textContent = t;
             p.li.classList.toggle('has-ult', p.f.ult >= 100 && p.f.team === mine);
         }
+    }
 
+    updateHeroHud() {
+        const g = this.game;
+        const me = this.me;
         // Héros
         const hp = Math.max(0, Math.ceil(me.hp));
         this.setText('nxHudHpText', `${hp} / ${me.maxHp}${me.over > 0 ? ` +${Math.ceil(me.over)}` : ''}`);
@@ -637,7 +800,7 @@ class Match {
         }
 
         // Lieu
-        const place = placeAt(this.map, me.x, me.y);
+        const place = placeAt(g.map, me.x, me.y);
         if (place !== this.hudCache.place) {
             this.hudCache.place = place;
             const loc = $('nxLocation');
@@ -678,21 +841,27 @@ class Match {
         }
     }
 
-    showEnd(win) {
+    showEnd(win, draw = false) {
         if (this.endShown) return;
         this.endShown = true;
         const el = $('nxEnd');
-        $('nxEndTitle').textContent = win ? 'VICTOIRE' : 'DÉFAITE';
-        el.classList.toggle('is-win', win);
+        $('nxEndTitle').textContent = draw ? 'ÉGALITÉ' : win ? 'VICTOIRE' : 'DÉFAITE';
+        el.classList.toggle('is-win', win || draw);
         const g = this.game;
-        $('nxEndScore').textContent = `${g.roundsWon[this.me.team]} - ${g.roundsWon[this.me.team === 'blue' ? 'red' : 'blue']}`;
+        const mine = this.me.team, theirs = mine === 'blue' ? 'red' : 'blue';
+        if (g.escort) {
+            const pct = (t) => Math.round(g.escort.progressOf(t) * 100);
+            $('nxEndScore').textContent = `${this.map.name} · convoi : ${pct(mine)} % contre ${pct(theirs)} %`;
+        } else {
+            $('nxEndScore').textContent = `${g.roundsWon[mine]} - ${g.roundsWon[theirs]}`;
+        }
         const s = this.me.stats;
         $('nxEndStats').innerHTML = `
             <div><strong>${s.kills}</strong><span>Éliminations</span></div>
             <div><strong>${s.deaths}</strong><span>Morts</span></div>
             <div><strong>${Math.round(s.damage)}</strong><span>Dégâts</span></div>
             <div><strong>${Math.round(s.healing)}</strong><span>Soins</span></div>
-            <div><strong>${Math.round(s.onPoint)} s</strong><span>Sur le point</span></div>`;
+            <div><strong>${Math.round(s.onPoint)} s</strong><span>${g.escort ? 'Sur le convoi' : 'Sur le point'}</span></div>`;
         this.renderBoard($('nxEndBoard'));
         el.hidden = false;
     }
@@ -704,23 +873,41 @@ async function boot() {
     await loadKeyLabels();
     try { await document.fonts?.load('700 40px "Bebas Neue"'); } catch { /* ignore */ }
     const match = new Match();
+    const qp = new URLSearchParams(location.search);
+    let chosen = KAIRO;
     const select = new HeroSelect({
         playerName: playerName(),
         keyLabel,
-        onDone: (result) => match.start(result)
+        onDone: (result) => match.start({ ...result, map: chosen })
     });
-    const backToSelect = () => { match.stop(); select.start(); };
+    // Sélection des héros sur la carte votée (le bandeau indique la carte et le mode)
+    const toSelect = (map) => {
+        chosen = map;
+        $('nxSelMode').textContent = `${map.modeName} · 5v5 · Avec bots`;
+        $('nxSelMapName').textContent = map.name;
+        select.start();
+    };
+    const vote = new MapVote({
+        maps: MAPS,
+        preview: layersFor,
+        isAdmin: isAdminPlayer() || qp.has('admin'),
+        sfx: (name) => SFX.play(name === 'ready' ? 'pointUnlock' : 'whoosh', { vol: 0.6 }),
+        onDone: toSelect
+    });
+    const backToVote = () => { match.stop(); vote.start(); };
     $('nxChangeHero')?.addEventListener('click', () => match.toggleSwap());
     $('nxSwapClose')?.addEventListener('click', () => match.closeSwap());
-    $('nxReplay')?.addEventListener('click', backToSelect);
+    $('nxReplay')?.addEventListener('click', backToVote);
     const loading = $('nxLoading');
     loading?.classList.add('done');
     setTimeout(() => { if (loading) loading.hidden = true; }, 450);
-    select.start();
 
-    // Test : nexus.html?hero=tempo verrouille ce héros et lance directement la partie
-    const qp = new URLSearchParams(location.search);
+    // Test : nexus.html?map=docks saute le vote (?hero=… lance aussi directement la partie)
+    const testMap = MAPS.find(m => m.id === qp.get('map'));
     const testHero = qp.get('hero');
+    if (testMap || (testHero && HERO_BY_ID[testHero])) toSelect(testMap || KAIRO);
+    else vote.start();
+
     if (testHero && HERO_BY_ID[testHero]) {
         select.select(testHero);
         select.lock();
@@ -730,7 +917,8 @@ async function boot() {
         for (let i = 0; i < skip * 60 && match.running; i++) { match.bots.update(STEP); match.game.update(STEP); }
         // Test : ?front place le joueur près du point (pour voir un combat)
         if (qp.has('front') && match.running && match.me.alive) {
-            match.me.x = KAIRO.point.x - 330; match.me.y = KAIRO.point.y + 40;
+            const p = match.game.map.point;
+            match.me.x = p.x - 330; match.me.y = p.y + 40;
             match.cam.x = match.me.x; match.cam.y = match.me.y;
         }
         // Test : ?swap ouvre le choix de héros (le joueur est considéré mort)
@@ -739,7 +927,11 @@ async function boot() {
             match.openSwap();
         }
     }
-    window.NEXUS = { match, select };
+    window.NEXUS = { match, select, vote };
+    if (qp.has('debug')) setInterval(() => {
+        const m = match;
+        document.title = JSON.stringify({ bad: window.__nxBad || null, cam: m.cam, shake: m.shake, me: m.me && { x: m.me.x, y: m.me.y, alive: m.me.alive }, p: m.game?.map.point });
+    }, 500);
 }
 
 boot();

@@ -7,6 +7,7 @@
 
 import { drawHero, TEAM_COLORS } from './sprites.js?v=3';
 import { drawAnimatedDecor } from './map.js?v=2';
+import { drawDocksDecor, pathAt } from './docks.js?v=1';
 
 const TAU = Math.PI * 2;
 const INK = '#0b1430';
@@ -40,6 +41,153 @@ function glow(ctx, x, y, r, color, a = 1) {
     g.addColorStop(1, hexA(color, 0));
     ctx.fillStyle = g;
     ctx.beginPath(); ctx.arc(x, y, r, 0, TAU); ctx.fill();
+}
+
+/* ----- Convoi (Escorte) ----- */
+
+// Partie déjà parcourue de la route, aux couleurs de l'équipe qui attaque
+function drawEscortRoute(ctx, g, viewer) {
+    const e = g.escort;
+    const col = teamColor(e.attack, viewer);
+    const pts = g.map.path;
+    ctx.save();
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.beginPath();
+    ctx.moveTo(pts[0].x, pts[0].y);
+    let acc = 0;
+    for (let i = 1; i < pts.length; i++) {
+        const a = pts[i - 1], b = pts[i];
+        const len = Math.hypot(b.x - a.x, b.y - a.y);
+        if (acc + len >= e.s) { ctx.lineTo(e.pos.x, e.pos.y); break; }
+        ctx.lineTo(b.x, b.y);
+        acc += len;
+    }
+    ctx.lineWidth = 34;
+    ctx.strokeStyle = hexA(col, 0.32);
+    ctx.stroke();
+    ctx.lineWidth = 8;
+    ctx.strokeStyle = hexA(col, 0.85);
+    ctx.stroke();
+    // Manche 2 : distance à battre
+    const t = e.target;
+    if (t && !t.complete) {
+        const p = pathAt(g.map, t.s);
+        const nx = -Math.sin(p.angle), ny = Math.cos(p.angle);
+        ctx.setLineDash([16, 10]);
+        ctx.lineWidth = 8;
+        ctx.strokeStyle = hexA(teamColor(t.team, viewer), 0.9);
+        ctx.beginPath(); ctx.moveTo(p.x - nx * 130, p.y - ny * 130); ctx.lineTo(p.x + nx * 130, p.y + ny * 130); ctx.stroke();
+        ctx.setLineDash([]);
+    }
+    ctx.restore();
+}
+
+// Zone d'effet du convoi (sous les héros)
+function drawPayloadRange(ctx, g, viewer) {
+    const e = g.escort;
+    const { x, y } = e.pos;
+    const r = 150;
+    const t = g.time;
+    const atk = teamColor(e.attack, viewer), def = teamColor(e.defend, viewer);
+    const state = g.phase === 'live' ? e.state : 'idle';
+    const col = state === 'push' ? atk : state === 'contested' ? '#ffd21e' : state === 'back' || state === 'blocked' ? def : '#ffffff';
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y, r, 0, TAU);
+    ctx.fillStyle = hexA(col === '#ffffff' ? '#ffffff' : col, state === 'idle' ? 0.08 : 0.16);
+    ctx.fill();
+    ctx.setLineDash([22, 14]);
+    ctx.lineDashOffset = -t * (state === 'push' ? 60 : state === 'back' ? -30 : 12);
+    ctx.lineWidth = 6;
+    ctx.strokeStyle = hexA(col, state === 'idle' ? 0.55 : 0.95);
+    ctx.stroke();
+    ctx.setLineDash([]);
+    if (state === 'push' || state === 'contested') {
+        ctx.globalCompositeOperation = 'lighter';
+        glow(ctx, x, y, r * 1.15, col, 0.14 + 0.05 * Math.sin(t * 5));
+    }
+    ctx.restore();
+}
+
+// Le véhicule : un camion blindé de livraison, phare et gyrophare
+function drawPayload(ctx, g, viewer) {
+    const e = g.escort;
+    const { x, y, angle } = e.pos;
+    const t = g.time;
+    const atk = teamColor(e.attack, viewer);
+    const moving = g.phase === 'live' && (e.state === 'push' || e.state === 'back');
+    ctx.save();
+    ctx.translate(x, y);
+    // Ombre
+    ctx.fillStyle = 'rgba(5, 10, 30, 0.35)';
+    ctx.beginPath(); ctx.ellipse(8, 12, 70, 44, angle, 0, TAU); ctx.fill();
+    ctx.rotate(angle);
+    const bob = moving ? Math.sin(t * 18) * 1.2 : 0;
+    ctx.translate(0, bob);
+    ctx.lineJoin = 'round';
+    // Chenilles / roues
+    ctx.fillStyle = '#1d212b';
+    for (const sy of [-36, 26]) {
+        ctx.fillRect(-58, sy, 116, 10);
+        ctx.strokeStyle = INK; ctx.lineWidth = 3; ctx.strokeRect(-58, sy, 116, 10);
+        ctx.strokeStyle = 'rgba(255,255,255,0.25)'; ctx.lineWidth = 2;
+        const off = moving ? (t * 60) % 14 : 0;
+        for (let k = -56 + off; k < 56; k += 14) { ctx.beginPath(); ctx.moveTo(k, sy + 1); ctx.lineTo(k, sy + 9); ctx.stroke(); }
+    }
+    // Caisse
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(-60, -30, 112, 60, 10) : ctx.rect(-60, -30, 112, 60);
+    ctx.fillStyle = '#e8edf5'; ctx.fill();
+    ctx.lineWidth = 6; ctx.strokeStyle = INK; ctx.stroke();
+    // Bande aux couleurs de l'attaque
+    ctx.fillStyle = atk;
+    ctx.fillRect(-52, -8, 72, 16);
+    // Cabine (à l'avant)
+    ctx.beginPath();
+    ctx.roundRect ? ctx.roundRect(28, -24, 36, 48, 8) : ctx.rect(28, -24, 36, 48);
+    ctx.fillStyle = '#ff8a3c'; ctx.fill();
+    ctx.lineWidth = 5; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.fillStyle = 'rgba(160, 220, 255, 0.85)';
+    ctx.fillRect(48, -18, 10, 36);
+    ctx.lineWidth = 3; ctx.strokeRect(48, -18, 10, 36);
+    // Cargaison : noyau d'énergie qui pulse
+    const pulse = 0.6 + 0.4 * Math.sin(t * 4);
+    ctx.beginPath(); ctx.arc(-18, 0, 15, 0, TAU);
+    ctx.fillStyle = '#0b1430'; ctx.fill();
+    ctx.beginPath(); ctx.arc(-18, 0, 10, 0, TAU);
+    ctx.fillStyle = `rgba(255, 210, 30, ${0.6 + 0.4 * pulse})`; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+    // Phares
+    if (moving) {
+        ctx.globalCompositeOperation = 'lighter';
+        for (const sy of [-15, 15]) {
+            const gr = ctx.createRadialGradient(70, sy, 0, 70, sy, 70);
+            gr.addColorStop(0, 'rgba(255, 240, 190, 0.5)');
+            gr.addColorStop(1, 'rgba(255, 240, 190, 0)');
+            ctx.fillStyle = gr;
+            ctx.beginPath(); ctx.arc(70, sy, 70, -0.5, 0.5); ctx.lineTo(70, sy); ctx.fill();
+        }
+        ctx.globalCompositeOperation = 'source-over';
+    }
+    // Gyrophare (orange quand il avance, rouge quand il recule)
+    const on = Math.sin(t * 10) > 0;
+    ctx.beginPath(); ctx.arc(40, 0, 7, 0, TAU);
+    ctx.fillStyle = !moving ? '#7a808c' : e.state === 'back' ? (on ? '#ff3b4f' : '#7a1d28') : on ? '#ffb02e' : '#8a5a12';
+    ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.restore();
+    // Progression (anneau au-dessus du véhicule)
+    ctx.save();
+    ctx.beginPath(); ctx.arc(x, y - 78, 20, 0, TAU);
+    ctx.fillStyle = INK; ctx.fill();
+    ctx.beginPath(); ctx.arc(x, y - 78, 20, -Math.PI / 2, -Math.PI / 2 + e.progress * TAU);
+    ctx.lineWidth = 6; ctx.strokeStyle = atk; ctx.stroke();
+    ctx.font = '700 20px "Bebas Neue", Impact, sans-serif';
+    ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    const c = e.count || { blue: 0, red: 0 };
+    ctx.fillText(g.contested ? '!' : g.phase === 'live' && c[e.attack] > 0 ? `${Math.min(3, c[e.attack])}` : '•', x, y - 77);
+    ctx.restore();
 }
 
 /* ----- Point de contrôle ----- */
@@ -1217,8 +1365,15 @@ export function renderGame(ctx, g, layers, cam, viewer, me, dpr, shake = { x: 0,
     ctx.fillRect(0, 0, W, H);
     ctx.setTransform(scale, 0, 0, scale, W / 2 - (x + shake.x) * scale, H / 2 - (y + shake.y) * scale);
     ctx.drawImage(layers.ground, 0, 0);
-    drawPoint(ctx, g, viewer);
-    drawAnimatedDecor(ctx, g.map, g.time);
+    if (g.escort) {
+        drawEscortRoute(ctx, g, viewer);
+        drawDocksDecor(ctx, g, viewer, teamColor);
+        drawPayloadRange(ctx, g, viewer);
+        drawPayload(ctx, g, viewer);
+    } else {
+        drawPoint(ctx, g, viewer);
+        drawAnimatedDecor(ctx, g.map, g.time);
+    }
 
     // Les couleurs d'effets d'équipe (capture) dépendent du point de vue
     for (const e of g.effects) if (e.type === 'capture' && e.team) e.color = teamColor(e.team, viewer);

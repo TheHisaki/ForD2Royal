@@ -9,13 +9,40 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/nexus.css?v=5">
+    <link rel="stylesheet" href="css/nexus.css?v=6">
 </head>
 <body>
     <!-- Chargement -->
     <div id="nxLoading" class="nx-loading" role="status" aria-live="polite">
         <div class="nx-logo">NEX<span>US</span></div>
-        <p>Chargement du Sanctuaire de Kaïro…</p>
+        <p>Chargement des cartes…</p>
+    </div>
+
+    <!-- ===== Vote de la carte ===== -->
+    <div id="nxVote" class="nx-vote" hidden>
+        <header class="nx-sel-head">
+            <a class="nx-back" href="index.html" aria-label="Retour au lobby">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7"/></svg>
+                Lobby
+            </a>
+            <div class="nx-sel-map">
+                <span class="nx-kicker">NEXUS · 5v5 · Avec bots</span>
+                <strong>Prochaine partie</strong>
+            </div>
+            <div class="nx-sel-title">
+                <h1>Vote pour la carte</h1>
+                <p>Clique sur une carte pour voter, tu peux changer d'avis jusqu'à la fin du temps.</p>
+            </div>
+            <div class="nx-sel-timer" aria-label="Temps restant"><span id="nxVoteTimer">15</span></div>
+        </header>
+        <main id="nxVoteMaps" class="nx-vote-maps" role="group" aria-label="Cartes proposées"></main>
+        <footer class="nx-vote-foot">
+            <p id="nxVoteInfo" aria-live="polite"></p>
+            <button id="nxVoteAdmin" class="nx-vote-admin" type="button" hidden>
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M3 18h18l-2-10-5 4-2-7-2 7-5-4z"/></svg>
+                DÉCISION ADMIN
+            </button>
+        </footer>
     </div>
 
     <!-- ===== Sélection du héros ===== -->
@@ -26,8 +53,8 @@
                 Lobby
             </a>
             <div class="nx-sel-map">
-                <span class="nx-kicker">Contrôle · 5v5 · Avec bots</span>
-                <strong>Sanctuaire de Kaïro</strong>
+                <span id="nxSelMode" class="nx-kicker">Contrôle · 5v5 · Avec bots</span>
+                <strong id="nxSelMapName">Sanctuaire de Kaïro</strong>
             </div>
             <div class="nx-sel-title">
                 <h1>Choisis ton héros</h1>
@@ -74,7 +101,7 @@
 
     <!-- ===== Partie ===== -->
     <div id="nxGame" class="nx-game" hidden>
-        <canvas id="nxCanvas" aria-label="Carte du Sanctuaire de Kaïro"></canvas>
+        <canvas id="nxCanvas" aria-label="Carte de la partie"></canvas>
 
         <div class="nx-hud">
             <div class="nx-hud-tl">
@@ -96,6 +123,20 @@
                     <span id="nxPointIcon" class="nx-point-icon is-locked"><b>A</b></span>
                     <span id="nxPointState" class="nx-point-state">DÉVERROUILLAGE</span>
                     <span id="nxPointSub" class="nx-point-sub">Manche 1 · au meilleur des 3</span>
+                </div>
+                <!-- Objectif (Escorte) : chrono, progression du convoi, points de passage -->
+                <div id="nxEscort" class="nx-escort" hidden>
+                    <div class="nx-esc-top">
+                        <span id="nxEscRole" class="nx-esc-role">ATTAQUE</span>
+                        <span id="nxEscTime" class="nx-esc-time">2:30</span>
+                    </div>
+                    <div id="nxEscTrack" class="nx-esc-track">
+                        <i id="nxEscFill" class="nx-esc-fill"></i>
+                        <b id="nxEscTarget" class="nx-esc-target" hidden></b>
+                        <span id="nxEscCart" class="nx-esc-cart" aria-hidden="true"></span>
+                    </div>
+                    <span id="nxEscState" class="nx-point-state">PRÉPARATION</span>
+                    <span id="nxEscSub" class="nx-point-sub"></span>
                 </div>
                 <div id="nxScoreRed" class="nx-score is-red">
                     <span id="nxPctRed" class="nx-pct">0%</span>
@@ -152,7 +193,7 @@
         <!-- Tableau des scores (Tab maintenu) -->
         <div id="nxBoard" class="nx-board" hidden>
             <table>
-                <thead><tr><th>Joueur</th><th>Héros</th><th>Élim.</th><th>Morts</th><th>Dégâts</th><th>Soins</th><th>Point</th></tr></thead>
+                <thead><tr><th>Joueur</th><th>Héros</th><th>Élim.</th><th>Morts</th><th>Dégâts</th><th>Soins</th><th class="nx-obj-col">Point</th></tr></thead>
                 <tbody id="nxBoardBody"></tbody>
             </table>
         </div>
@@ -164,7 +205,7 @@
                 <p id="nxEndScore" class="nx-end-score"></p>
                 <div id="nxEndStats" class="nx-end-stats"></div>
                 <table class="nx-end-board">
-                    <thead><tr><th>Joueur</th><th>Héros</th><th>Élim.</th><th>Morts</th><th>Dégâts</th><th>Soins</th><th>Point</th></tr></thead>
+                    <thead><tr><th>Joueur</th><th>Héros</th><th>Élim.</th><th>Morts</th><th>Dégâts</th><th>Soins</th><th class="nx-obj-col">Point</th></tr></thead>
                     <tbody id="nxEndBoard"></tbody>
                 </table>
                 <div class="nx-end-actions">
@@ -177,6 +218,6 @@
 
     <!-- Musique de sélection : chargée tôt pour démarrer sans attente -->
     <link rel="preload" href="Apex%20Vanguard.mp3" as="audio">
-    <script type="module" src="js/nexus/main.js?v=8"></script>
+    <script type="module" src="js/nexus/main.js?v=9"></script>
 </body>
 </html>

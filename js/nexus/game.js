@@ -15,6 +15,7 @@ import { HERO_BY_ID } from './heroes.js?v=4';
 import { HERO_RADIUS } from './sprites.js?v=3';
 import { KITS } from './kits.js?v=5';
 import { NexusAudio } from './audio.js?v=2';
+import { Escort } from './escort.js?v=1';
 
 const TAU = Math.PI * 2;
 
@@ -71,7 +72,9 @@ function pushOutRect(x, y, r, o) {
 
 export class Game {
     constructor({ map, allies, enemies, events = {} }) {
-        this.map = map;
+        // Escorte : « point » mobile qui suit le convoi (utilisé par les bots, la caméra, le HUD)
+        this.map = map.mode === 'escort' ? { ...map, point: { x: 0, y: 0, r: 150, name: 'Convoi' } } : map;
+        this.escort = map.mode === 'escort' ? new Escort(this) : null;
         this.events = events;
         this.time = 0;
         this.fighters = [];
@@ -168,13 +171,16 @@ export class Game {
     /* ----- Manches ----- */
 
     startRound() {
-        this.phase = 'setup';
-        this.lockLeft = RULES.pointLock;
-        this.owner = null;
-        this.score = { blue: 0, red: 0 };
-        this.progress = { team: null, value: 0 };
-        this.overtime = false;
-        this.contested = false;
+        if (this.escort) this.escort.startRound(this.round);
+        else {
+            this.phase = 'setup';
+            this.lockLeft = RULES.pointLock;
+            this.owner = null;
+            this.score = { blue: 0, red: 0 };
+            this.progress = { team: null, value: 0 };
+            this.overtime = false;
+            this.contested = false;
+        }
         this.projectiles.length = 0;
         this.objects = this.objects.filter(o => o.keepBetweenRounds);
         for (const f of this.fighters) this.respawn(f, true);
@@ -182,7 +188,7 @@ export class Game {
     }
 
     respawn(f, roundStart = false) {
-        const spots = this.map.spawns[f.team];
+        const spots = this.escort ? this.escort.spotsFor(f.team) : this.map.spawns[f.team];
         const s = spots[f.index % spots.length];
         f.x = s.x; f.y = s.y;
         f.vx = 0; f.vy = 0; f.dash = null;
@@ -192,7 +198,7 @@ export class Game {
         f.nano = 0; f.antiHeal = 0; f.healBoost = 0; f.breatheT = 0; f.sleep = 0;
         f.ultActive = false; f.speedMul = 1; f.anchored = false;
         f.invuln = roundStart ? 0 : 1;
-        f.angle = f.team === 'blue' ? 0 : Math.PI;
+        f.angle = this.escort ? Math.atan2(this.escort.pos.y - f.y, this.escort.pos.x - f.x) : f.team === 'blue' ? 0 : Math.PI;
         f.kit.reset?.(f, this, roundStart);
         f.hp = f.maxHp;
         if (roundStart) { f.cd = {}; f.kit.resetCooldowns?.(f); }
@@ -379,7 +385,7 @@ export class Game {
         target.over = 0;
         target.dash = null;
         target.barrier && (target.barrier.up = false);
-        target.respawnT = RULES.respawn;
+        target.respawnT = this.escort ? this.escort.respawnTime() : RULES.respawn;
         target.stats.deaths++;
         target.ultActive = false;
         target.kit.onDeath?.(target, this);
@@ -389,7 +395,7 @@ export class Game {
         this.feed.length = Math.min(this.feed.length, 6);
         this.addEffect({ type: 'death', x: target.x, y: target.y, color: target.team === 'blue' ? '#38bdf8' : '#f43f5e', heroColor: target.hero.color, life: 0.9 });
         // Souvenir au sol : permet la résurrection (Séraphine)
-        this.objects.push({ kind: 'soul', team: target.team, fighter: target, x: target.x, y: target.y, life: RULES.respawn, alive: true });
+        this.objects.push({ kind: 'soul', team: target.team, fighter: target, x: target.x, y: target.y, life: target.respawnT, alive: true });
         this.emit('onKill', killer, target, how);
     }
 
@@ -648,6 +654,7 @@ export class Game {
             const p = pushOutRect(c.x, c.y, f.r, enemyRoom);
             if (p) c = p;
         }
+        if (this.escort) c = this.escort.constrain(f, c);
         const blocked = Math.hypot(c.x - tx, c.y - ty) > 0.5;
         f.moving = Math.hypot(c.x - f.x, c.y - f.y) > 20 * dt;
         f.x = c.x; f.y = c.y;
@@ -826,7 +833,8 @@ export class Game {
             }
             if (!o.alive) this.objects.splice(i, 1);
         }
-        this.updatePoint(dt);
+        if (this.escort) this.escort.update(dt);
+        else this.updatePoint(dt);
         this.updateEffects(dt);
     }
 

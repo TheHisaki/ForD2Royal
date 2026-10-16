@@ -16,6 +16,7 @@
    ================================== */
 
 import { NavGrid } from './geom.js?v=1';
+import { pathAt } from './docks.js?v=1';
 
 const TAU = Math.PI * 2;
 const THINK = 0.12;
@@ -50,10 +51,7 @@ export class BotBrain {
         const g = game;
         const p = g.map.point;
         // Une grille par équipe : la base adverse est interdite
-        this.nav = {
-            blue: new NavGrid(g.map, [g.spawnRooms.red]),
-            red: new NavGrid(g.map, [g.spawnRooms.blue])
-        };
+        this.buildNav();
         this.coachT = 0;
         this.teams = {};
         for (const team of ['blue', 'red']) {
@@ -75,17 +73,70 @@ export class BotBrain {
             };
         }
         for (const f of g.fighters) if (f.isBot) this.initBrain(f);
+        if (g.escort) this.escortContext(true);
+    }
+
+    buildNav() {
+        const g = this.game;
+        this.navRooms = { blue: g.spawnRooms.blue, red: g.spawnRooms.red };
+        this.nav = {
+            blue: new NavGrid(g.map, [g.spawnRooms.red].filter(Boolean)),
+            red: new NavGrid(g.map, [g.spawnRooms.blue].filter(Boolean))
+        };
+    }
+
+    /* ----- Escorte : repères qui suivent le convoi ----- */
+
+    // Case libre proche d'un point (les repères calculés tombent parfois dans un mur)
+    freeNear(team, x, y) {
+        const nav = this.nav[team];
+        const map = this.game.map;
+        x = Math.max(100, Math.min(map.width - 100, x));
+        y = Math.max(100, Math.min(map.height - 100, y));
+        return nav.center(nav.nearestFree(nav.cellOf(x, y)));
+    }
+
+    escortContext(force = false) {
+        const g = this.game;
+        const e = g.escort;
+        // Les bases ont avancé : nouvelles grilles de navigation
+        if (g.spawnRooms.blue !== this.navRooms.blue || g.spawnRooms.red !== this.navRooms.red) { this.buildNav(); force = true; }
+        const moved = Math.abs(e.s - (this.ctxS ?? -1e9)) > 220;
+        const swapped = this.ctxAttack !== e.attack;
+        if (!force && !moved && !swapped) return;
+        this.ctxS = e.s;
+        this.ctxAttack = e.attack;
+        const at = (k) => pathAt(g.map, e.s + k);
+        for (const team of ['blue', 'red']) {
+            const T = this.teams[team];
+            const attacking = team === e.attack;
+            // La route va d'ouest en est : les attaquants viennent de l'ouest
+            T.side = attacking ? -1 : 1;
+            const c = attacking ? at(-320) : at(520);
+            T.rally = this.freeNear(team, c.x, c.y);
+            // Contournements : de part et d'autre de la route, un peu devant le convoi
+            T.flanks = [-1, 1].map(sgn => {
+                const a = attacking ? at(80) : at(380), b = attacking ? at(380) : at(120);
+                const n = (p, off) => this.freeNear(team, p.x - Math.sin(p.angle) * off * sgn, p.y + Math.cos(p.angle) * off * sgn);
+                return [n(a, 460), n(b, 300)];
+            });
+            const center = attacking ? at(0) : at(260);
+            T.vantage = this.findVantage(team, center);
+            for (const f of g.fighters) if (f.brain && f.team === team) { f.brain.vantage = null; f.brain.flankStep = 0; }
+        }
     }
 
     // Positions de tir : vue sur le point, à distance, de son côté, près d'un abri si possible
-    findVantage(team) {
+    findVantage(team, center = null) {
         const g = this.game;
-        const p = g.map.point;
+        const p = center || g.map.point;
         const nav = this.nav[team];
-        const side = team === 'blue' ? -1 : 1;
+        const side = g.escort ? this.teams[team]?.side ?? -1 : team === 'blue' ? -1 : 1;
         const spots = [];
-        for (let y = 300; y <= g.map.height - 300; y += 40) {
-            for (let x = 300; x <= g.map.width - 300; x += 40) {
+        const x0 = Math.max(300, p.x - 720), x1 = Math.min(g.map.width - 300, p.x + 720);
+        const y0 = Math.max(300, p.y - 720), y1 = Math.min(g.map.height - 300, p.y + 720);
+        for (let y = y0; y <= y1; y += 40) {
+            for (let x = x0; x <= x1; x += 40) {
                 if ((x - p.x) * side < 120) continue; // de notre côté du point
                 const d = Math.hypot(x - p.x, y - p.y);
                 if (d < 300 || d > 700) continue;
@@ -173,6 +224,7 @@ export class BotBrain {
 
     coach() {
         const g = this.game;
+        if (g.escort) { this.escortContext(); this.coachEscort(); return; }
         for (const team of ['blue', 'red']) {
             const T = this.teams[team];
             const enemy = team === 'blue' ? 'red' : 'blue';
@@ -189,6 +241,39 @@ export class BotBrain {
             else plan = 'group';
             // Après un ultime allié décisif (Fracas, Pneu…), on suit l'engagement
             if (g.time < T.followUntil && plan !== 'retreat') plan = g.owner === team ? 'hold' : 'push';
+            if (plan !== T.plan) { T.plan = plan; T.planT = 0; }
+            T.planT += COACH;
+            T.ours = ours; T.theirs = theirs;
+        }
+    }
+
+    // Escorte : les attaquants poussent le convoi, les défenseurs se placent devant et le bloquent
+    coachEscort() {
+        const g = this.game;
+        const e = g.escort;
+        for (const team of ['blue', 'red']) {
+            const T = this.teams[team];
+            const enemy = team === 'blue' ? 'red' : 'blue';
+            const ours = g.fighters.filter(f => f.team === team && f.alive).length;
+            const theirs = g.fighters.filter(f => f.team === enemy && f.alive).length;
+            const attacking = team === e.attack;
+            let plan;
+            if (attacking) {
+                const late = g.phase === 'live' && (e.timeLeft < 25 || e.overtime);
+                if (g.phase === 'setup') plan = 'group';
+                else if (late) plan = 'contest';                        // tout le monde sur le convoi
+                else if (ours <= theirs - 2) plan = 'retreat';
+                else if (ours >= 4 || ours >= theirs) plan = 'push';
+                else plan = 'group';
+            } else {
+                // Convoi proche du point de passage ou prolongation : on se jette dessus
+                const close = g.phase === 'live' && (e.next - e.s < 380 || e.overtime || (e.target && !e.target.complete && e.target.s - e.s < 300));
+                if (g.phase === 'setup') plan = 'hold';
+                else if (close && ours >= theirs - 1) plan = 'contest';
+                else if (ours <= theirs - 2) plan = 'retreat';
+                else plan = ours >= theirs ? 'hold' : 'defend';
+            }
+            if (g.time < T.followUntil && plan !== 'retreat') plan = attacking ? 'push' : 'hold';
             if (plan !== T.plan) { T.plan = plan; T.planT = 0; }
             T.planT += COACH;
             T.ours = ours; T.theirs = theirs;

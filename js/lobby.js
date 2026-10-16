@@ -722,7 +722,7 @@ class LobbyManager {
         }
         if (this._pendingMode === 'nexus') {
             nameEl.textContent = 'NEXUS';
-            detailEl.textContent = 'Héros 5v5 · 1 tank, 2 dégâts, 2 soutiens · Contrôle de zone · avec bots (multijoueur bientôt)';
+            detailEl.textContent = 'Héros 5v5 · 1 tank, 2 dégâts, 2 soutiens · Contrôle ou Escorte (vote de la carte) · avec bots (multijoueur bientôt)';
             return;
         }
 

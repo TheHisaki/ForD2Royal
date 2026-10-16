@@ -112,7 +112,9 @@ const BORDERS = [
 export const KAIRO = {
     id: 'kairo',
     name: 'Sanctuaire de Kaïro',
-    mode: 'Contrôle',
+    mode: 'control',
+    modeName: 'Contrôle',
+    color: '#ff4fd8',
     width: MAP_W,
     height: MAP_H,
     point: { x: MID, y: MAP_H / 2, r: 200, name: 'Point de contrôle' },
@@ -179,7 +181,7 @@ export function placeAt(map, x, y) {
     for (let i = map.zones.length - 1; i >= 0; i--) {
         const z = map.zones[i];
         if (x >= z.x && x <= z.x + z.w && y >= z.y && y <= z.y + z.h) {
-            if (z.kind === 'spawn') return z.team === 'blue' ? 'Base bleue' : 'Base rouge';
+            if (z.kind === 'spawn') return z.team ? (z.team === 'blue' ? 'Base bleue' : 'Base rouge') : z.name;
             return z.name;
         }
     }

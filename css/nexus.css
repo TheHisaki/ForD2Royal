@@ -668,6 +668,136 @@ button { font-family: inherit; }
 }
 
 /* ----- Animations ----- */
+/* ===================== VOTE DE LA CARTE ===================== */
+
+.nx-vote {
+    position: fixed; inset: 0; z-index: 22;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 16px;
+    padding: max(14px, env(safe-area-inset-top, 0px)) 18px max(14px, env(safe-area-inset-bottom, 0px));
+    background:
+        repeating-linear-gradient(115deg, rgba(255, 154, 31, 0.05) 0 2px, transparent 2px 46px),
+        radial-gradient(ellipse at 50% 30%, #23306f 0%, #121a44 55%, #0a1030 100%);
+    overflow: auto;
+}
+.nx-vote[hidden] { display: none; }
+.nx-vote-maps {
+    display: flex; justify-content: center; align-items: center; gap: clamp(16px, 3vw, 40px);
+    flex-wrap: wrap;
+}
+.nx-vote-card {
+    position: relative;
+    width: min(460px, 90vw);
+    display: flex; flex-direction: column; align-items: flex-start; gap: 6px;
+    padding: 0 0 16px;
+    border: 3px solid var(--nx-ink);
+    border-radius: 16px;
+    background: var(--nx-panel);
+    color: #fff;
+    text-align: left;
+    cursor: pointer;
+    overflow: hidden;
+    box-shadow: 0 0 0 2px var(--nx-line), 0 18px 36px rgba(0, 0, 0, 0.45);
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.3s ease, filter 0.3s ease;
+}
+.nx-vote-card:hover:not(:disabled) { transform: translateY(-5px); box-shadow: 0 0 0 2px #fff, 0 22px 40px rgba(0, 0, 0, 0.5); }
+.nx-vote-card.is-voted { box-shadow: 0 0 0 4px var(--nx-yellow), 0 22px 40px rgba(0, 0, 0, 0.5); }
+.nx-vote-card.is-winner { box-shadow: 0 0 0 5px var(--nx-orange), 0 0 46px rgba(255, 154, 31, 0.6); transform: scale(1.04); }
+.nx-vote-card.is-loser { opacity: 0.45; filter: grayscale(0.7); }
+.nx-vote-card:disabled { cursor: default; }
+.nx-vote-art { display: block; width: 100%; aspect-ratio: 56 / 30; border-bottom: 3px solid var(--nx-ink); }
+.nx-vote-art canvas { display: block; width: 100%; height: 100%; }
+.nx-vote-mode {
+    margin: -22px 0 0 16px;
+    padding: 4px 12px;
+    border-radius: 999px;
+    border: 3px solid var(--nx-ink);
+    font-weight: 800; font-size: 12px; letter-spacing: 2px; text-transform: uppercase;
+    color: var(--nx-ink);
+    background: #ff4fd8;
+    position: relative;
+    z-index: 1;
+}
+.nx-vote-card.mode-escort .nx-vote-mode { background: var(--nx-orange); }
+.nx-vote-name { margin: 0 16px; font-family: var(--nx-display); font-size: 34px; font-weight: 400; letter-spacing: 1.5px; line-height: 1; }
+.nx-vote-desc { margin: 0 16px; font-size: 13px; line-height: 1.4; color: rgba(255, 255, 255, 0.78); min-height: 2.8em; }
+.nx-vote-tally { position: absolute; top: 12px; right: 12px; display: flex; align-items: baseline; gap: 4px; padding: 4px 12px; border-radius: 10px; background: rgba(11, 20, 48, 0.85); }
+.nx-vote-tally b { font-family: var(--nx-display); font-size: 30px; font-weight: 400; line-height: 1; }
+.nx-vote-tally em { font-style: normal; font-size: 12px; color: rgba(255, 255, 255, 0.7); }
+.nx-vote-dots { display: flex; flex-wrap: wrap; gap: 5px; margin: 2px 16px 0; min-height: 14px; }
+.nx-vote-dots i { width: 14px; height: 14px; border-radius: 50%; background: rgba(255, 255, 255, 0.7); border: 2px solid var(--nx-ink); animation: nx-dot 0.25s ease; }
+.nx-vote-dots i.is-me { background: var(--nx-yellow); }
+.nx-vote-badge {
+    position: absolute; top: 12px; left: 12px;
+    padding: 3px 10px; border-radius: 8px;
+    background: var(--nx-yellow); color: var(--nx-ink);
+    font-weight: 800; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+    opacity: 0; transform: translateY(-4px); transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.nx-vote-card.is-voted .nx-vote-badge { opacity: 1; transform: none; }
+.nx-vote-foot { display: flex; justify-content: center; align-items: center; gap: 18px; flex-wrap: wrap; min-height: 60px; }
+.nx-vote-foot p { margin: 0; font-size: 14px; color: rgba(255, 255, 255, 0.85); text-align: center; }
+.nx-vote-admin {
+    display: inline-flex; align-items: center; gap: 8px;
+    padding: 12px 22px;
+    border: 3px solid var(--nx-ink);
+    border-radius: 12px;
+    background: linear-gradient(180deg, #ff7a8f, var(--nx-red));
+    color: #fff;
+    font-family: var(--nx-display); font-size: 24px; letter-spacing: 2px;
+    cursor: pointer;
+    transform: skewX(-8deg);
+    box-shadow: 0 5px 0 #8f1830, 0 10px 20px rgba(0, 0, 0, 0.4);
+}
+.nx-vote-admin svg { width: 22px; height: 22px; fill: var(--nx-yellow); stroke: var(--nx-ink); stroke-width: 1.5; }
+.nx-vote-admin:hover:not(:disabled) { filter: brightness(1.1); }
+.nx-vote-admin:disabled { background: #5d6b8f; box-shadow: 0 5px 0 #2c3555; cursor: default; opacity: 0.8; }
+.nx-vote-admin[hidden] { display: none; }
+@keyframes nx-dot { from { transform: scale(0); } to { transform: scale(1); } }
+
+/* ===================== OBJECTIF (ESCORTE) ===================== */
+
+.nx-objective [hidden] { display: none !important; }
+.nx-objective.is-escort ~ .nx-location { top: 140px; }
+.nx-escort {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    width: min(420px, 60vw);
+    padding: 6px 14px 7px;
+    border-radius: 12px;
+    background: var(--nx-panel);
+    border: 1px solid var(--nx-line);
+}
+.nx-esc-top { width: 100%; display: flex; justify-content: space-between; align-items: center; }
+.nx-esc-role { padding: 1px 10px; border-radius: 6px; background: var(--nx-red); color: var(--nx-ink); font-weight: 800; font-size: 12px; letter-spacing: 2px; }
+.nx-esc-role.is-attack { background: var(--nx-blue); }
+.nx-esc-time { font-family: var(--nx-display); font-size: 26px; letter-spacing: 1.5px; line-height: 1; }
+.nx-esc-track {
+    position: relative; width: 100%; height: 12px; margin: 8px 0 6px;
+    border-radius: 6px; background: rgba(255, 255, 255, 0.12); border: 2px solid var(--nx-ink);
+}
+.nx-esc-fill { position: absolute; left: 0; top: 0; bottom: 0; width: 0; border-radius: 4px; background: var(--nx-blue); transition: width 0.2s linear; }
+.nx-esc-track.is-theirs .nx-esc-fill { background: var(--nx-red); }
+.nx-esc-cp {
+    position: absolute; top: 50%; transform: translate(-50%, -50%);
+    width: 22px; height: 22px; display: grid; place-items: center;
+    border-radius: 50%; border: 2px solid var(--nx-ink); background: #d7deea; color: var(--nx-ink);
+    font-family: var(--nx-display); font-size: 15px; line-height: 1;
+}
+.nx-esc-cp.is-reached { background: var(--nx-yellow); }
+.nx-esc-cp.is-end { width: 26px; height: 26px; }
+.nx-esc-cart {
+    position: absolute; top: 50%; left: 0; transform: translate(-50%, -50%);
+    width: 18px; height: 18px; border-radius: 5px; background: #fff; border: 3px solid var(--nx-ink);
+    box-shadow: 0 0 0 2px var(--nx-blue); transition: left 0.2s linear; z-index: 1;
+}
+.nx-esc-track.is-theirs .nx-esc-cart { box-shadow: 0 0 0 2px var(--nx-red); }
+.nx-esc-target { position: absolute; top: -6px; bottom: -6px; width: 4px; margin-left: -2px; border-radius: 2px; background: var(--nx-yellow); }
+.nx-escort.is-contested { border-color: var(--nx-yellow); box-shadow: 0 0 0 2px var(--nx-yellow); }
+.nx-escort.is-back .nx-point-state { color: #ffb3c0; }
+.nx-objective.is-overtime .nx-escort { border-color: var(--nx-orange); box-shadow: 0 0 0 2px var(--nx-orange), 0 0 24px rgba(255, 154, 31, 0.6); }
+.nx-objective.is-overtime .nx-esc-time { color: var(--nx-orange); font-size: 20px; animation: nx-blink 0.6s ease infinite; }
+
 @keyframes nx-pulse { 50% { transform: scale(1.08); } }
 @keyframes nx-blink { 50% { opacity: 0.4; } }
 @keyframes nx-shake { 25% { transform: translateX(-4px); } 75% { transform: translateX(4px); } }
@@ -699,5 +829,6 @@ button { font-family: inherit; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-    .nx-sel-timer.is-urgent, .nx-slot.is-waiting .nx-slot-text strong, .nx-location.is-pop, .nx-toast.is-pop { animation: none; }
+    .nx-sel-timer.is-urgent, .nx-slot.is-waiting .nx-slot-text strong, .nx-location.is-pop, .nx-toast.is-pop, .nx-vote-dots i { animation: none; }
+    .nx-vote-card, .nx-esc-fill, .nx-esc-cart { transition: none; }
 }
