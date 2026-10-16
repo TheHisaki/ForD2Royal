@@ -27,6 +27,12 @@ function rnd(seed) {
     return x - Math.floor(x);
 }
 
+// Point du sprite (x vers l'avant, y vers la droite) en coordonnées du monde
+function local(f, fx, fy) {
+    const c = Math.cos(f.angle), s = Math.sin(f.angle);
+    return { x: f.x + c * fx - s * fy, y: f.y + s * fx + c * fy };
+}
+
 // Halo lumineux radial
 function glow(ctx, x, y, r, color, a = 1) {
     const g = ctx.createRadialGradient(x, y, 0, x, y, r);
@@ -181,7 +187,7 @@ function drawMatrix(ctx, f, t) {
 function drawBeam(ctx, f, t) {
     if (!f.beam) return;
     const col = f.beam.mode === 'heal' ? '#ffe27a' : '#7fc8ff';
-    const s = { x: f.x + Math.cos(f.angle) * 38, y: f.y + Math.sin(f.angle) * 38 };
+    const s = local(f, 38, 12);
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     ctx.lineCap = 'round';
@@ -526,7 +532,7 @@ function drawHeroBeams(ctx, f, t) {
     ctx.lineJoin = 'round';
     // Canon Tesla (Kodo)
     if (f.teslaFiring) {
-        const sx = f.x + Math.cos(f.angle) * 46, sy = f.y + Math.sin(f.angle) * 46;
+        const { x: sx, y: sy } = local(f, 46, 0);
         glow(ctx, sx, sy, 26, '#5ff3ff', 0.8);
         const targets = f.tesla?.length ? f.tesla : [{ x: f.x + Math.cos(f.angle) * 200, y: f.y + Math.sin(f.angle) * 200 }];
         targets.forEach((tg, i) => {
@@ -538,11 +544,13 @@ function drawHeroBeams(ctx, f, t) {
     }
     // Étreinte : soin en cône (Vespera)
     if (f.spray) {
+        const h = local(f, 20, -12);
+        glow(ctx, h.x, h.y, 22, '#ffd84a', 0.9);
         ctx.beginPath();
-        ctx.moveTo(f.x, f.y);
+        ctx.moveTo(h.x, h.y);
         ctx.arc(f.x, f.y, 230, f.angle - 0.5, f.angle + 0.5);
         ctx.closePath();
-        const g = ctx.createRadialGradient(f.x, f.y, 20, f.x, f.y, 230);
+        const g = ctx.createRadialGradient(h.x, h.y, 10, f.x, f.y, 230);
         g.addColorStop(0, 'rgba(255, 216, 74, 0.45)');
         g.addColorStop(1, 'rgba(255, 216, 74, 0)');
         ctx.fillStyle = g;
@@ -555,7 +563,7 @@ function drawHeroBeams(ctx, f, t) {
     }
     // Étreinte : drain (Vespera)
     if (f.drain) {
-        const sx = f.x + Math.cos(f.angle + 0.5) * 22, sy = f.y + Math.sin(f.angle + 0.5) * 22;
+        const { x: sx, y: sy } = local(f, 20, 12);
         const d = f.drain;
         ctx.beginPath();
         ctx.moveTo(sx, sy);
@@ -570,13 +578,14 @@ function drawHeroBeams(ctx, f, t) {
     }
     // Coalescence (Vespera)
     if (f.coal) {
+        const h = local(f, 22, 0);
         const ex = f.x + Math.cos(f.angle) * f.coal.len, ey = f.y + Math.sin(f.angle) * f.coal.len;
         const w = 40 + Math.sin(t * 14) * 6;
         const grad = ctx.createLinearGradient(f.x, f.y, ex, ey);
         grad.addColorStop(0, 'rgba(255, 216, 74, 0.8)');
         grad.addColorStop(0.5, 'rgba(255, 160, 220, 0.7)');
         grad.addColorStop(1, 'rgba(179, 92, 255, 0.8)');
-        ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(ex, ey);
+        ctx.beginPath(); ctx.moveTo(h.x, h.y); ctx.lineTo(ex, ey);
         ctx.lineWidth = w * 2; ctx.strokeStyle = 'rgba(200, 130, 255, 0.15)'; ctx.stroke();
         ctx.lineWidth = w; ctx.strokeStyle = grad; ctx.stroke();
         ctx.lineWidth = 6; ctx.strokeStyle = '#ffffff'; ctx.stroke();
@@ -1229,7 +1238,10 @@ export function renderGame(ctx, g, layers, cam, viewer, me, dpr, shake = { x: 0,
         if (f.fade > 0) ctx.globalAlpha = 0.12;     // Évanescence
         // Volta éjectée : la pilote est dessinée en petit (son méca a explosé)
         if (f.heroId === 'volta' && !f.mech) drawPilot(ctx, f, team);
-        else drawHero(ctx, f.heroId, { x: f.x, y: f.y, angle: f.angle, team, t: f.t, moving: f.moving || Boolean(f.dash) });
+        else {
+            const kick = (f.recoil || 0) * (f.role === 'tank' ? 3 : 4.5);
+            drawHero(ctx, f.heroId, { x: f.x - Math.cos(f.angle) * kick, y: f.y - Math.sin(f.angle) * kick, angle: f.angle, team, t: f.t, moving: f.moving || Boolean(f.dash) });
+        }
         ctx.restore();
         // Coup de marteau : arc lumineux
         if (f.swing) {

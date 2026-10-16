@@ -25,6 +25,32 @@ function angleDiff(a, b) {
     return d;
 }
 
+/**
+ * Point de sortie d'une arme, en coordonnées du sprite (x vers l'avant, y vers la droite).
+ * Si un mur se trouve entre le héros et le canon, le tir part juste devant le mur
+ * (on ne tire jamais à travers un mur quand on est collé contre).
+ */
+function muzzle(g, f, fx, fy = 0) {
+    const c = Math.cos(f.angle), s = Math.sin(f.angle);
+    const x = f.x + c * fx - s * fy, y = f.y + s * fx + c * fy;
+    const dx = x - f.x, dy = y - f.y;
+    const len = Math.hypot(dx, dy) || 1;
+    const hit = castWall(g.map, f.x, f.y, dx / len, dy / len, len);
+    if (hit.t < len) {
+        const k = Math.max(0, hit.t - 4);
+        return { x: f.x + (dx / len) * k, y: f.y + (dy / len) * k, blocked: true };
+    }
+    return { x, y };
+}
+
+// Direction du tir depuis le canon vers le point visé : les tirs convergent sur le réticule
+function aimFrom(f, m) {
+    const lock = f.lockOn?.alive ? f.lockOn : null;
+    const ax = lock ? lock.x : f.input.ax, ay = lock ? lock.y : f.input.ay;
+    if (!Number.isFinite(ax) || Math.hypot(ax - f.x, ay - f.y) < 90) return f.angle;
+    return Math.atan2(ay - m.y, ax - m.x);
+}
+
 function ready(f, key) { return !(f.cd[key] > 0); }
 
 // Arme à chargeur : renvoie vrai si on peut tirer maintenant
@@ -146,7 +172,7 @@ const gorvald = {
         // Frappe de feu (E) : traverse les ennemis et les boucliers
         if (inp.e && ready(f, 'e') && !b.up) {
             f.cd.e = 6;
-            const p = front(f, f.r + 10);
+            const p = muzzle(g, f, 40, 0);
             g.spawnProjectile({
                 kind: 'firestrike', owner: f, x: p.x, y: p.y, angle: f.angle, speed: 950, r: 28, life: 1.2,
                 pierce: true, ignoreBarrier: true, eatable: false, color: '#ff7a1f',
@@ -275,8 +301,8 @@ const volta = {
             // Pilote : pistolet léger, Q pour rappeler le méca
             if (inp.fire && f.fireT <= 0) {
                 f.fireT = 0.14;
-                const m = front(f, 14);
-                g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * 0.05, 700, (d) => (d < 300 ? 18 : 12), { color: '#ff9bd0', width: 2, how: 'Pistolet' });
+                const m = muzzle(g, f, 24, 7);
+                g.hitscan(f, m.x, m.y, aimFrom(f, m) + (Math.random() - 0.5) * 0.05, 700, (d) => (d < 300 ? 18 : 12), { color: '#ff9bd0', width: 2, how: 'Pistolet' });
                 g.sound('pilotShot', { x: f.x, y: f.y });
             }
             if (inp.q && useUlt(f, g)) {
@@ -313,9 +339,9 @@ const volta = {
         if (inp.fire && !mx.on && f.fireT <= 0) {
             f.fireT = 0.15;
             for (const side of [-1, 1]) {
-                const m = front(f, 44, side * 30);
+                const m = muzzle(g, f, 46, side * 30);
                 for (let i = 0; i < 2; i++) {
-                    g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * 0.3, 420,
+                    g.hitscan(f, m.x, m.y, aimFrom(f, m) + (Math.random() - 0.5) * 0.3, 420,
                         (d) => 5.5 * Math.max(0.3, 1 - Math.max(0, d - 150) / 360),
                         { color: '#7ff6ff', width: 2.5, spark: i === 0, muzzle: i === 0, muzzleSize: 1.6, how: 'Canons à fusion' });
                 }
@@ -363,7 +389,7 @@ const volta = {
                 f.missiles.t += 1 / 18;
                 f.missiles.n--;
                 const side = f.missiles.n % 2 ? 1 : -1;
-                const m = front(f, 10, side * 24);
+                const m = muzzle(g, f, 4, side * 26);
                 g.sound('missile', { x: f.x, y: f.y, src: f.id });
                 g.spawnProjectile({
                     kind: 'missile', owner: f, x: m.x, y: m.y, angle: f.angle + (Math.random() - 0.5) * 0.22, speed: 820, r: 5, life: 0.9,
@@ -479,8 +505,8 @@ const zephyr = {
             f.fireT = 0.05;
             f.ammo--;
             const side = f.ammo % 2 ? 9 : -9;
-            const m = front(f, 26, side);
-            g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * 0.09, 520,
+            const m = muzzle(g, f, 29, side);
+            g.hitscan(f, m.x, m.y, aimFrom(f, m) + (Math.random() - 0.5) * 0.09, 520,
                 (d) => 6 * Math.max(0.3, 1 - Math.max(0, d - 220) / 300),
                 { color: '#5ff3ff', width: 2, spark: f.ammo % 3 === 0, how: 'Pistolets à impulsion' });
             g.sound('pulse', { x: f.x, y: f.y, src: f.id });
@@ -508,7 +534,7 @@ const zephyr = {
 
         // Bombe à impulsion (Q) : se colle à la première cible ou au mur
         if (inp.q && useUlt(f, g)) {
-            const m = front(f, 20);
+            const m = muzzle(g, f, 16, 0);
             g.sound('whoosh', { x: f.x, y: f.y });
             const fuse = (p) => {
                 p.fuse = 1;
@@ -589,9 +615,10 @@ const kraz = {
         if (gunReady(f, dt, inp, g) && inp.fire) {
             f.fireT = 0.667;
             f.ammo--;
-            const m = front(f, 30, 6);
-            this.grenade(f, g, m.x, m.y, f.angle);
-            g.addEffect({ type: 'muzzle', x: m.x, y: m.y, angle: f.angle, color: '#ffb03a', size: 1.8, smoke: true, life: 0.3 });
+            const m = muzzle(g, f, 45, 5.5);
+            const ga = aimFrom(f, m);
+            this.grenade(f, g, m.x, m.y, ga);
+            g.addEffect({ type: 'muzzle', x: m.x, y: m.y, angle: ga, color: '#ffb03a', size: 1.8, smoke: true, life: 0.3 });
             g.sound('grenadeLaunch', { x: f.x, y: f.y });
         }
 
@@ -602,7 +629,7 @@ const kraz = {
                 for (const mine of mines) this.detonateMine(mine, g);
             } else if (f.mineCharges > 0) {
                 f.mineCharges--;
-                const m = front(f, 24);
+                const m = muzzle(g, f, 16, -8);
                 g.sound('mineThrow', { x: f.x, y: f.y });
                 g.objects.push({
                     kind: 'mine', team: f.team, owner: f, x: m.x, y: m.y, r: 10, alive: true, flight: 0.45,
@@ -651,7 +678,7 @@ const kraz = {
         // Pneu infernal (Q)
         if (inp.q && useUlt(f, g)) {
             f.anchored = true;
-            const m = front(f, f.r + 20);
+            const m = muzzle(g, f, f.r + 20, 0);
             const tire = {
                 kind: 'tire', team: f.team, owner: f, x: m.x, y: m.y, r: 18, alive: true, isTarget: true,
                 hp: 100, maxHp: 100, t: 10, angle: f.angle, role: 'object',
@@ -881,9 +908,9 @@ const tempo = {
             if (f.burst.t <= 0 && f.burst.n > 0) {
                 f.burst.n--;
                 f.burst.t = 0.06;
-                const m = front(f, 32, -8);
+                const m = muzzle(g, f, 35, -10);
                 g.spawnProjectile({
-                    kind: 'sonic', owner: f, x: m.x, y: m.y, angle: f.angle + (Math.random() - 0.5) * 0.04, speed: 1150, r: 7, life: 0.65,
+                    kind: 'sonic', owner: f, x: m.x, y: m.y, angle: aimFrom(f, m) + (Math.random() - 0.5) * 0.04, speed: 1150, r: 7, life: 0.65,
                     color: '#7ee34f',
                     onHit: (p, t) => g.damage(t, 20, f, { how: 'Ampli sonique' })
                 });
@@ -950,9 +977,10 @@ const tempo = {
    =================================================================== */
 
 function pellets(g, f, n, spread, range, dmg, opts = {}) {
-    const m = front(f, f.r + 14, opts.side || 0);
+    const m = muzzle(g, f, opts.fx ?? f.r + 14, opts.side || 0);
+    const base = aimFrom(f, m);
     for (let i = 0; i < n; i++) {
-        g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * spread, range * (0.85 + Math.random() * 0.15),
+        g.hitscan(f, m.x, m.y, base + (Math.random() - 0.5) * spread, range * (0.85 + Math.random() * 0.15),
             (d) => dmg * Math.max(0.3, 1 - Math.max(0, d - range * 0.35) / range),
             { color: opts.color || '#ffd38a', width: 2, spark: i % 3 === 0, muzzle: i === 0, muzzleSize: opts.muzzle || 2, tracerLife: 0.07, how: opts.how });
     }
@@ -972,7 +1000,7 @@ const ragnok = {
             f.fireT = Math.max(0, (f.fireT || 0) - dt);
             if (f.fireT <= 0) {
                 f.fireT = 0.07;
-                const m = front(f, f.r + 14);
+                const m = muzzle(g, f, 48, 26);
                 for (let i = 0; i < 3; i++) {
                     const a = f.angle + (Math.random() - 0.5) * 0.9;
                     const res = g.hitscan(f, m.x, m.y, a, 520, () => 6, { color: '#ffd38a', width: 2.5, spark: i === 0, muzzle: i === 0, muzzleSize: 2.2, tracerLife: 0.06, how: 'Porc entier' });
@@ -987,15 +1015,15 @@ const ragnok = {
         if (gunReady(f, dt, inp, g) && inp.fire && !(f.breatheT > 0)) {
             f.fireT = 0.8;
             f.ammo--;
-            pellets(g, f, 12, 0.3, 380, 13.3, { how: 'Fusil à ferraille' });
+            pellets(g, f, 12, 0.3, 380, 13.3, { how: 'Fusil à ferraille', fx: 48, side: 26 });
             g.sound('scrapgun', { x: f.x, y: f.y });
         }
         // Crochet (Maj)
         if (inp.shift && ready(f, 'shift')) {
             f.cd.shift = 6;
-            const m = front(f, f.r + 8);
+            const m = muzzle(g, f, 34, -24);
             g.spawnProjectile({
-                kind: 'hook', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 1300, r: 12, life: 0.5, eatable: false, color: '#c3ccd8',
+                kind: 'hook', owner: f, x: m.x, y: m.y, angle: aimFrom(f, m), speed: 1300, r: 12, life: 0.5, eatable: false, color: '#c3ccd8',
                 onHit: (p, t) => {
                     if (t.isTarget) return;
                     // Tiré jusqu'à Ragnok (s'arrête aux murs)
@@ -1192,9 +1220,9 @@ const kade = {
         if (gunReady(f, dt, inp, g) && inp.fire) {
             f.fireT = 0.11;
             f.ammo--;
-            const m = front(f, 44, 4);
+            const m = muzzle(g, f, 43, 4);
             const spread = f.ultActive ? 0 : 0.035;
-            g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * spread, 950, (d) => 18 * Math.max(0.5, 1 - Math.max(0, d - 600) / 700),
+            g.hitscan(f, m.x, m.y, aimFrom(f, m) + (Math.random() - 0.5) * spread, 950, (d) => 18 * Math.max(0.5, 1 - Math.max(0, d - 600) / 700),
                 { color: f.ultActive ? '#ff5a5a' : '#7fd8ff', width: 2.5, spark: f.ammo % 2 === 0, how: f.ultActive ? 'Visière tactique' : 'Fusil à impulsion' });
             g.sound('rifle', { x: f.x, y: f.y, src: f.id });
         }
@@ -1202,9 +1230,9 @@ const kade = {
         if (inp.fire2Pressed && ready(f, 'rmb')) {
             f.cd.rmb = 6;
             for (let i = 0; i < 3; i++) {
-                const m = front(f, 30, (i - 1) * 8);
+                const m = muzzle(g, f, 40, 4 + (i - 1) * 6);
                 g.spawnProjectile({
-                    kind: 'helix', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 1100, r: 8, life: 0.9, color: '#7fd8ff', phase: i * 2.1,
+                    kind: 'helix', owner: f, x: m.x, y: m.y, angle: aimFrom(f, m), speed: 1100, r: 8, life: 0.9, color: '#7fd8ff', phase: i * 2.1,
                     onHit: (p, t) => { g.damage(t, 13.3, f, { how: 'Roquettes hélices' }); g.explode(p.x, p.y, 70, 26.7, f, { how: 'Roquettes hélices', color: '#7fd8ff' }); },
                     onWall: (p) => g.explode(p.x, p.y, 70, 26.7, f, { how: 'Roquettes hélices', color: '#7fd8ff' })
                 });
@@ -1309,7 +1337,7 @@ const nox = {
             f.fireT = 0.5;
             f.ammo--;
             const side = f.ammo % 2 ? 12 : -12;
-            pellets(g, f, 14, 0.34, 300, 7.7, { how: 'Fusils infernaux', color: '#ff7b6b', side, muzzle: 1.8 });
+            pellets(g, f, 14, 0.34, 300, 7.7, { how: 'Fusils infernaux', color: '#ff7b6b', side, fx: 36, muzzle: 1.8 });
             g.sound('shotgunR', { x: f.x, y: f.y });
         }
         // Forme spectrale (Maj)
@@ -1364,8 +1392,9 @@ const shirin = {
     reset(f) { f.ammo = f.maxAmmo; f.reloadT = 0; },
     // Tir qui touche alliés (soin) et ennemis (dégâts)
     shoot(f, g) {
-        const m = front(f, 52, 3);
-        const dx = Math.cos(f.angle), dy = Math.sin(f.angle);
+        const m = muzzle(g, f, 50, 3.5);
+        const sa = aimFrom(f, m);
+        const dx = Math.cos(sa), dy = Math.sin(sa);
         const wall = castWall(g.map, m.x, m.y, dx, dy, 1800);
         let end = wall.t;
         const bar = g.barrierHit(f.team, m.x, m.y, m.x + dx * end, m.y + dy * end);
@@ -1384,7 +1413,7 @@ const shirin = {
             g.damageBarrier(bar, 70);
         }
         g.addEffect({ type: 'tracer', x: m.x, y: m.y, x2: m.x + dx * end, y2: m.y + dy * end, color: '#c98bff', width: 3.5, life: 0.18 });
-        g.addEffect({ type: 'muzzle', x: m.x, y: m.y, angle: f.angle, color: '#c98bff', size: 1.4, life: 0.1 });
+        g.addEffect({ type: 'muzzle', x: m.x, y: m.y, angle: sa, color: '#c98bff', size: 1.4, life: 0.1 });
         g.sound('anaRifle', { x: f.x, y: f.y });
     },
     update(f, g, dt, inp) {
@@ -1396,9 +1425,9 @@ const shirin = {
         // Fléchette soporifique (Maj)
         if (inp.shift && ready(f, 'shift')) {
             f.cd.shift = 14;
-            const m = front(f, 40);
+            const m = muzzle(g, f, 50, 3.5);
             g.spawnProjectile({
-                kind: 'dart', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 1800, r: 6, life: 0.8, eatable: true, color: '#b6ff8a',
+                kind: 'dart', owner: f, x: m.x, y: m.y, angle: aimFrom(f, m), speed: 1800, r: 6, life: 0.8, eatable: true, color: '#b6ff8a',
                 onHit: (p, t) => {
                     if (t.isTarget) return;
                     g.damage(t, 5, f, { how: 'Fléchette soporifique' });
@@ -1422,7 +1451,7 @@ const shirin = {
                     else { g.damage(t, 60, f, { how: 'Grenade biotique' }); t.antiHeal = 3; }
                 }
             };
-            const m = front(f, 30);
+            const m = muzzle(g, f, 14, -12);
             g.spawnProjectile({
                 kind: 'bionade', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 900, r: 9, life: Math.max(0.12, d / 900), eatable: true, color: '#c98bff',
                 onHit: burst, onWall: burst, onExpire: burst, onBarrier: burst
@@ -1532,7 +1561,7 @@ const vespera = {
         // Orbe biotique (E) : rebondit et soigne les alliés croisés
         if (inp.e && ready(f, 'e')) {
             f.cd.e = 10;
-            const m = front(f, 26);
+            const m = muzzle(g, f, 22, -12);
             let pool = 300;
             g.spawnProjectile({
                 kind: 'orb', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 360, r: 14, life: 7, bounces: 4, eatable: false,

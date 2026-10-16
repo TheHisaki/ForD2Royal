@@ -9,9 +9,9 @@ import { HERO_BY_ID, ROLES } from './heroes.js?v=4';
 import { drawPortrait } from './sprites.js?v=3';
 import { KAIRO, buildMapLayers, placeAt } from './map.js?v=2';
 import { HeroSelect } from './select.js?v=5';
-import { Game, RULES } from './game.js?v=4';
-import { BotBrain } from './bots.js?v=3';
-import { renderGame } from './render.js?v=3';
+import { Game, RULES } from './game.js?v=5';
+import { BotBrain } from './bots.js?v=4';
+import { renderGame } from './render.js?v=4';
 import { NexusAudio } from './audio.js?v=2';
 
 // Sons d'interface (non spatialisés)
@@ -728,6 +728,11 @@ async function boot() {
 
         const skip = Number(qp.get('skip')) || 0; // simuler N secondes (tests)
         for (let i = 0; i < skip * 60 && match.running; i++) { match.bots.update(STEP); match.game.update(STEP); }
+        // Test : ?front place le joueur près du point (pour voir un combat)
+        if (qp.has('front') && match.running && match.me.alive) {
+            match.me.x = KAIRO.point.x - 330; match.me.y = KAIRO.point.y + 40;
+            match.cam.x = match.me.x; match.cam.y = match.me.y;
+        }
         // Test : ?swap ouvre le choix de héros (le joueur est considéré mort)
         if (qp.has('swap') && match.running) {
             if (match.me.alive) match.game.kill(match.me, null);

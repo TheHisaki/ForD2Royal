@@ -481,7 +481,7 @@ button { font-family: inherit; }
 /* Changement de héros */
 .nx-death-hint { margin-top: 6px; font-size: 13px; font-weight: 700; color: rgba(255, 255, 255, 0.85); }
 .nx-spawn-hint {
-    position: absolute; bottom: 132px; left: 50%; transform: translateX(-50%);
+    position: absolute; bottom: 188px; left: 50%; transform: translateX(-50%);
     padding: 6px 14px; border-radius: 999px;
     background: var(--nx-panel); border: 1px solid var(--nx-line);
     font-size: 13px; font-weight: 700;

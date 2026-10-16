@@ -13,7 +13,7 @@ import { collide } from './map.js?v=2';
 import { castWall, lineOfSight, rayCircle } from './geom.js?v=1';
 import { HERO_BY_ID } from './heroes.js?v=4';
 import { HERO_RADIUS } from './sprites.js?v=3';
-import { KITS } from './kits.js?v=4';
+import { KITS } from './kits.js?v=5';
 import { NexusAudio } from './audio.js?v=2';
 
 const TAU = Math.PI * 2;
@@ -426,6 +426,7 @@ export class Game {
      * Tir instantané. Renvoie le point d'arrivée. `dmgAt(dist)` donne les dégâts selon la distance.
      */
     hitscan(src, ox, oy, angle, range, dmgAt, opts = {}) {
+        if (src && !src.isTarget) src.recoil = 1;
         const dx = Math.cos(angle), dy = Math.sin(angle);
         const wall = castWall(this.map, ox, oy, dx, dy, range);
         let end = wall.t;
@@ -462,6 +463,7 @@ export class Game {
      * pierce, bounces, friction, eatable, onHit(target), onWall(hit), onExpire().
      */
     spawnProjectile(p) {
+        if (p.owner && !p.stuck && p.speed > 0) p.owner.recoil = Math.max(p.owner.recoil || 0, 0.7);
         const proj = {
             vx: Math.cos(p.angle) * p.speed, vy: Math.sin(p.angle) * p.speed,
             r: 6, life: 2, pierce: false, bounces: 0, eatable: true, hitSet: null, age: 0,
@@ -759,6 +761,7 @@ export class Game {
             }
             for (const k in f.cd) if (f.cd[k] > 0) f.cd[k] = Math.max(0, f.cd[k] - dt);
             if (f.hurtT > 0) f.hurtT = Math.max(0, f.hurtT - dt);
+            if (f.recoil > 0) f.recoil = Math.max(0, f.recoil - dt * 9);
             if (f.barrier?.flash > 0) f.barrier.flash = Math.max(0, f.barrier.flash - dt * 5);
             // Ultime prête : signal
             if (f.ult >= 100 && !f.ultReadyFlag) { f.ultReadyFlag = true; this.emit('onUltReady', f); }
