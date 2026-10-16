@@ -9,8 +9,8 @@
    les autres complètent la composition après le choix du joueur.
    ================================== */
 
-import { HEROES, HERO_BY_ID, ROLES, ROLE_ORDER, TEAM_COMPOSITION, heroesOfRole, isValidTeam } from './heroes.js?v=1';
-import { drawPortrait } from './sprites.js?v=1';
+import { HEROES, HERO_BY_ID, ROLES, ROLE_ORDER, TEAM_COMPOSITION, heroesOfRole, isValidTeam } from './heroes.js?v=2';
+import { drawPortrait } from './sprites.js?v=2';
 
 const SELECT_TIME = 30;
 const BOT_NAMES = ['Kestrel', 'Nova', 'Bjorn', 'Lynx', 'Orion', 'Mako', 'Sable', 'Rook', 'Vex', 'Iris', 'Tako', 'Juno'];
@@ -32,8 +32,9 @@ function statBar(label, value) {
 }
 
 export class HeroSelect {
-    constructor({ playerName = 'Toi', onDone }) {
+    constructor({ playerName = 'Toi', onDone, keyLabel = (k) => k }) {
         this.onDone = onDone;
+        this.keyLabel = keyLabel;
         this.root = $('nxSelect');
         this.timerEl = $('nxTimer');
         this.hintEl = $('nxSelHint');
@@ -341,7 +342,7 @@ export class HeroSelect {
         $('nxHeroInspired').textContent = `Inspiré de ${h.inspiredBy} (Overwatch) · ${h.health} PV`;
         $('nxHeroStats').innerHTML = statBar('Résistance', h.stats.health) + statBar('Mobilité', h.stats.mobility) + statBar('Difficulté', h.stats.difficulty);
         $('nxHeroAbilities').innerHTML = h.abilities.map(a => `<li class="${a.ult ? 'is-ult' : ''}">
-            <kbd>${a.key}</kbd><div><strong>${a.name}</strong><span>${a.text}</span></div>
+            <kbd>${this.keyLabel(a.key)}</kbd><div><strong>${a.name}</strong><span>${a.text}</span></div>
         </li>`).join('');
         $('nxRolePassive').innerHTML = `<strong>Passif de rôle · ${role.name}</strong> ${role.passive}`;
         const why = this.phase === 'pick' ? this.unavailable(heroId) : null;

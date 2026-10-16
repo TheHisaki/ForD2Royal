@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/nexus.css?v=1">
+    <link rel="stylesheet" href="css/nexus.css?v=2">
 </head>
 <body>
     <!-- Chargement -->
@@ -72,7 +72,7 @@
         </footer>
     </div>
 
-    <!-- ===== Aperçu de la carte ===== -->
+    <!-- ===== Partie ===== -->
     <div id="nxGame" class="nx-game" hidden>
         <canvas id="nxCanvas" aria-label="Carte du Sanctuaire de Kaïro"></canvas>
 
@@ -85,44 +85,84 @@
                 <button id="nxChangeHero" class="nx-back" type="button">Changer de héros</button>
             </div>
 
-            <!-- Objectif : style du HUD de Contrôle (pourcentages, manches, état du point) -->
-            <div class="nx-objective">
+            <!-- Objectif (Contrôle) : % de chaque équipe, manches, état du point -->
+            <div id="nxObjective" class="nx-objective">
                 <ul id="nxHudBlue" class="nx-hud-team is-blue" aria-label="Ton équipe"></ul>
-                <div class="nx-score is-blue">
-                    <span class="nx-pct">0%</span>
-                    <span class="nx-rounds" aria-label="Manches gagnées"><i></i><i></i></span>
+                <div id="nxScoreBlue" class="nx-score is-blue">
+                    <span id="nxPctBlue" class="nx-pct">0%</span>
+                    <span id="nxRoundsBlue" class="nx-rounds" aria-label="Manches gagnées"><i></i><i></i></span>
                 </div>
                 <div class="nx-point">
-                    <span id="nxPointIcon" class="nx-point-icon is-locked">A</span>
-                    <span id="nxPointState" class="nx-point-state">POINT VERROUILLÉ</span>
-                    <span class="nx-point-sub">Manche 1 · au meilleur des 3</span>
+                    <span id="nxPointIcon" class="nx-point-icon is-locked"><b>A</b></span>
+                    <span id="nxPointState" class="nx-point-state">DÉVERROUILLAGE</span>
+                    <span id="nxPointSub" class="nx-point-sub">Manche 1 · au meilleur des 3</span>
                 </div>
-                <div class="nx-score is-red">
-                    <span class="nx-pct">0%</span>
-                    <span class="nx-rounds" aria-label="Manches gagnées"><i></i><i></i></span>
+                <div id="nxScoreRed" class="nx-score is-red">
+                    <span id="nxPctRed" class="nx-pct">0%</span>
+                    <span id="nxRoundsRed" class="nx-rounds" aria-label="Manches gagnées"><i></i><i></i></span>
                 </div>
                 <ul id="nxHudRed" class="nx-hud-team is-red" aria-label="Équipe adverse"></ul>
             </div>
 
             <div id="nxLocation" class="nx-location" aria-live="polite"></div>
-            <div class="nx-preview-tag">APERÇU · Carte et héros — la capture du point et les pouvoirs arrivent à la prochaine étape</div>
+            <div id="nxBanner" class="nx-banner" role="status" aria-live="assertive" hidden></div>
+            <ul id="nxFeed" class="nx-feed" aria-label="Fil des éliminations"></ul>
             <div id="nxToast" class="nx-toast" role="status" aria-live="polite" hidden></div>
 
-            <div class="nx-hud-hero">
+            <div id="nxDeath" class="nx-death" hidden>
+                <strong>ÉLIMINÉ</strong>
+                <span id="nxDeathBy"></span>
+                <span id="nxDeathT" class="nx-death-t"></span>
+            </div>
+
+            <div id="nxHudHero" class="nx-hud-hero">
                 <canvas id="nxHudPortrait" width="96" height="96" aria-hidden="true"></canvas>
                 <div>
                     <span id="nxHudRole" class="nx-hud-role"></span>
                     <strong id="nxHudName"></strong>
-                    <div class="nx-hp"><i></i><span id="nxHudHpText"></span></div>
+                    <div class="nx-hp"><i id="nxHpFill"></i><b id="nxHpOver"></b><span id="nxHudHpText"></span></div>
                 </div>
             </div>
 
-            <div id="nxHudAbilities" class="nx-hud-abilities" aria-label="Capacités (bientôt)"></div>
+            <div class="nx-hud-br">
+                <div id="nxHudAbilities" class="nx-hud-abilities" aria-label="Capacités"></div>
+                <div id="nxUlt" class="nx-ult" aria-label="Capacité ultime">
+                    <span id="nxUltPct" class="nx-ult-pct">0%</span>
+                    <span id="nxUltName" class="nx-ult-name"></span>
+                    <kbd id="nxUltKey">Q</kbd>
+                </div>
+                <div class="nx-ammo"><span>Munitions</span><strong id="nxAmmo">∞</strong></div>
+            </div>
 
-            <div class="nx-keys"><kbd>ZQSD</kbd> Se déplacer · <kbd>Souris</kbd> Viser · <kbd>Molette</kbd> Zoom · <kbd>TAB</kbd> / <kbd>M</kbd> Vue d'ensemble</div>
+            <div id="nxKeys" class="nx-keys"></div>
+        </div>
+
+        <!-- Tableau des scores (Tab maintenu) -->
+        <div id="nxBoard" class="nx-board" hidden>
+            <table>
+                <thead><tr><th>Joueur</th><th>Héros</th><th>Élim.</th><th>Morts</th><th>Dégâts</th><th>Soins</th><th>Point</th></tr></thead>
+                <tbody id="nxBoardBody"></tbody>
+            </table>
+        </div>
+
+        <!-- Fin de partie -->
+        <div id="nxEnd" class="nx-end" hidden role="dialog" aria-labelledby="nxEndTitle">
+            <div class="nx-end-card">
+                <h2 id="nxEndTitle">VICTOIRE</h2>
+                <p id="nxEndScore" class="nx-end-score"></p>
+                <div id="nxEndStats" class="nx-end-stats"></div>
+                <table class="nx-end-board">
+                    <thead><tr><th>Joueur</th><th>Héros</th><th>Élim.</th><th>Morts</th><th>Dégâts</th><th>Soins</th><th>Point</th></tr></thead>
+                    <tbody id="nxEndBoard"></tbody>
+                </table>
+                <div class="nx-end-actions">
+                    <a class="nx-back" href="index.html">Retour au lobby</a>
+                    <button id="nxReplay" class="nx-lock" type="button">REJOUER</button>
+                </div>
+            </div>
         </div>
     </div>
 
-    <script type="module" src="js/nexus/main.js?v=1"></script>
+    <script type="module" src="js/nexus/main.js?v=2"></script>
 </body>
 </html>
