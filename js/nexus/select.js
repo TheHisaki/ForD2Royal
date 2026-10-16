@@ -11,6 +11,7 @@
 
 import { HEROES, HERO_BY_ID, ROLES, ROLE_ORDER, TEAM_COMPOSITION, heroesOfRole, isValidTeam } from './heroes.js?v=4';
 import { drawPortrait } from './sprites.js?v=3';
+import { SelectMusic } from './music.js?v=1';
 
 const SELECT_TIME = 30;
 const BOT_NAMES = ['Kestrel', 'Nova', 'Bjorn', 'Lynx', 'Orion', 'Mako', 'Sable', 'Rook', 'Vex', 'Iris', 'Tako', 'Juno'];
@@ -109,6 +110,8 @@ export class HeroSelect {
         this.root.hidden = false;
         this.root.classList.add('is-open');
         this.running = true;
+        // Musique « Apex Vanguard » pendant le choix des héros
+        SelectMusic.start();
         this.render();
         this.hover(this.hovered);
         let last = performance.now();
@@ -124,6 +127,7 @@ export class HeroSelect {
 
     stop() {
         this.running = false;
+        SelectMusic.fadeOut(3); // sans effet si le fondu est déjà lancé
         cancelAnimationFrame(this.raf);
         this.root.classList.remove('is-open');
         this.root.hidden = true;
@@ -131,6 +135,7 @@ export class HeroSelect {
 
     tick(dt, time) {
         this.elapsed += dt;
+        if (this.phase === 'pick') SelectMusic.syncMute();
         for (const ev of this.events) {
             if (!ev.done && this.elapsed >= ev.at) { ev.done = true; ev.run(); }
         }
@@ -247,6 +252,8 @@ export class HeroSelect {
             at: this.elapsed + 0.8 + waiting.length * 0.6,
             run: () => {
                 this.phase = 'done';
+                // Tous les choix sont faits : la musique s'éteint en fondu
+                SelectMusic.fadeOut(3);
                 this.render();
                 this.events.push({ at: this.elapsed + 1.6, run: () => this.finish() });
             }

@@ -8,7 +8,7 @@
 import { HERO_BY_ID, ROLES } from './heroes.js?v=4';
 import { drawPortrait } from './sprites.js?v=3';
 import { KAIRO, buildMapLayers, placeAt } from './map.js?v=2';
-import { HeroSelect } from './select.js?v=4';
+import { HeroSelect } from './select.js?v=5';
 import { Game, RULES } from './game.js?v=4';
 import { BotBrain } from './bots.js?v=3';
 import { renderGame } from './render.js?v=3';
