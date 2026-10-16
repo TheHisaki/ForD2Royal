@@ -309,6 +309,8 @@ export class Game {
     damage(target, amount, src, opts = {}) {
         if (!target || !target.alive || amount <= 0) return 0;
         if (target.invuln > 0) return 0;
+        // Escorte : pas de combat pendant la préparation (portes de la base fermées)
+        if (this.truce()) return 0;
         if (src && target.team === src.team && target !== src) return 0;
         let dmg = amount * (src?.amp > 0 ? 1.3 : 1) * (src?.nano > 0 ? 1.5 : 1) * (src?.dmgMul || 1);
         // Réductions de dégâts : Nano-boost, Bouffée d'air
@@ -413,8 +415,11 @@ export class Game {
         this.emit('onRevive', target, src);
     }
 
+    // Escorte : trêve pendant la préparation
+    truce() { return Boolean(this.escort) && this.phase === 'setup'; }
+
     knock(target, vx, vy) {
-        if (!target?.alive || target.isTarget || target.invuln > 0) return;
+        if (!target?.alive || target.isTarget || target.invuln > 0 || this.truce()) return;
         const mul = target.role === 'tank' ? RULES.tankKnockMul : 1;
         target.vx += vx * mul;
         target.vy += vy * mul;
@@ -422,7 +427,7 @@ export class Game {
     }
 
     stunTarget(target, t) {
-        if (!target?.alive || target.isTarget || target.invuln > 0) return;
+        if (!target?.alive || target.isTarget || target.invuln > 0 || this.truce()) return;
         target.stun = Math.max(target.stun, t);
         target.dash = null;
         target.kit.onStunned?.(target, this);
@@ -798,6 +803,8 @@ export class Game {
             if (!f.alive) continue;
             // Visée : vers le point visé, sauf pendant une charge (virage limité géré par le kit)
             if (f.stun <= 0 && !f.dash?.lockAngle) f.angle = Math.atan2(f.input.ay - f.y, f.input.ax - f.x);
+            // Trêve de préparation : pas d'ultime gâchée
+            if (this.truce()) f.input.q = false;
             if (f.stun <= 0) f.kit.update(f, this, dt, f.input);
             else f.kit.stunnedUpdate?.(f, this, dt);
             this.moveFighter(f, dt);

@@ -298,7 +298,7 @@ export class BotBrain {
             if (g.onPoint(t)) s += 120;
             if (t.role === 'support') s += st.arch === 'flank' || st.dive ? 320 : 70;
             if (t.role === 'tank' && st.arch !== 'tank') s -= 90;   // on évite de « tirer dans le tank »
-            if (t === f.brain.target) s += 80;                      // on garde sa cible (pas de zapping)
+            if (t === f.brain?.target) s += 80;                     // on garde sa cible (le joueur n'a pas de « cerveau »)
             if (t.sleep > 0) s -= 400;                              // ne pas réveiller un endormi
             if (s > score) { score = s; best = t; }
         }
@@ -383,7 +383,8 @@ export class BotBrain {
         const enemy = this.pickTarget(f, st.arch === 'ranged' || st.sniper ? 1100 : 900);
         if (enemy !== b.seen) { b.seen = enemy; b.reaction = b.reactTime; }
         b.reaction = Math.max(0, b.reaction - dt);
-        b.target = b.reaction <= 0 ? enemy : null;
+        // Escorte : trêve pendant la préparation, on se place sans tirer
+        b.target = b.reaction <= 0 && !g.truce?.() ? enemy : null;
         b.errT -= dt;
         if (b.errT <= 0) { b.errT = rand(0.3, 0.7); b.err = rand(-1, 1) * st.aimErr * b.accuracy; }
 

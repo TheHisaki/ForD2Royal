@@ -12,8 +12,8 @@ import { DOCKS, buildDocksLayers } from './docks.js?v=1';
 import { ESCORT } from './escort.js?v=1';
 import { HeroSelect } from './select.js?v=5';
 import { MapVote, isAdminPlayer } from './vote.js?v=1';
-import { Game, RULES } from './game.js?v=6';
-import { BotBrain } from './bots.js?v=5';
+import { Game, RULES } from './game.js?v=7';
+import { BotBrain } from './bots.js?v=6';
 import { renderGame } from './render.js?v=5';
 import { NexusAudio } from './audio.js?v=2';
 
@@ -149,8 +149,9 @@ class Match {
             if (!this.running || this.token !== token) return;
             const dt = Math.max(0, Math.min(0.1, (now - last) / 1000));
             last = now;
-            this.frame(dt);
+            // L'image suivante est demandée d'abord : une erreur ne doit jamais figer la partie
             requestAnimationFrame(loop);
+            try { this.frame(dt); } catch (e) { console.error('[NEXUS]', e); }
         };
         requestAnimationFrame(loop);
     }
