@@ -9,8 +9,8 @@
    les autres complètent la composition après le choix du joueur.
    ================================== */
 
-import { HEROES, HERO_BY_ID, ROLES, ROLE_ORDER, TEAM_COMPOSITION, heroesOfRole, isValidTeam } from './heroes.js?v=2';
-import { drawPortrait } from './sprites.js?v=2';
+import { HEROES, HERO_BY_ID, ROLES, ROLE_ORDER, TEAM_COMPOSITION, heroesOfRole, isValidTeam } from './heroes.js?v=3';
+import { drawPortrait } from './sprites.js?v=3';
 
 const SELECT_TIME = 30;
 const BOT_NAMES = ['Kestrel', 'Nova', 'Bjorn', 'Lynx', 'Orion', 'Mako', 'Sable', 'Rook', 'Vex', 'Iris', 'Tako', 'Juno'];
@@ -217,7 +217,7 @@ export class HeroSelect {
         if (!bot || bot.locked || this.phase !== 'pick') return;
         // Le bot ne vole jamais le héros déjà choisi par le joueur
         if (this.allies[0].heroId === heroId) {
-            const alt = heroesOfRole(HERO_BY_ID[heroId].role).find(h => h.id !== heroId && !this.takenBy(h.id));
+            const alt = shuffle(heroesOfRole(HERO_BY_ID[heroId].role)).find(h => h.id !== heroId && !this.takenBy(h.id));
             if (!alt) return;
             heroId = alt.id;
         }
@@ -256,7 +256,7 @@ export class HeroSelect {
     finish() {
         const allies = this.allies.map(a => ({ name: a.name, heroId: a.heroId, isPlayer: Boolean(a.isPlayer) }));
         // Équipe adverse : composition valide tirée au hasard
-        const enemyHeroes = [pick(heroesOfRole('tank')).id, ...heroesOfRole('damage').map(h => h.id), ...heroesOfRole('support').map(h => h.id)];
+        const enemyHeroes = ROLE_ORDER.flatMap(role => shuffle(heroesOfRole(role)).slice(0, TEAM_COMPOSITION[role]).map(h => h.id));
         const enemies = enemyHeroes.map((heroId, i) => ({ name: this.enemyNames[i], heroId, isPlayer: false }));
         if (!isValidTeam(allies.map(a => a.heroId)) || !isValidTeam(enemies.map(e => e.heroId))) {
             console.warn('[NEXUS] Composition invalide', allies, enemies);

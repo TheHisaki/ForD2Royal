@@ -16,6 +16,20 @@ const MAX_VOICES = 64;
 
 let ctx = null, master = null, comp = null, noiseBuf = null;
 let listener = { x: 0, y: 0 };
+// Zone visible à l'écran (demi-largeur / demi-hauteur, unités du monde)
+let view = { hw: 800, hh: 450 };
+const OFFSCREEN = 0.1;      // un son hors de l'écran est presque inaudible
+const EDGE = 120;           // marge : fondu progressif autour du bord de l'écran
+
+// Facteur de volume selon la position par rapport à l'écran (1 = visible)
+function visibility(x, y) {
+    const ox = Math.max(0, Math.abs(x - listener.x) - view.hw);
+    const oy = Math.max(0, Math.abs(y - listener.y) - view.hh);
+    const out = Math.hypot(ox, oy);
+    if (out <= 0) return 1;
+    if (out >= EDGE) return OFFSCREEN;
+    return 1 - (1 - OFFSCREEN) * (out / EDGE);
+}
 let voices = 0;
 const lastPlay = new Map();
 const loops = new Map();
@@ -405,13 +419,133 @@ const LIB = {
     }
 };
 
+Object.assign(LIB, {
+    /* --- Ragnok --- */
+    scrapgun(c) {
+        noise(c, { type: 'lowpass', f0: 2600, f1: 250, dur: 0.3, vol: 0.6 });
+        tone(c, { type: 'sine', f0: 150, f1: 45, dur: 0.22, vol: 0.5 });
+        if (!c.lite) for (let i = 0; i < 4; i++) noise(c, { type: 'bandpass', f0: 2000 + Math.random() * 3000, q: 4, dur: 0.03, vol: 0.06, delay: 0.05 + i * 0.03 });
+    },
+    hookThrow(c) {
+        for (let i = 0; i < 7; i++) noise(c, { type: 'bandpass', f0: 3000 + i * 200, q: 6, dur: 0.025, vol: 0.12, delay: i * 0.035 });
+        noise(c, { type: 'bandpass', f0: 600, f1: 2000, q: 1, dur: 0.25, vol: 0.15 });
+    },
+    hookHit(c) {
+        tone(c, { type: 'square', f0: 500, f1: 150, dur: 0.12, vol: 0.18 });
+        noise(c, { type: 'lowpass', f0: 1500, dur: 0.15, vol: 0.4 });
+        for (let i = 0; i < 5; i++) noise(c, { type: 'bandpass', f0: 3500, q: 6, dur: 0.02, vol: 0.1, delay: 0.08 + i * 0.03 });
+    },
+    breathe(c) {
+        noise(c, { type: 'bandpass', f0: 500, f1: 1400, q: 0.8, dur: 1.6, vol: 0.25, attack: 0.3 });
+        tone(c, { type: 'sine', f0: 90, dur: 1.4, vol: 0.06, attack: 0.3 });
+    },
+    primal(c) {
+        // Rugissement : grave modulé + souffle
+        tone(c, { type: 'sawtooth', f0: 110, f1: 70, dur: 0.9, vol: 0.25, attack: 0.05 });
+        tone(c, { type: 'square', f0: 165, f1: 90, dur: 0.8, vol: 0.08, attack: 0.05 });
+        noise(c, { type: 'bandpass', f0: 500, f1: 250, q: 0.8, dur: 0.9, vol: 0.4, attack: 0.05 });
+    },
+    /* --- Kodo --- */
+    leap(c) {
+        noise(c, { type: 'bandpass', f0: 300, f1: 1800, q: 0.7, dur: 0.4, vol: 0.4 });
+        tone(c, { type: 'sawtooth', f0: 80, f1: 220, dur: 0.35, vol: 0.12 });
+    },
+    leapLand(c) {
+        tone(c, { type: 'sine', f0: 110, f1: 35, dur: 0.45, vol: 0.85 });
+        noise(c, { type: 'lowpass', f0: 1600, f1: 200, dur: 0.35, vol: 0.55 });
+        tone(c, { type: 'square', f0: 1400, f1: 400, dur: 0.12, vol: 0.06 });
+    },
+    dome(c) {
+        tone(c, { type: 'sine', f0: 220, f1: 660, dur: 0.5, vol: 0.18, attack: 0.05 });
+        tone(c, { type: 'triangle', f0: 440, f1: 1320, dur: 0.5, vol: 0.08, attack: 0.05 });
+        noise(c, { type: 'highpass', f0: 4000, dur: 0.4, vol: 0.06, attack: 0.1 });
+    },
+    /* --- Kade --- */
+    rifle(c) {
+        noise(c, { type: 'bandpass', f0: 2400, f1: 900, q: 0.9, dur: 0.06, vol: 0.28 });
+        tone(c, { type: 'square', f0: 600, f1: 180, dur: 0.05, vol: 0.06 });
+        if (!c.lite) tone(c, { type: 'sine', f0: 120, f1: 60, dur: 0.05, vol: 0.18 });
+    },
+    helix(c) {
+        for (let i = 0; i < 3; i++) {
+            noise(c, { type: 'bandpass', f0: 900, f1: 3500, q: 1, dur: 0.18, vol: 0.25, delay: i * 0.03 });
+            tone(c, { type: 'sawtooth', f0: 300, f1: 900, dur: 0.15, vol: 0.05, delay: i * 0.03 });
+        }
+    },
+    field(c) {
+        tone(c, { type: 'sine', f0: 300, f1: 600, dur: 0.3, vol: 0.12 });
+        [784, 987.77, 1174.66].forEach((f, i) => bell(c, f, 0.2 + i * 0.06, 0.4, 0.06));
+    },
+    visor(c) {
+        for (let i = 0; i < 5; i++) tone(c, { type: 'square', f0: 1200 + i * 200, dur: 0.05, vol: 0.06, delay: i * 0.05 });
+        tone(c, { type: 'sawtooth', f0: 220, f1: 880, dur: 0.5, vol: 0.08 });
+    },
+    /* --- Nox --- */
+    shotgunR(c) {
+        noise(c, { type: 'lowpass', f0: 3000, f1: 300, dur: 0.28, vol: 0.55 });
+        tone(c, { type: 'sine', f0: 170, f1: 50, dur: 0.18, vol: 0.45 });
+        noise(c, { type: 'highpass', f0: 4500, dur: 0.04, vol: 0.2 });
+    },
+    wraith(c) {
+        noise(c, { type: 'bandpass', f0: 2500, f1: 300, q: 1.5, dur: 0.6, vol: 0.3, attack: 0.05 });
+        tone(c, { type: 'sine', f0: 400, f1: 120, dur: 0.6, vol: 0.12 });
+        tone(c, { type: 'sine', f0: 410, f1: 125, dur: 0.6, vol: 0.12 });
+    },
+    shadowStep(c) {
+        noise(c, { type: 'lowpass', f0: 800, f1: 3000, dur: 0.3, vol: 0.35 });
+        tone(c, { type: 'sine', f0: 120, f1: 400, dur: 0.25, vol: 0.2 });
+    },
+    blossom(c) {
+        tone(c, { type: 'sawtooth', f0: 150, f1: 75, dur: 0.6, vol: 0.18 });
+        noise(c, { type: 'bandpass', f0: 600, f1: 2000, q: 1, dur: 0.5, vol: 0.3 });
+    },
+    /* --- Shirin --- */
+    anaRifle(c) {
+        noise(c, { type: 'highpass', f0: 3000, dur: 0.05, vol: 0.32 });
+        tone(c, { type: 'sine', f0: 900, f1: 300, dur: 0.15, vol: 0.12 });
+        noise(c, { type: 'bandpass', f0: 1200, q: 2, dur: 0.25, vol: 0.08, delay: 0.05 });
+    },
+    dart(c) {
+        noise(c, { type: 'highpass', f0: 5000, dur: 0.08, vol: 0.2 });
+        tone(c, { type: 'sine', f0: 2200, f1: 1200, dur: 0.1, vol: 0.06 });
+    },
+    sleep(c) {
+        [880, 660, 440].forEach((f, i) => tone(c, { type: 'sine', f0: f, dur: 0.3, vol: 0.09, delay: i * 0.15 }));
+    },
+    bionade(c) {
+        noise(c, { type: 'bandpass', f0: 1500, f1: 400, q: 1, dur: 0.35, vol: 0.35 });
+        tone(c, { type: 'sine', f0: 300, f1: 900, dur: 0.3, vol: 0.12 });
+        noise(c, { type: 'highpass', f0: 5000, dur: 0.5, vol: 0.05, delay: 0.05 });
+    },
+    nano(c) {
+        tone(c, { type: 'sawtooth', f0: 220, f1: 880, dur: 0.6, vol: 0.12 });
+        [523.25, 659.25, 784, 1046.5].forEach((f, i) => tone(c, { type: 'square', f0: f, dur: 0.15, vol: 0.05, delay: 0.3 + i * 0.06 }));
+    },
+    /* --- Vespera --- */
+    fade(c) {
+        noise(c, { type: 'bandpass', f0: 3500, f1: 600, q: 1.2, dur: 0.45, vol: 0.28 });
+        tone(c, { type: 'sine', f0: 1200, f1: 300, dur: 0.4, vol: 0.08 });
+    },
+    orb(c) {
+        tone(c, { type: 'sine', f0: 330, f1: 660, dur: 0.3, vol: 0.14 });
+        bell(c, 1318.5, 0.1, 0.4, 0.06);
+    },
+    coalescence(c) {
+        noise(c, { type: 'bandpass', f0: 400, f1: 3000, q: 0.7, dur: 0.8, vol: 0.3, attack: 0.1 });
+        [261.6, 392, 523.25].forEach((f) => tone(c, { type: 'sawtooth', f0: f, dur: 1, vol: 0.05, attack: 0.1 }));
+    }
+});
+
 // Délai minimal entre deux sons identiques venant d'une même source (évite les mitraillages)
-const MIN_GAP = { pulse: 0.045, fusion: 0.07, healTick: 0.25, bounce: 0.05, impactWall: 0.05, hitmarker: 0.05, smallBoom: 0.04, shieldHit: 0.06, missile: 0.05, sonic: 0.03 };
+const MIN_GAP = { pulse: 0.045, fusion: 0.07, healTick: 0.25, bounce: 0.05, impactWall: 0.05, hitmarker: 0.05, smallBoom: 0.04, shieldHit: 0.06, missile: 0.05, sonic: 0.03, rifle: 0.08, scrapgun: 0.08 };
 
 /* ----- API ----- */
 
 export const NexusAudio = {
-    setListener(x, y) { listener.x = x; listener.y = y; },
+    setListener(x, y, hw, hh) {
+        listener.x = x; listener.y = y;
+        if (hw > 0 && hh > 0) view = { hw, hh };
+    },
 
     /** Joue un son. opts : { x, y } (position monde), vol (multiplicateur), ui (pas de spatialisation), src (source pour le délai mini) */
     play(name, opts = {}) {
@@ -424,9 +558,9 @@ export const NexusAudio = {
             const dx = opts.x - listener.x, dy = opts.y - listener.y;
             const d = Math.hypot(dx, dy);
             if (d > HEAR) return;
-            vol *= Math.pow(1 - d / HEAR, 1.6);
+            vol *= Math.pow(1 - d / HEAR, 1.6) * visibility(opts.x, opts.y);
             pan = Math.max(-1, Math.min(1, dx / PAN_W)) * 0.8;
-            if (vol < 0.02) return;
+            if (vol < 0.015) return;
         }
         const gap = MIN_GAP[name];
         if (gap) {
@@ -470,7 +604,7 @@ export const NexusAudio = {
             }
             const dx = l.x - listener.x, dy = l.y - listener.y;
             const d = Math.hypot(dx, dy);
-            const v = silent ? 0 : (l.vol ?? 1) * Math.max(0, Math.pow(1 - Math.min(1, d / HEAR), 1.6));
+            const v = silent ? 0 : (l.vol ?? 1) * Math.max(0, Math.pow(1 - Math.min(1, d / HEAR), 1.6)) * visibility(l.x, l.y);
             const now = ctx.currentTime;
             lp.gain.gain.setTargetAtTime(v * lp.base, now, 0.06);
             lp.pan?.pan.setTargetAtTime(Math.max(-1, Math.min(1, dx / PAN_W)) * 0.8, now, 0.06);
@@ -565,6 +699,34 @@ function makeLoop(kind) {
             o.connect(am); o2.connect(am); am.connect(gain);
             base = 0.05;
             update = (l, now) => { o.frequency.setTargetAtTime(l.speed ? 131 : 98, now, 0.1); o2.frequency.setTargetAtTime(l.speed ? 196 : 147, now, 0.1); lfo.frequency.setTargetAtTime(l.boost ? 6 : 2, now, 0.1); };
+            break;
+        }
+        case 'tesla': {
+            // Crépitement électrique
+            const n = noiseSrc(), f = filt('bandpass', 3500, 2);
+            const o = osc('sawtooth', 60);
+            const am = ctx.createGain(); am.gain.value = 0.5; nodes.push(am);
+            const lfo = osc('square', 33), lg = ctx.createGain(); lg.gain.value = 0.5; nodes.push(lg);
+            lfo.connect(lg).connect(am.gain);
+            n.connect(f).connect(am); o.connect(am); am.connect(gain);
+            base = 0.16;
+            break;
+        }
+        case 'spray': case 'drain': case 'coal': {
+            const n = noiseSrc(), f = filt('bandpass', kind === 'drain' ? 700 : 1600, 1.2);
+            const o = osc('sine', kind === 'drain' ? 180 : kind === 'coal' ? 330 : 520);
+            const og = ctx.createGain(); og.gain.value = 0.35; nodes.push(og);
+            n.connect(f).connect(gain); o.connect(og).connect(gain);
+            base = kind === 'coal' ? 0.16 : 0.08;
+            break;
+        }
+        case 'blossom': {
+            const n = noiseSrc(), f = filt('lowpass', 1400, 1);
+            const lfo = osc('square', 14), lg = ctx.createGain(); lg.gain.value = 0.5; nodes.push(lg);
+            const am = ctx.createGain(); am.gain.value = 0.5; nodes.push(am);
+            lfo.connect(lg).connect(am.gain);
+            n.connect(f).connect(am).connect(gain);
+            base = 0.3;
             break;
         }
         case 'mechBomb': {

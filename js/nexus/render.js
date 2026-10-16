@@ -5,7 +5,7 @@
    additif (« lighter ») pour un rendu lumineux, façon jeu d'action.
    ================================== */
 
-import { drawHero, TEAM_COLORS } from './sprites.js?v=2';
+import { drawHero, TEAM_COLORS } from './sprites.js?v=3';
 import { drawAnimatedDecor } from './map.js?v=2';
 
 const TAU = Math.PI * 2;
@@ -281,7 +281,39 @@ function drawStatus(ctx, f, t) {
         glow(ctx, f.x, f.y, f.r + 40, '#ffe27a', 0.35 + 0.15 * Math.sin(t * 6));
     }
     if (f.hurtT > 0) glow(ctx, f.x, f.y, f.r + 12, '#ff3b4f', f.hurtT * 4);
+    if (f.nano > 0) {
+        glow(ctx, f.x, f.y, f.r + 34, '#5ff3ff', 0.4 + 0.15 * Math.sin(t * 8));
+        ctx.beginPath(); ctx.arc(f.x, f.y, f.r + 20, t * 3, t * 3 + 4.2);
+        ctx.lineWidth = 4; ctx.strokeStyle = 'rgba(160, 250, 255, 0.9)'; ctx.stroke();
+    }
+    if (f.healBoost > 0) glow(ctx, f.x, f.y, f.r + 20, '#c98bff', 0.3);
+    if (f.breatheT > 0) glow(ctx, f.x, f.y, f.r + 24, '#ffb03a', 0.35);
     ctx.restore();
+    // Endormi : « Zzz » qui montent
+    if (f.sleep > 0) {
+        ctx.font = '800 18px Rubik, sans-serif';
+        ctx.textAlign = 'center';
+        for (let i = 0; i < 3; i++) {
+            const k = (t * 0.7 + i / 3) % 1;
+            ctx.globalAlpha = 1 - k;
+            ctx.lineWidth = 3; ctx.strokeStyle = INK;
+            ctx.strokeText('z', f.x + 10 + k * 16, f.y - f.r - 14 - k * 30);
+            ctx.fillStyle = '#b6ff8a';
+            ctx.fillText('z', f.x + 10 + k * 16, f.y - f.r - 14 - k * 30);
+        }
+        ctx.globalAlpha = 1;
+    }
+    // Soins bloqués (grenade biotique) : croix barrée violette
+    if (f.antiHeal > 0) {
+        ctx.save();
+        ctx.translate(f.x - f.r - 12, f.y - f.r - 8);
+        ctx.fillStyle = '#c98bff';
+        ctx.fillRect(-2, -7, 4, 14);
+        ctx.fillRect(-7, -2, 14, 4);
+        ctx.strokeStyle = '#ff3b4f'; ctx.lineWidth = 3;
+        ctx.beginPath(); ctx.moveTo(-8, -8); ctx.lineTo(8, 8); ctx.stroke();
+        ctx.restore();
+    }
     if (f.casting) {
         ctx.beginPath(); ctx.arc(f.x, f.y, f.r + 16, -Math.PI / 2, -Math.PI / 2 + (1 - f.casting.t) * TAU);
         ctx.lineWidth = 5; ctx.strokeStyle = '#ffe27a'; ctx.stroke();
@@ -402,10 +434,178 @@ function drawProjectile(ctx, p, t) {
             ctx.strokeStyle = `rgba(216, 255, 154, ${0.9 - i * 0.35})`;
             ctx.stroke();
         }
+    } else if (p.kind === 'hook') {
+        // Chaîne tendue depuis Ragnok
+        const o = p.owner;
+        if (o?.alive) {
+            const n = Math.max(2, Math.floor(Math.hypot(p.x - o.x, p.y - o.y) / 12));
+            for (let i = 0; i <= n; i++) {
+                const k = i / n;
+                ctx.beginPath(); ctx.arc(o.x + (p.x - o.x) * k, o.y + (p.y - o.y) * k, 3.5, 0, TAU);
+                ctx.fillStyle = i % 2 ? '#9aa3b2' : '#c3ccd8'; ctx.fill();
+                ctx.lineWidth = 1.5; ctx.strokeStyle = INK; ctx.stroke();
+            }
+        }
+        const a = Math.atan2(p.vy, p.vx);
+        ctx.translate(p.x, p.y); ctx.rotate(a);
+        ctx.beginPath(); ctx.arc(0, 0, 11, -2.3, 2.3);
+        ctx.lineWidth = 8; ctx.strokeStyle = INK; ctx.stroke();
+        ctx.lineWidth = 5; ctx.strokeStyle = '#d7dde8'; ctx.stroke();
+    } else if (p.kind === 'helix') {
+        // Roquettes qui tournent en hélice
+        const a = Math.atan2(p.vy, p.vx);
+        const off = Math.sin(p.age * 40 + p.phase) * 7;
+        const x = p.x - Math.sin(a) * off, y = p.y + Math.cos(a) * off;
+        ctx.globalCompositeOperation = 'lighter';
+        drawTrail(ctx, p, '#7fd8ff', 7, 0.5);
+        glow(ctx, x, y, 16, '#bfeaff', 0.9);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.beginPath(); ctx.arc(x, y, 5, 0, TAU);
+        ctx.fillStyle = '#ffffff'; ctx.fill();
+    } else if (p.kind === 'dart') {
+        const a = Math.atan2(p.vy, p.vx);
+        ctx.globalCompositeOperation = 'lighter';
+        drawTrail(ctx, p, '#b6ff8a', 4, 0.6);
+        ctx.translate(p.x, p.y); ctx.rotate(a);
+        ctx.fillStyle = '#e8ffd8';
+        ctx.fillRect(-10, -1.5, 16, 3);
+        ctx.fillStyle = '#7ee34f';
+        ctx.fillRect(-12, -3, 4, 6);
+    } else if (p.kind === 'orb') {
+        // Orbe biotique : sphère dorée et halo de soin
+        ctx.globalCompositeOperation = 'lighter';
+        drawTrail(ctx, p, '#ffd84a', 14, 0.3);
+        glow(ctx, p.x, p.y, 150, '#ffd84a', 0.12);
+        glow(ctx, p.x, p.y, 34, '#ffe98a', 0.8);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 11, 0, TAU);
+        ctx.fillStyle = '#fff6c8'; ctx.fill();
+        for (let i = 0; i < 3; i++) {
+            const a = t * 4 + (i / 3) * TAU;
+            ctx.beginPath(); ctx.arc(p.x + Math.cos(a) * 18, p.y + Math.sin(a) * 18, 3, 0, TAU);
+            ctx.fillStyle = '#ffd84a'; ctx.fill();
+        }
+    } else if (p.kind === 'bionade') {
+        ctx.globalCompositeOperation = 'lighter';
+        drawTrail(ctx, p, '#c98bff', 8, 0.5);
+        glow(ctx, p.x, p.y, 18, '#c98bff', 0.9);
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.beginPath(); ctx.arc(p.x, p.y, 7, 0, TAU);
+        ctx.fillStyle = '#efe0ff'; ctx.fill();
+        ctx.lineWidth = 2; ctx.strokeStyle = INK; ctx.stroke();
     } else {
         ctx.globalCompositeOperation = 'lighter';
         drawTrail(ctx, p, col, 6, 0.5);
         glow(ctx, p.x, p.y, 14, col, 0.8);
+    }
+    ctx.restore();
+}
+
+/* ----- Rayons et cônes des nouveaux héros ----- */
+
+// Arc électrique en zigzag entre deux points
+function lightning(ctx, ax, ay, bx, by, t, seed) {
+    const n = 7;
+    const dx = bx - ax, dy = by - ay;
+    const len = Math.hypot(dx, dy) || 1;
+    const nx = -dy / len, ny = dx / len;
+    ctx.beginPath();
+    ctx.moveTo(ax, ay);
+    for (let i = 1; i < n; i++) {
+        const k = i / n;
+        const off = (rnd(Math.floor(t * 30) + seed * 7 + i) - 0.5) * 34;
+        ctx.lineTo(ax + dx * k + nx * off, ay + dy * k + ny * off);
+    }
+    ctx.lineTo(bx, by);
+}
+
+function drawHeroBeams(ctx, f, t) {
+    ctx.save();
+    ctx.globalCompositeOperation = 'lighter';
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    // Canon Tesla (Kodo)
+    if (f.teslaFiring) {
+        const sx = f.x + Math.cos(f.angle) * 46, sy = f.y + Math.sin(f.angle) * 46;
+        glow(ctx, sx, sy, 26, '#5ff3ff', 0.8);
+        const targets = f.tesla?.length ? f.tesla : [{ x: f.x + Math.cos(f.angle) * 200, y: f.y + Math.sin(f.angle) * 200 }];
+        targets.forEach((tg, i) => {
+            lightning(ctx, sx, sy, tg.x, tg.y, t, i + 1);
+            ctx.lineWidth = 9; ctx.strokeStyle = 'rgba(95, 243, 255, 0.25)'; ctx.stroke();
+            ctx.lineWidth = 2.5; ctx.strokeStyle = '#e8feff'; ctx.stroke();
+            if (f.tesla?.length) glow(ctx, tg.x, tg.y, 26, '#5ff3ff', 0.6);
+        });
+    }
+    // Étreinte : soin en cône (Vespera)
+    if (f.spray) {
+        ctx.beginPath();
+        ctx.moveTo(f.x, f.y);
+        ctx.arc(f.x, f.y, 230, f.angle - 0.5, f.angle + 0.5);
+        ctx.closePath();
+        const g = ctx.createRadialGradient(f.x, f.y, 20, f.x, f.y, 230);
+        g.addColorStop(0, 'rgba(255, 216, 74, 0.45)');
+        g.addColorStop(1, 'rgba(255, 216, 74, 0)');
+        ctx.fillStyle = g;
+        ctx.fill();
+        for (let i = 0; i < 10; i++) {
+            const k = (t * 1.8 + i / 10) % 1;
+            const a = f.angle + (rnd(i * 3.1) - 0.5) * 0.9;
+            glow(ctx, f.x + Math.cos(a) * 230 * k, f.y + Math.sin(a) * 230 * k, 10 + k * 10, '#ffe98a', 0.6 * (1 - k));
+        }
+    }
+    // Étreinte : drain (Vespera)
+    if (f.drain) {
+        const sx = f.x + Math.cos(f.angle + 0.5) * 22, sy = f.y + Math.sin(f.angle + 0.5) * 22;
+        const d = f.drain;
+        ctx.beginPath();
+        ctx.moveTo(sx, sy);
+        ctx.quadraticCurveTo((sx + d.x) / 2 + Math.sin(t * 9) * 16, (sy + d.y) / 2 + Math.cos(t * 9) * 16, d.x, d.y);
+        ctx.lineWidth = 14; ctx.strokeStyle = 'rgba(179, 92, 255, 0.25)'; ctx.stroke();
+        ctx.lineWidth = 4; ctx.strokeStyle = '#e2c4ff'; ctx.stroke();
+        // La vie remonte vers Vespera
+        for (let i = 0; i < 4; i++) {
+            const k = 1 - ((t * 1.5 + i / 4) % 1);
+            glow(ctx, sx + (d.x - sx) * k, sy + (d.y - sy) * k, 9, '#b35cff', 0.9);
+        }
+    }
+    // Coalescence (Vespera)
+    if (f.coal) {
+        const ex = f.x + Math.cos(f.angle) * f.coal.len, ey = f.y + Math.sin(f.angle) * f.coal.len;
+        const w = 40 + Math.sin(t * 14) * 6;
+        const grad = ctx.createLinearGradient(f.x, f.y, ex, ey);
+        grad.addColorStop(0, 'rgba(255, 216, 74, 0.8)');
+        grad.addColorStop(0.5, 'rgba(255, 160, 220, 0.7)');
+        grad.addColorStop(1, 'rgba(179, 92, 255, 0.8)');
+        ctx.beginPath(); ctx.moveTo(f.x, f.y); ctx.lineTo(ex, ey);
+        ctx.lineWidth = w * 2; ctx.strokeStyle = 'rgba(200, 130, 255, 0.15)'; ctx.stroke();
+        ctx.lineWidth = w; ctx.strokeStyle = grad; ctx.stroke();
+        ctx.lineWidth = 6; ctx.strokeStyle = '#ffffff'; ctx.stroke();
+        glow(ctx, ex, ey, 50, '#d6a6ff', 0.8);
+    }
+    // Visière tactique (Kade) : réticule sur la cible verrouillée
+    if (f.lockOn?.alive) {
+        const l = f.lockOn;
+        ctx.globalCompositeOperation = 'source-over';
+        ctx.strokeStyle = '#ff3b4f';
+        ctx.lineWidth = 3;
+        const r = l.r + 14 + Math.sin(t * 10) * 3;
+        ctx.beginPath(); ctx.arc(l.x, l.y, r, 0, TAU); ctx.stroke();
+        for (let i = 0; i < 4; i++) {
+            const a = (i / 4) * TAU + t * 2;
+            ctx.beginPath();
+            ctx.moveTo(l.x + Math.cos(a) * (r - 6), l.y + Math.sin(a) * (r - 6));
+            ctx.lineTo(l.x + Math.cos(a) * (r + 8), l.y + Math.sin(a) * (r + 8));
+            ctx.stroke();
+        }
+    }
+    // Fleur de mort (Nox) : tourbillon rouge
+    if (f.heroId === 'nox' && f.ultActive) {
+        for (let i = 0; i < 3; i++) {
+            ctx.beginPath();
+            ctx.arc(f.x, f.y, 60 + i * 55, t * 9 + i, t * 9 + i + 2.2);
+            ctx.lineWidth = 10 - i * 2; ctx.strokeStyle = `rgba(255, 59, 79, ${0.5 - i * 0.12})`; ctx.stroke();
+        }
+        glow(ctx, f.x, f.y, 230, '#ff3b4f', 0.15);
     }
     ctx.restore();
 }
@@ -489,6 +689,53 @@ function drawObject(ctx, o, g, viewer) {
         // Barre de vie du pneu
         ctx.fillStyle = 'rgba(11,20,48,0.85)'; ctx.fillRect(-24, -44, 48, 7);
         ctx.fillStyle = '#ff6b7f'; ctx.fillRect(-23, -43, 46 * Math.max(0, o.hp / o.maxHp), 5);
+    } else if (o.kind === 'dome') {
+        // Dôme de Kodo : bulle hexagonale translucide
+        const k = o.hp / o.max;
+        const pop = Math.min(1, o.age * 5);
+        const r = o.radius * pop;
+        ctx.beginPath(); ctx.arc(o.x, o.y, r, 0, TAU);
+        ctx.fillStyle = hexA(col, 0.12 + 0.08 * k + o.flash * 0.2);
+        ctx.fill();
+        ctx.globalCompositeOperation = 'lighter';
+        ctx.lineWidth = 4;
+        ctx.strokeStyle = hexA('#ffffff', 0.55 + o.flash * 0.4);
+        ctx.stroke();
+        ctx.save();
+        ctx.clip();
+        ctx.strokeStyle = hexA(col, 0.25 + o.flash * 0.3);
+        ctx.lineWidth = 1.5;
+        for (let gy = -r; gy < r; gy += 26) {
+            for (let gx = -r + ((gy / 26) % 2 ? 13 : 0); gx < r; gx += 26) {
+                ctx.beginPath();
+                for (let j = 0; j < 6; j++) ctx.lineTo(o.x + gx + Math.cos((j / 6) * TAU) * 12, o.y + gy + Math.sin((j / 6) * TAU) * 12);
+                ctx.closePath();
+                ctx.stroke();
+            }
+        }
+        ctx.restore();
+        // Fin proche : clignote
+        if (o.life < 1.5 && Math.sin(g.time * 20) > 0) { ctx.lineWidth = 3; ctx.strokeStyle = 'rgba(255,255,255,0.6)'; ctx.beginPath(); ctx.arc(o.x, o.y, r, 0, TAU); ctx.stroke(); }
+    } else if (o.kind === 'field') {
+        // Champ biotique de Kade : zone de soin pulsante
+        const pulse = 0.5 + 0.5 * Math.sin(g.time * 4);
+        ctx.beginPath(); ctx.arc(o.x, o.y, o.r, 0, TAU);
+        ctx.fillStyle = hexA('#7fd8ff', 0.1 + 0.05 * pulse); ctx.fill();
+        ctx.setLineDash([12, 8]);
+        ctx.lineDashOffset = -g.time * 30;
+        ctx.lineWidth = 3; ctx.strokeStyle = hexA('#7fd8ff', 0.8); ctx.stroke();
+        ctx.setLineDash([]);
+        ctx.globalCompositeOperation = 'lighter';
+        glow(ctx, o.x, o.y, 40, '#7fd8ff', 0.6);
+        ctx.fillStyle = '#e8f8ff';
+        ctx.fillRect(o.x - 3, o.y - 12, 6, 24);
+        ctx.fillRect(o.x - 12, o.y - 3, 24, 6);
+        for (let i = 0; i < 6; i++) {
+            const a = (i / 6) * TAU + g.time;
+            const k = (g.time * 0.8 + i / 6) % 1;
+            ctx.fillStyle = hexA('#bff0ff', 1 - k);
+            ctx.fillRect(o.x + Math.cos(a) * o.r * 0.6 - 2, o.y + Math.sin(a) * o.r * 0.6 - k * 40 - 2, 4, 4);
+        }
     } else if (o.kind === 'mechBomb') {
         const k = Math.max(0, o.fuse / 3);
         ctx.beginPath(); ctx.arc(o.x, o.y, 430, 0, TAU);
@@ -860,6 +1107,42 @@ function drawEffect(ctx, e) {
             glow(ctx, e.x, e.y, e.r * 1.3, col, 0.5 * fade);
             break;
         }
+        case 'puff': {
+            // Volute de fumée (ombre de Nox, masque de Ragnok, évanescence)
+            const r = (e.big ? 50 : 18) * (0.5 + k);
+            if (e.dark) {
+                ctx.fillStyle = `rgba(20, 18, 26, ${0.55 * fade})`;
+                for (let i = 0; i < 4; i++) {
+                    ctx.beginPath();
+                    ctx.arc(e.x + (rnd(e.x + i) - 0.5) * r, e.y + (rnd(e.y + i) - 0.5) * r - k * 20, r * 0.6, 0, TAU);
+                    ctx.fill();
+                }
+            } else {
+                ctx.globalCompositeOperation = 'lighter';
+                glow(ctx, e.x, e.y - k * 20, r, e.color, 0.5 * fade);
+            }
+            break;
+        }
+        case 'chain': {
+            ctx.strokeStyle = hexA('#c3ccd8', fade);
+            ctx.lineWidth = 5;
+            ctx.setLineDash([8, 5]);
+            ctx.beginPath(); ctx.moveTo(e.x, e.y); ctx.lineTo(e.x2, e.y2); ctx.stroke();
+            break;
+        }
+        case 'bionade': {
+            ctx.globalCompositeOperation = 'lighter';
+            glow(ctx, e.x, e.y, e.r * (0.5 + k * 0.7), '#c98bff', 0.6 * fade);
+            ctx.beginPath(); ctx.arc(e.x, e.y, e.r * (0.3 + k * 0.8), 0, TAU);
+            ctx.lineWidth = 6 * fade + 1; ctx.strokeStyle = hexA('#efe0ff', fade); ctx.stroke();
+            for (let i = 0; i < 10; i++) {
+                const a = rnd(e.x + i) * TAU;
+                const d = e.r * k * (0.5 + rnd(i + e.y) * 0.6);
+                ctx.fillStyle = hexA(i % 2 ? '#c98bff' : '#b6ff8a', fade);
+                ctx.fillRect(e.x + Math.cos(a) * d - 3, e.y + Math.sin(a) * d - 3, 6, 6);
+            }
+            break;
+        }
         case 'number': {
             ctx.globalAlpha = 1 - k * k;
             const pop = k < 0.15 ? 1 + (0.15 - k) * 4 : 1;
@@ -931,7 +1214,7 @@ export function renderGame(ctx, g, layers, cam, viewer, me, dpr, shake = { x: 0,
     // Les couleurs d'effets d'équipe (capture) dépendent du point de vue
     for (const e of g.effects) if (e.type === 'capture' && e.team) e.color = teamColor(e.team, viewer);
 
-    for (const o of g.objects) if (o.kind === 'soul' || o.kind === 'trap' || o.kind === 'mine') drawObject(ctx, o, g, viewer);
+    for (const o of g.objects) if (o.kind === 'soul' || o.kind === 'trap' || o.kind === 'mine' || o.kind === 'field') drawObject(ctx, o, g, viewer);
     for (const f of g.fighters) if (f.alive) drawAura(ctx, f, g.time);
 
     const alive = g.fighters.filter(f => f.alive).sort((a, b) => a.y - b.y);
@@ -942,6 +1225,8 @@ export function renderGame(ctx, g, layers, cam, viewer, me, dpr, shake = { x: 0,
         ctx.save();
         if (f.invuln > 0 && !f.recall) ctx.globalAlpha = 0.6;
         if (f.recall) ctx.globalAlpha = 0.35;
+        if (f.wraith > 0) ctx.globalAlpha = 0.35;   // Forme spectrale
+        if (f.fade > 0) ctx.globalAlpha = 0.12;     // Évanescence
         // Volta éjectée : la pilote est dessinée en petit (son méca a explosé)
         if (f.heroId === 'volta' && !f.mech) drawPilot(ctx, f, team);
         else drawHero(ctx, f.heroId, { x: f.x, y: f.y, angle: f.angle, team, t: f.t, moving: f.moving || Boolean(f.dash) });
@@ -959,9 +1244,10 @@ export function renderGame(ctx, g, layers, cam, viewer, me, dpr, shake = { x: 0,
             ctx.restore();
         }
         drawBarrier(ctx, f, teamColor(f.team, viewer), g.time);
+        drawHeroBeams(ctx, f, g.time);
         drawStatus(ctx, f, g.time);
     }
-    for (const o of g.objects) if (o.kind === 'tire' || o.kind === 'mechBomb') drawObject(ctx, o, g, viewer);
+    for (const o of g.objects) if (o.kind === 'tire' || o.kind === 'mechBomb' || o.kind === 'dome') drawObject(ctx, o, g, viewer);
     for (const p of g.projectiles) drawProjectile(ctx, p, g.time);
     for (const e of g.effects) drawEffect(ctx, e);
 

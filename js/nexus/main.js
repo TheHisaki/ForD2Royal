@@ -5,14 +5,14 @@
       manches au meilleur des 3.
    ================================== */
 
-import { HERO_BY_ID, ROLES } from './heroes.js?v=2';
-import { drawPortrait } from './sprites.js?v=2';
+import { HERO_BY_ID, ROLES } from './heroes.js?v=3';
+import { drawPortrait } from './sprites.js?v=3';
 import { KAIRO, buildMapLayers, placeAt } from './map.js?v=2';
-import { HeroSelect } from './select.js?v=2';
-import { Game, RULES } from './game.js?v=2';
-import { BotBrain } from './bots.js?v=1';
-import { renderGame } from './render.js?v=2';
-import { NexusAudio } from './audio.js?v=1';
+import { HeroSelect } from './select.js?v=3';
+import { Game, RULES } from './game.js?v=3';
+import { BotBrain } from './bots.js?v=2';
+import { renderGame } from './render.js?v=3';
+import { NexusAudio } from './audio.js?v=2';
 
 // Sons d'interface (non spatialisés)
 const SFX = { play: (name, opts = {}) => NexusAudio.play(name, { ...opts, ui: true }) };
@@ -84,7 +84,6 @@ class Match {
             if (e.code === 'KeyQ') this.pending.q = true;
             if (e.code === 'KeyR') this.pending.reload = true;
             if (e.code === 'Tab') this.showBoard(true);
-            if (e.key.toLowerCase() === 'm') this.overview = !this.overview;
         });
         addEventListener('keyup', (e) => {
             this.keys.delete(e.code);
@@ -105,10 +104,8 @@ class Match {
             if (e.button === 2) this.mouse.right = false;
         });
         this.canvas.addEventListener('contextmenu', (e) => e.preventDefault());
-        this.canvas.addEventListener('wheel', (e) => {
-            e.preventDefault();
-            this.zoom = Math.max(0.65, Math.min(1.5, this.zoom * (e.deltaY > 0 ? 0.9 : 1.1)));
-        }, { passive: false });
+        // Zoom bloqué : la molette ne fait rien (et ne fait pas défiler la page)
+        this.canvas.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
     }
 
     start({ allies, enemies }) {
@@ -153,7 +150,8 @@ class Match {
         this.canvas.style.height = `${innerHeight}px`;
     }
 
-    followScale() { return (Math.min(this.canvas.width, this.canvas.height) / 1150) * this.zoom; }
+    // Vue rapprochée et fixe : environ 760 unités visibles sur le plus petit côté de l'écran
+    followScale() { return Math.min(this.canvas.width, this.canvas.height) / 760; }
 
     screenToWorld(sx, sy) {
         const { x, y, scale } = this.cam;
@@ -284,7 +282,8 @@ class Match {
     updateAudio() {
         const g = this.game;
         const me = this.me;
-        NexusAudio.setListener(this.cam.x, this.cam.y);
+        // On écoute depuis le centre de l'écran : ce qui est hors de l'écran s'entend à peine
+        NexusAudio.setListener(this.cam.x, this.cam.y, this.canvas.width / 2 / this.cam.scale, this.canvas.height / 2 / this.cam.scale);
         const loops = [];
         for (const f of g.fighters) {
             if (!f.alive) continue;
@@ -292,6 +291,11 @@ class Match {
             if (f.matrix?.on) loops.push({ id: `matrix${f.id}`, kind: 'matrix', x: f.x, y: f.y });
             if (f.boosting) loops.push({ id: `boost${f.id}`, kind: 'boost', x: f.x, y: f.y });
             if (f.charging) loops.push({ id: `charge${f.id}`, kind: 'charge', x: f.x, y: f.y });
+            if (f.teslaFiring) loops.push({ id: `tesla${f.id}`, kind: 'tesla', x: f.x, y: f.y });
+            if (f.spray) loops.push({ id: `spray${f.id}`, kind: 'spray', x: f.x, y: f.y });
+            if (f.drain) loops.push({ id: `drain${f.id}`, kind: 'drain', x: f.x, y: f.y });
+            if (f.coal) loops.push({ id: `coal${f.id}`, kind: 'coal', x: f.x, y: f.y });
+            if (f.heroId === 'nox' && f.ultActive) loops.push({ id: `blossom${f.id}`, kind: 'blossom', x: f.x, y: f.y });
             if (f.heroId === 'tempo') loops.push({ id: `aura${f.id}`, kind: 'aura', x: f.x, y: f.y, vol: f === me ? 1 : 0.5, speed: f.track === 'speed', boost: f.boostT > 0 });
         }
         for (const o of g.objects) {
@@ -341,11 +345,11 @@ class Match {
             fx = g.map.point.x; fy = g.map.point.y;
         }
         let target = { x: fx, y: fy, scale: Math.max(this.followScale(), fit) };
-        if (this.overview || g.phase === 'matchEnd') target = { x: this.map.width / 2, y: this.map.height / 2, scale: fit };
+        if (g.phase === 'matchEnd') target = { x: this.map.width / 2, y: this.map.height / 2, scale: fit };
         else {
-            // Léger décalage vers la souris pour voir plus loin devant soi
+            // Petit décalage vers la souris pour voir un peu devant soi
             const mx = (this.mouse.x * this.dpr - W / 2) / target.scale, my = (this.mouse.y * this.dpr - H / 2) / target.scale;
-            if (this.me.alive) { target.x += mx * 0.18; target.y += my * 0.18; }
+            if (this.me.alive) { target.x += mx * 0.12; target.y += my * 0.12; }
             const hw = W / 2 / target.scale, hh = H / 2 / target.scale;
             target.x = hw * 2 >= this.map.width ? this.map.width / 2 : Math.max(hw, Math.min(this.map.width - hw, target.x));
             target.y = hh * 2 >= this.map.height ? this.map.height / 2 : Math.max(hh, Math.min(this.map.height - hh, target.y));
@@ -407,7 +411,7 @@ class Match {
         $('nxHudRole').className = `nx-hud-role role-${h.role}`;
         $('nxUltName').textContent = h.abilities.find(a => a.ult)?.name || 'Ultime';
         $('nxUltKey').textContent = keyLabel('Q');
-        $('nxKeys').innerHTML = `<kbd>${moveLabel()}</kbd> Bouger · <kbd>Clic G</kbd>/<kbd>Clic D</kbd> Tir · <kbd>Maj</kbd> <kbd>${keyLabel('E')}</kbd> Capacités · <kbd>${keyLabel('Q')}</kbd> Ultime · <kbd>R</kbd> Recharger · <kbd>TAB</kbd> Scores · <kbd>M</kbd> Carte`;
+        $('nxKeys').innerHTML = `<kbd>${moveLabel()}</kbd> Bouger · <kbd>Clic G</kbd>/<kbd>Clic D</kbd> Tir · <kbd>Maj</kbd> <kbd>${keyLabel('E')}</kbd> Capacités · <kbd>${keyLabel('Q')}</kbd> Ultime · <kbd>R</kbd> Recharger · <kbd>TAB</kbd> Scores`;
         const team = (side) => this.game.fighters.filter(f => (side === 'mine') === (f.team === me.team)).map(f =>
             `<li class="role-${f.role} ${f === me ? 'is-me' : ''}" data-id="${f.id}" title="${f.name} · ${f.hero.name}"><canvas width="56" height="56" data-hero="${f.heroId}"></canvas><span class="nx-dead-t"></span></li>`
         ).join('');
@@ -658,7 +662,7 @@ async function boot() {
         select.select(testHero);
         select.lock();
         for (let i = 0; i < 12 && select.running; i++) select.tick(1, i);
-        if (qp.has('overview')) match.overview = true;
+
         const skip = Number(qp.get('skip')) || 0; // simuler N secondes (tests)
         for (let i = 0; i < skip * 60 && match.running; i++) { match.bots.update(STEP); match.game.update(STEP); }
     }

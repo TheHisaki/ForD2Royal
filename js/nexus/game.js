@@ -11,10 +11,10 @@
 
 import { collide } from './map.js?v=2';
 import { castWall, lineOfSight, rayCircle } from './geom.js?v=1';
-import { HERO_BY_ID } from './heroes.js?v=2';
-import { HERO_RADIUS } from './sprites.js?v=2';
-import { KITS } from './kits.js?v=2';
-import { NexusAudio } from './audio.js?v=1';
+import { HERO_BY_ID } from './heroes.js?v=3';
+import { HERO_RADIUS } from './sprites.js?v=3';
+import { KITS } from './kits.js?v=3';
+import { NexusAudio } from './audio.js?v=2';
 
 const TAU = Math.PI * 2;
 
@@ -137,6 +137,8 @@ export class Game {
         f.alive = true;
         f.respawnT = 0;
         f.stun = 0; f.root = 0; f.amp = 0; f.wound = 0; f.over = 0;
+        f.nano = 0; f.antiHeal = 0; f.healBoost = 0; f.breatheT = 0; f.sleep = 0;
+        f.ultActive = false; f.speedMul = 1; f.anchored = false;
         f.invuln = roundStart ? 0 : 1;
         f.angle = f.team === 'blue' ? 0 : Math.PI;
         f.kit.reset?.(f, this, roundStart);
@@ -184,29 +186,53 @@ export class Game {
         let best = null;
         const len = Math.hypot(bx - ax, by - ay) || 1;
         const dx = (bx - ax) / len, dy = (by - ay) / len;
-        for (const f of this.fighters) {
-            const b = f.barrier;
-            if (!f.alive || f.team === team || !b?.up) continue;
-            // Arc de cercle autour du porteur : on teste les 2 intersections du segment avec le cercle
-            const fx = ax - f.x, fy = ay - f.y;
+        // Intersections du segment avec un cercle (cx, cy, r)
+        const cross = (cx, cy, r, test) => {
+            const fx = ax - cx, fy = ay - cy;
             const B = fx * dx + fy * dy;
-            const C = fx * fx + fy * fy - b.radius * b.radius;
+            const C = fx * fx + fy * fy - r * r;
             const disc = B * B - C;
-            if (disc < 0) continue;
+            if (disc < 0) return;
             const sq = Math.sqrt(disc);
             for (const t of [-B - sq, -B + sq]) {
                 if (t < 0 || t > len) continue;
                 const hx = ax + dx * t, hy = ay + dy * t;
-                const a = Math.atan2(hy - f.y, hx - f.x);
-                if (Math.abs(angleDiff(a, b.angle)) <= b.half && (!best || t < best.t)) best = { t, owner: f, x: hx, y: hy };
+                if (test(hx, hy) && (!best || t < best.t)) best = { t, x: hx, y: hy, ...test.info };
             }
+        };
+        for (const f of this.fighters) {
+            const b = f.barrier;
+            if (!f.alive || f.team === team || !b?.up) continue;
+            // Arc de cercle devant le porteur
+            const test = (hx, hy) => Math.abs(angleDiff(Math.atan2(hy - f.y, hx - f.x), b.angle)) <= b.half;
+            test.info = { owner: f, barrier: b };
+            cross(f.x, f.y, b.radius, test);
+        }
+        // Dômes (Kodo) : bloquent dans les deux sens, toute la circonférence
+        for (const o of this.objects) {
+            if (o.kind !== 'dome' || !o.alive || o.team === team) continue;
+            const test = () => true;
+            test.info = { owner: o.owner, barrier: o };
+            cross(o.x, o.y, o.radius, test);
         }
         return best;
     }
 
-    damageBarrier(owner, amount) {
-        const b = owner.barrier;
+    damageBarrier(bar, amount) {
+        const b = bar?.barrier;
         if (!b) return;
+        if (b.kind === 'dome') {
+            b.hp -= amount;
+            b.flash = 1;
+            this.sound('shieldHit', { x: bar.x, y: bar.y, src: `dome${b.owner.id}` });
+            if (b.hp <= 0) {
+                b.alive = false;
+                this.addEffect({ type: 'ring', x: b.x, y: b.y, r0: b.radius, r1: b.radius + 80, color: '#7fd8ff', life: 0.6 });
+                this.sound('shieldBreak', { x: b.x, y: b.y });
+            }
+            return;
+        }
+        const owner = bar.owner;
         b.hp -= amount;
         b.lastHit = this.time;
         b.flash = 1;
@@ -226,7 +252,12 @@ export class Game {
         if (!target || !target.alive || amount <= 0) return 0;
         if (target.invuln > 0) return 0;
         if (src && target.team === src.team && target !== src) return 0;
-        let dmg = amount * (src?.amp > 0 ? 1.3 : 1) * (src?.dmgMul || 1);
+        let dmg = amount * (src?.amp > 0 ? 1.3 : 1) * (src?.nano > 0 ? 1.5 : 1) * (src?.dmgMul || 1);
+        // Réductions de dégâts : Nano-boost, Bouffée d'air
+        if (target.nano > 0) dmg *= 0.5;
+        if (target.breatheT > 0) dmg *= 0.5;
+        // Fléchette soporifique : le moindre dégât réveille
+        if (target.sleep > 0) { target.sleep = 0; target.stun = 0; }
         if (target.isTarget) {
             // Objet (pneu…) : pas de bouclier ni de passif
             target.hp -= dmg;
@@ -245,6 +276,7 @@ export class Game {
         if (src && src !== target) {
             if (src.role === 'damage') target.wound = RULES.woundTime;
             src.stats.damage += dmg;
+            src.kit?.onDealt?.(src, dmg, target, this); // ex. Moisson de Nox
             this.gainUlt(src, dmg * (target.role === 'tank' ? RULES.tankUltMul : 1));
             target.lastAttacker = src;
         }
@@ -265,7 +297,8 @@ export class Game {
 
     heal(target, amount, src) {
         if (!target?.alive || target.isTarget || amount <= 0) return 0;
-        const mul = target.wound > 0 ? RULES.woundMul : 1;
+        if (target.antiHeal > 0) return 0; // Grenade biotique ennemie
+        const mul = (target.wound > 0 ? RULES.woundMul : 1) * (target.healBoost > 0 ? 1.5 : 1);
         const before = target.hp;
         target.hp = Math.min(target.maxHp, target.hp + amount * mul);
         const done = target.hp - before;
@@ -356,7 +389,7 @@ export class Game {
             this.damage(hitTarget, dmgAt(best), src, { how: opts.how, x: ox + dx * best, y: oy + dy * best });
         } else if (bar) {
             end = bar.t;
-            this.damageBarrier(bar.owner, dmgAt(bar.t));
+            this.damageBarrier(bar, dmgAt(bar.t));
         }
         const ex = ox + dx * end, ey = oy + dy * end;
         if (opts.tracer !== false) {
@@ -457,7 +490,7 @@ export class Game {
                 }
             } else if (bar && first === bar.t) {
                 if (p.onBarrier) p.onBarrier(p, bar, this);
-                else this.damageBarrier(bar.owner, p.dmg || 0);
+                else this.damageBarrier(bar, p.dmg || 25);
                 if (!p.keepAlive) { list.splice(i, 1); continue; }
             } else {
                 // Mur : rebond ou fin
@@ -487,6 +520,8 @@ export class Game {
             const d = Math.hypot(t.x - x, t.y - y);
             if (d > radius + t.r) continue;
             if (!this.los(x, y, t.x, t.y)) continue;
+            // Boucliers et dômes protègent aussi des explosions
+            if (t.team !== team && this.barrierHit(team, x, y, t.x, t.y)) continue;
             const enemy = t.team !== team;
             const k = opts.falloff === false ? 1 : 1 - Math.min(1, Math.max(0, d - t.r) / radius) * 0.5;
             if (enemy && dmg > 0) this.damage(t, dmg * k, src, { how: opts.how });
@@ -539,7 +574,7 @@ export class Game {
             let ix = inp.mx, iy = inp.my;
             const l = Math.hypot(ix, iy);
             if (l > 1) { ix /= l; iy /= l; }
-            const speed = f.kit.speed(f) * f.slow * f.speedBuff;
+            const speed = f.kit.speed(f) * f.slow * f.speedBuff * (f.speedMul || 1);
             mx = ix * speed * dt;
             my = iy * speed * dt;
         }
@@ -681,6 +716,7 @@ export class Game {
             f.invuln = Math.max(0, f.invuln - dt);
             f.amp = Math.max(0, f.amp - dt);
             f.wound = Math.max(0, f.wound - dt);
+            for (const k of ['nano', 'antiHeal', 'healBoost', 'breatheT', 'sleep']) if (f[k] > 0) f[k] = Math.max(0, f[k] - dt);
             f.slow = 1;
             if (!f.ultActive && f.ult < 100) f.ult = Math.min(100, f.ult + RULES.passiveUlt * dt * (f.ultMul || 1));
             // Passif Soutien : récupération

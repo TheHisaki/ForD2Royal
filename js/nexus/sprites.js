@@ -11,7 +11,10 @@ const TAU = Math.PI * 2;
 export const TEAM_COLORS = { blue: '#38bdf8', red: '#f43f5e' };
 
 // Rayon de collision / taille visuelle de chaque héros (unités du monde)
-export const HERO_RADIUS = { gorvald: 30, volta: 30, zephyr: 17, kraz: 19, seraphine: 18, tempo: 18 };
+export const HERO_RADIUS = {
+    gorvald: 30, volta: 30, zephyr: 17, kraz: 19, seraphine: 18, tempo: 18,
+    ragnok: 32, kodo: 30, kade: 18, nox: 19, shirin: 17, vespera: 17
+};
 
 function circle(ctx, x, y, r, fill, stroke = INK, lw = 3) {
     ctx.beginPath();
@@ -293,13 +296,171 @@ function drawTempo(ctx, s) {
     for (const side of [-1, 1]) circle(ctx, 1, side * 8, 3.6, '#7ee34f', INK, 2);
 }
 
+// RAGNOK (inspiré de Chopper / Roadhog) : colosse ventru, masque à groin, crochet et fusil à ferraille
+function drawRagnok(ctx, s) {
+    // Crochet + chaîne enroulée (main gauche)
+    for (let i = 0; i < 4; i++) circle(ctx, 8 + i * 6, -30 + i * 2, 3.5, '#9aa3b2', INK, 2);
+    ctx.beginPath(); ctx.arc(34, -24, 8, -2.2, 1.6); ctx.lineWidth = 7; ctx.strokeStyle = INK; ctx.stroke();
+    ctx.lineWidth = 4; ctx.strokeStyle = '#c3ccd8'; ctx.stroke();
+    // Fusil à ferraille (main droite) : canon large
+    rrect(ctx, 6, 18, 36, 16, 4, '#6b5a45');
+    rrect(ctx, 34, 16, 14, 20, 3, '#4b4b4b', INK, 2.5);
+    circle(ctx, 18, 26, 5, '#c9a227', INK, 2);
+    // Ventre énorme (peau) + bretelles en cuir
+    ellipse(ctx, 0, 0, 26, 32, '#d6a07a');
+    line(ctx, -16, -24, 10, 24, '#5b3b1f', 6);
+    line(ctx, -16, 24, 10, -24, '#5b3b1f', 6);
+    circle(ctx, -3, 0, 5, '#3b2a1a', INK, 2);
+    // Épaulettes rouillées
+    for (const side of [-1, 1]) circle(ctx, -4, side * 28, 10, '#8a6a4a');
+    // Tête + masque à gaz façon groin
+    circle(ctx, 4, 0, 13, '#4b4f5c');
+    circle(ctx, 13, 0, 7, '#9aa3b2', INK, 2.5);
+    circle(ctx, 15, -2.5, 1.6, INK, null);
+    circle(ctx, 15, 2.5, 1.6, INK, null);
+    for (const side of [-1, 1]) circle(ctx, 6, side * 9, 3.5, '#ffb03a', INK, 1.5);
+}
+
+// KODO (inspiré de Winston) : gorille en armure blanche, lunettes, canon Tesla
+function drawKodo(ctx, s) {
+    // Bras puissants posés au sol devant (posture de gorille)
+    for (const side of [-1, 1]) {
+        ellipse(ctx, 16, side * 26, 12, 9, '#4e5d7a');
+        circle(ctx, 26, side * 27, 6, '#3a4660', INK, 2);
+    }
+    // Canon Tesla tenu en avant
+    rrect(ctx, 14, -8, 30, 16, 5, '#e8edf5');
+    for (let i = 0; i < 3; i++) circle(ctx, 22 + i * 7, 0, 3.5, '#5ff3ff', INK, 1.5);
+    glow(ctx, 46, 0, 14, '#5ff3ff', 0.6 + 0.3 * Math.sin(s.t * 12));
+    circle(ctx, 45, 0, 4, '#e8feff', INK, 2);
+    // Dos large (fourrure gris-bleu) + plaque d'armure
+    ellipse(ctx, -4, 0, 26, 28, '#7d93b8');
+    rrect(ctx, -18, -14, 22, 28, 8, '#f1f4fa', INK, 2.5);
+    line(ctx, -16, 0, 2, 0, '#ffb03a', 3);
+    // Tête : visage sombre, lunettes rondes
+    circle(ctx, 8, 0, 11, '#4e5d7a');
+    ellipse(ctx, 14, 0, 5, 8, '#2f3546', INK, 2);
+    for (const side of [-1, 1]) circle(ctx, 13, side * 4.5, 3.4, '#bfe8ff', INK, 1.5);
+}
+
+// KADE (inspiré de Soldat : 76) : veste bleue, bande blanche, visière rouge, fusil
+function drawKade(ctx, s) {
+    // Fusil à impulsion (long) tenu à deux mains
+    line(ctx, 2, 10, 18, 4, INK, 7);
+    line(ctx, 2, 10, 18, 4, '#d9b48f', 4);
+    rrect(ctx, 6, 0, 36, 8, 2, '#3a3f4c');
+    rrect(ctx, 16, 7, 8, 7, 2, '#2b2f3a', INK, 2);
+    circle(ctx, 42, 4, 2.4, '#7fd8ff', null);
+    line(ctx, 2, -10, 14, -2, INK, 7);
+    line(ctx, 2, -10, 14, -2, '#d9b48f', 4);
+    // Veste bleue + bande blanche dans le dos
+    ellipse(ctx, 0, 0, 13, 15, '#3d5fa8');
+    rrect(ctx, -12, -3, 14, 6, 2, '#f1f4fa', null);
+    ctx.font = '700 7px sans-serif';
+    ctx.fillStyle = INK;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText('7', -5, 0.5);
+    // Tête : cheveux gris, visière rouge
+    circle(ctx, 2, 0, 7.5, '#b8bcc6');
+    rrect(ctx, 5, -6, 4, 12, 2, '#ff3b4f', INK, 2);
+    glow(ctx, 9, 0, 9, '#ff3b4f', 0.5);
+}
+
+// NOX (inspiré de Faucheur / Reaper) : manteau noir à capuche, masque blanc, deux fusils
+function drawNox(ctx, s) {
+    // Volutes d'ombre derrière
+    ctx.save();
+    ctx.globalAlpha = 0.45;
+    for (let i = 0; i < 4; i++) {
+        const a = Math.PI + (i - 1.5) * 0.45 + Math.sin(s.t * 3 + i) * 0.15;
+        ellipse(ctx, Math.cos(a) * 20, Math.sin(a) * 20, 10, 6, '#16161c', null, 0, a);
+    }
+    ctx.restore();
+    // Fusils à pompe des deux côtés
+    for (const side of [-1, 1]) {
+        line(ctx, 2, side * 12, 16, side * 12, INK, 7);
+        line(ctx, 2, side * 12, 16, side * 12, '#2b2b33', 4);
+        rrect(ctx, 14, side * 12 - 4, 22, 8, 2, '#4a4a54', INK, 2);
+        rrect(ctx, 30, side * 12 - 3, 6, 6, 1, '#c0392b', null);
+    }
+    // Manteau noir à pans (vers l'arrière)
+    ctx.beginPath();
+    ctx.moveTo(6, -14); ctx.lineTo(-22, -18); ctx.lineTo(-16, 0); ctx.lineTo(-22, 18); ctx.lineTo(6, 14);
+    ctx.closePath();
+    ctx.fillStyle = '#1d1d24'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+    ellipse(ctx, 0, 0, 12, 14, '#2b2b33');
+    // Capuche + masque blanc en forme de crâne
+    circle(ctx, 2, 0, 9, '#16161c');
+    ellipse(ctx, 7, 0, 4.5, 7, '#f1efe8', INK, 2);
+    circle(ctx, 8, -2.6, 1.4, INK, null);
+    circle(ctx, 8, 2.6, 1.4, INK, null);
+}
+
+// SHIRIN (inspirée d'Ana) : cape bleue à capuche, long fusil biotique doré
+function drawShirin(ctx, s) {
+    // Fusil de précision très long
+    line(ctx, 2, 8, 16, 4, INK, 6);
+    line(ctx, 2, 8, 16, 4, '#c79a74', 3.5);
+    rrect(ctx, 4, 0, 46, 7, 2, '#c9a227');
+    rrect(ctx, 14, -4, 12, 5, 2, '#3a3f4c', INK, 2);
+    circle(ctx, 50, 3.5, 2.6, '#c98bff', null);
+    glow(ctx, 50, 3.5, 8, '#c98bff', 0.5);
+    // Cape bleue
+    ctx.beginPath();
+    ctx.moveTo(6, -13); ctx.quadraticCurveTo(-26, -20, -24, 0); ctx.quadraticCurveTo(-26, 20, 6, 13);
+    ctx.closePath();
+    ctx.fillStyle = '#3f5f94'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+    line(ctx, -8, -10, -20, -12, '#c9a227', 2.5);
+    line(ctx, -8, 10, -20, 12, '#c9a227', 2.5);
+    ellipse(ctx, 0, 0, 11, 12, '#5b7fb5');
+    // Capuche + bandeau sur l'œil
+    circle(ctx, 2, 0, 7.5, '#2f4670');
+    line(ctx, 5, -6, 8, 6, '#1a1a1a', 2.5);
+    circle(ctx, 7.5, -2.5, 1.8, '#e9d2b8', null);
+}
+
+// VESPERA (inspirée de Moira) : manteau sombre, cheveux roux, une main dorée, une main violette
+function drawVespera(ctx, s) {
+    const pulse = 0.55 + 0.25 * Math.sin(s.t * 5);
+    // Mains lumineuses : soin (or) à gauche, drain (violet) à droite
+    line(ctx, 2, -11, 16, -12, INK, 7);
+    line(ctx, 2, -11, 16, -12, '#2a2236', 4);
+    glow(ctx, 20, -12, 14, '#ffd84a', pulse);
+    circle(ctx, 19, -12, 4.5, '#ffe98a', INK, 2);
+    line(ctx, 2, 11, 16, 12, INK, 7);
+    line(ctx, 2, 11, 16, 12, '#2a2236', 4);
+    glow(ctx, 20, 12, 14, '#b35cff', pulse);
+    circle(ctx, 19, 12, 4.5, '#d6a6ff', INK, 2);
+    // Long manteau violet foncé à col haut
+    ctx.beginPath();
+    ctx.moveTo(6, -12); ctx.lineTo(-24, -14); ctx.lineTo(-20, 0); ctx.lineTo(-24, 14); ctx.lineTo(6, 12);
+    ctx.closePath();
+    ctx.fillStyle = '#2a2236'; ctx.fill();
+    ctx.lineWidth = 3; ctx.strokeStyle = INK; ctx.stroke();
+    ellipse(ctx, 0, 0, 11, 12.5, '#4a2a66');
+    line(ctx, -6, -9, -6, 9, '#9b4dca', 2.5);
+    // Cheveux roux plaqués sur le côté
+    ellipse(ctx, 0, -1, 8.5, 7.5, '#d9542b');
+    ellipse(ctx, -4, -4, 6, 4, '#ff7a3c', null, 0, 0.4);
+    circle(ctx, 5, 2, 3.5, '#f2d9c8', INK, 1.5);
+}
+
 const DRAWERS = {
     gorvald: drawGorvald,
     volta: drawVolta,
     zephyr: drawZephyr,
     kraz: drawKraz,
     seraphine: drawSeraphine,
-    tempo: drawTempo
+    tempo: drawTempo,
+    ragnok: drawRagnok,
+    kodo: drawKodo,
+    kade: drawKade,
+    nox: drawNox,
+    shirin: drawShirin,
+    vespera: drawVespera
 };
 
 /**

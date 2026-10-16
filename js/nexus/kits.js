@@ -7,7 +7,7 @@
    ================================== */
 
 import { collide } from './map.js?v=2';
-import { castWall } from './geom.js?v=1';
+import { castWall, rayCircle } from './geom.js?v=1';
 
 const TAU = Math.PI * 2;
 
@@ -946,7 +946,626 @@ const tempo = {
     }
 };
 
-export const KITS = { gorvald, volta, zephyr, kraz, seraphine, tempo };
+/* ===================================================================
+   RAGNOK (Chopper) : fusil à ferraille, crochet, bouffée d'air, Porc entier
+   =================================================================== */
+
+function pellets(g, f, n, spread, range, dmg, opts = {}) {
+    const m = front(f, f.r + 14, opts.side || 0);
+    for (let i = 0; i < n; i++) {
+        g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * spread, range * (0.85 + Math.random() * 0.15),
+            (d) => dmg * Math.max(0.3, 1 - Math.max(0, d - range * 0.35) / range),
+            { color: opts.color || '#ffd38a', width: 2, spark: i % 3 === 0, muzzle: i === 0, muzzleSize: opts.muzzle || 2, tracerLife: 0.07, how: opts.how });
+    }
+}
+
+const ragnok = {
+    hp: 700,
+    fxColor: '#ffb03a',
+    ultCost: 1600,
+    speed(f) { return f.breatheT > 0 ? 200 : f.ultActive ? 160 : 245; },
+    init(f) { f.maxAmmo = 5; f.ammo = 5; f.reloadTime = 1.5; },
+    reset(f) { f.ammo = f.maxAmmo; f.reloadT = 0; f.hook = null; },
+    update(f, g, dt, inp) {
+        // Porc entier : rafale continue qui repousse
+        if (f.ultActive) {
+            f.ultT -= dt;
+            f.fireT = Math.max(0, (f.fireT || 0) - dt);
+            if (f.fireT <= 0) {
+                f.fireT = 0.07;
+                const m = front(f, f.r + 14);
+                for (let i = 0; i < 3; i++) {
+                    const a = f.angle + (Math.random() - 0.5) * 0.9;
+                    const res = g.hitscan(f, m.x, m.y, a, 520, () => 6, { color: '#ffd38a', width: 2.5, spark: i === 0, muzzle: i === 0, muzzleSize: 2.2, tracerLife: 0.06, how: 'Porc entier' });
+                    if (res.target && !res.target.isTarget) g.knock(res.target, Math.cos(a) * 260, Math.sin(a) * 260);
+                }
+                g.sound('scrapgun', { x: f.x, y: f.y, src: f.id, vol: 0.6 });
+            }
+            if (f.ultT <= 0) f.ultActive = false;
+            return;
+        }
+        if (f.breatheT > 0) this.heal(f, g, dt);
+        if (gunReady(f, dt, inp, g) && inp.fire && !(f.breatheT > 0)) {
+            f.fireT = 0.85;
+            f.ammo--;
+            pellets(g, f, 12, 0.3, 380, 9, { how: 'Fusil à ferraille' });
+            g.sound('scrapgun', { x: f.x, y: f.y });
+        }
+        // Crochet (Maj)
+        if (inp.shift && ready(f, 'shift')) {
+            f.cd.shift = 8;
+            const m = front(f, f.r + 8);
+            g.spawnProjectile({
+                kind: 'hook', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 1300, r: 12, life: 0.5, eatable: false, color: '#c3ccd8',
+                onHit: (p, t) => {
+                    if (t.isTarget) return;
+                    // Tiré jusqu'à Ragnok (s'arrête aux murs)
+                    const a = Math.atan2(f.y - t.y, f.x - t.x);
+                    const d = Math.max(0, Math.hypot(f.x - t.x, f.y - t.y) - f.r - t.r - 8);
+                    const to = travel(g, t, a, d);
+                    g.addEffect({ type: 'chain', x: f.x, y: f.y, x2: t.x, y2: t.y, life: 0.25 });
+                    t.x = to.x; t.y = to.y;
+                    t.vx = t.vy = 0;
+                    g.stunTarget(t, 0.45);
+                    g.damage(t, 30, f, { how: 'Crochet' });
+                    g.sound('hookHit', { x: t.x, y: t.y });
+                },
+                onWall: (p) => g.sound('impactWall', { x: p.x, y: p.y })
+            });
+            g.sound('hookThrow', { x: f.x, y: f.y });
+        }
+        // Bouffée d'air (E)
+        if (inp.e && ready(f, 'e')) {
+            f.cd.e = 8;
+            f.breatheT = 2;
+            f.breatheLeft = 350;
+            g.sound('breathe', { x: f.x, y: f.y });
+        }
+        if (inp.q && useUlt(f, g)) {
+            f.ultActive = true;
+            f.ultT = 6;
+            g.sound('primal', { x: f.x, y: f.y });
+        }
+    },
+    heal(f, g, dt) {
+        const amount = Math.min(f.breatheLeft, 175 * dt);
+        f.breatheLeft -= amount;
+        g.heal(f, amount, f);
+        if (g.time - (f._smokeT || 0) > 0.12) {
+            f._smokeT = g.time;
+            g.addEffect({ type: 'puff', x: f.x + Math.cos(f.angle) * 14, y: f.y + Math.sin(f.angle) * 14, color: '#ffb03a', life: 0.6 });
+        }
+    },
+    slots(f) {
+        return [
+            { key: 'Maj', name: 'Crochet', cd: f.cd.shift || 0, max: 8 },
+            { key: 'E', name: 'Bouffée d\'air', cd: f.cd.e || 0, max: 8, active: f.breatheT > 0 }
+        ];
+    }
+};
+
+/* ===================================================================
+   KODO (Winston) : canon Tesla, Bond, Dôme, Rage primale
+   =================================================================== */
+
+const kodo = {
+    hp: 600,
+    fxColor: '#5ff3ff',
+    ultCost: 1700,
+    speed(f) { return f.ultActive ? 320 : 270; },
+    init(f) { f.tesla = []; },
+    reset(f) {
+        f.tesla = [];
+        if (f.ultActive || f.maxHp !== 600) { f.maxHp = 600; f.hp = Math.min(f.hp, 600); }
+        f.ultActive = false;
+        f.leap = null;
+    },
+    update(f, g, dt, inp) {
+        f.fireT = Math.max(0, (f.fireT || 0) - dt);
+        f.tesla = [];
+        if (f.ultActive) {
+            f.ultT -= dt;
+            if (f.ultT <= 0) {
+                f.ultActive = false;
+                f.maxHp = 600;
+                f.hp = Math.min(f.hp, 600);
+            }
+        }
+        // Atterrissage du Bond
+        if (f.leap) {
+            f.leap.t -= dt;
+            if (f.leap.t <= 0 || !f.dash) {
+                f.leap = null;
+                f.dash = null;
+                g.explode(f.x, f.y, f.ultActive ? 150 : 115, f.ultActive ? 40 : 50, f, { how: 'Bond', knock: f.ultActive ? 700 : 350, falloff: false, color: '#7fd8ff', sound: 'leapLand' });
+                g.emit('onShake', f.x, f.y, 0.5);
+            }
+            return;
+        }
+        if (f.ultActive) {
+            // Coups de poing qui projettent
+            if (inp.fire && f.fireT <= 0) {
+                f.fireT = 0.6;
+                f.swing = { t: 0, dir: (f.swingDir = -(f.swingDir || 1)) };
+                let hit = false;
+                g.cone(f, 150, 1.0, (t) => {
+                    hit = true;
+                    g.damage(t, 40, f, { how: 'Rage primale', x: t.x, y: t.y });
+                    const l = Math.hypot(t.x - f.x, t.y - f.y) || 1;
+                    g.knock(t, ((t.x - f.x) / l) * 800, ((t.y - f.y) / l) * 800);
+                });
+                g.sound(hit ? 'hammerHit' : 'hammerSwing', { x: f.x, y: f.y });
+            }
+        } else if (inp.fire) {
+            // Canon Tesla : jusqu'à 3 cibles dans un cône, ignore les boucliers
+            const targets = g.targetsFor(f.team)
+                .filter(t => {
+                    const d = Math.hypot(t.x - f.x, t.y - f.y);
+                    return d < 240 + t.r && Math.abs(angleDiff(Math.atan2(t.y - f.y, t.x - f.x), f.angle)) < 0.55 && g.los(f.x, f.y, t.x, t.y);
+                })
+                .sort((a, b) => Math.hypot(a.x - f.x, a.y - f.y) - Math.hypot(b.x - f.x, b.y - f.y))
+                .slice(0, 3);
+            f.tesla = targets;
+            f.teslaFiring = true;
+            if (f.fireT <= 0) {
+                f.fireT = 0.1;
+                for (const t of targets) g.damage(t, 8.5, f, { how: 'Canon Tesla' });
+            }
+        }
+        f.teslaFiring = inp.fire && !f.ultActive;
+
+        // Bond (Maj)
+        if (inp.shift && ready(f, 'shift')) {
+            f.cd.shift = f.ultActive ? 2.5 : 6;
+            const dist = Math.min(f.ultActive ? 520 : 440, Math.hypot(inp.ax - f.x, inp.ay - f.y));
+            const t = Math.max(0.2, dist / 1000);
+            f.dash = { t, vx: Math.cos(f.angle) * (dist / t), vy: Math.sin(f.angle) * (dist / t), unstoppable: true };
+            f.leap = { t };
+            g.sound('leap', { x: f.x, y: f.y });
+        }
+        // Dôme (E)
+        if (inp.e && ready(f, 'e') && !f.ultActive) {
+            f.cd.e = 13;
+            for (const o of g.objects) if (o.kind === 'dome' && o.owner === f) o.alive = false;
+            const to = travel(g, f, f.angle, 40);
+            g.objects.push({
+                kind: 'dome', team: f.team, owner: f, x: to.x, y: to.y, radius: 150, hp: 700, max: 700, life: 9, alive: true, flash: 0, age: 0,
+                update: (o, gg, ddt) => {
+                    o.age += ddt;
+                    o.life -= ddt;
+                    o.flash = Math.max(0, o.flash - ddt * 5);
+                    if (o.life <= 0) o.alive = false;
+                }
+            });
+            g.sound('dome', { x: f.x, y: f.y });
+        }
+        // Rage primale (Q)
+        if (inp.q && useUlt(f, g)) {
+            f.ultActive = true;
+            f.ultT = 10;
+            f.maxHp = 1100;
+            f.hp = Math.min(1100, f.hp + 500);
+            f.cd.shift = 0;
+            g.addEffect({ type: 'ring', x: f.x, y: f.y, r0: 20, r1: 200, color: '#7fd8ff', life: 0.7, follow: f });
+            g.sound('primal', { x: f.x, y: f.y });
+            g.emit('onShake', f.x, f.y, 0.6);
+        }
+    },
+    slots(f) {
+        return [
+            { key: 'Maj', name: 'Bond', cd: f.cd.shift || 0, max: f.ultActive ? 2.5 : 6 },
+            { key: 'E', name: 'Dôme', cd: f.cd.e || 0, max: 13 }
+        ];
+    }
+};
+
+/* ===================================================================
+   KADE (Soldat : 76) : fusil, roquettes, sprint, champ biotique, visière
+   =================================================================== */
+
+const kade = {
+    hp: 225,
+    fxColor: '#7fd8ff',
+    healColor: '#7fd8ff',
+    ultCost: 1500,
+    speed(f) { return f.sprinting ? 300 * 1.5 : 300; },
+    init(f) { f.maxAmmo = 30; f.ammo = 30; f.reloadTime = 1.5; },
+    reset(f) { f.ammo = f.maxAmmo; f.reloadT = 0; f.sprinting = false; f.ultActive = false; },
+    update(f, g, dt, inp) {
+        if (f.ultActive) {
+            f.ultT -= dt;
+            if (f.ultT <= 0) f.ultActive = false;
+            // Visière : verrouillage sur l'ennemi visible le plus proche
+            let best = null, bd = 950;
+            for (const t of g.targetsFor(f.team)) {
+                const d = Math.hypot(t.x - f.x, t.y - f.y);
+                if (d < bd && g.los(f.x, f.y, t.x, t.y)) { bd = d; best = t; }
+            }
+            f.lockOn = best;
+            if (best) f.angle = Math.atan2(best.y - f.y, best.x - f.x);
+        } else f.lockOn = null;
+
+        // Le tir coupe le sprint
+        if (inp.fire || inp.fire2) f.sprinting = false;
+        if (inp.shift) f.sprinting = !f.sprinting;
+        if (f.sprinting && Math.hypot(inp.mx, inp.my) < 0.1) f.sprinting = false;
+
+        if (gunReady(f, dt, inp, g) && inp.fire) {
+            f.fireT = 0.11;
+            f.ammo--;
+            const m = front(f, 44, 4);
+            const spread = f.ultActive ? 0 : 0.035;
+            g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * spread, 950, (d) => (d < 450 ? 16 : 10),
+                { color: f.ultActive ? '#ff5a5a' : '#7fd8ff', width: 2.5, spark: f.ammo % 2 === 0, how: f.ultActive ? 'Visière tactique' : 'Fusil à impulsion' });
+            g.sound('rifle', { x: f.x, y: f.y, src: f.id });
+        }
+        // Roquettes hélices (Clic D)
+        if (inp.fire2Pressed && ready(f, 'rmb')) {
+            f.cd.rmb = 6;
+            for (let i = 0; i < 3; i++) {
+                const m = front(f, 30, (i - 1) * 8);
+                g.spawnProjectile({
+                    kind: 'helix', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 1100, r: 8, life: 0.9, color: '#7fd8ff', phase: i * 2.1,
+                    onHit: (p, t) => { g.damage(t, 26, f, { how: 'Roquettes hélices' }); g.explode(p.x, p.y, 70, 14, f, { how: 'Roquettes hélices', color: '#7fd8ff' }); },
+                    onWall: (p) => g.explode(p.x, p.y, 70, 14, f, { how: 'Roquettes hélices', color: '#7fd8ff' })
+                });
+            }
+            g.sound('helix', { x: f.x, y: f.y });
+        }
+        // Champ biotique (E)
+        if (inp.e && ready(f, 'e')) {
+            f.cd.e = 12;
+            g.objects.push({
+                kind: 'field', team: f.team, owner: f, x: f.x, y: f.y, r: 170, life: 5, alive: true, age: 0,
+                update: (o, gg, ddt) => {
+                    o.age += ddt;
+                    o.life -= ddt;
+                    if (o.life <= 0) { o.alive = false; return; }
+                    for (const a of gg.fighters) {
+                        if (!a.alive || a.team !== o.team || Math.hypot(a.x - o.x, a.y - o.y) > o.r || !gg.los(o.x, o.y, a.x, a.y)) continue;
+                        gg.heal(a, 40 * ddt, o.owner);
+                    }
+                }
+            });
+            g.sound('field', { x: f.x, y: f.y });
+        }
+        // Visière tactique (Q)
+        if (inp.q && useUlt(f, g)) {
+            f.ultActive = true;
+            f.ultT = 6;
+            f.ammo = f.maxAmmo; f.reloadT = 0;
+            g.sound('visor', { x: f.x, y: f.y });
+        }
+    },
+    slots(f) {
+        return [
+            { key: 'Clic D', name: 'Roquettes hélices', cd: f.cd.rmb || 0, max: 6 },
+            { key: 'Maj', name: 'Sprint', cd: 0, max: 1, active: f.sprinting },
+            { key: 'E', name: 'Champ biotique', cd: f.cd.e || 0, max: 12 }
+        ];
+    }
+};
+
+/* ===================================================================
+   NOX (Faucheur) : fusils à pompe, forme spectrale, pas de l'ombre, fleur de mort
+   =================================================================== */
+
+const nox = {
+    hp: 300,
+    fxColor: '#ff3b4f',
+    ultCost: 1500,
+    speed(f) { return f.wraith > 0 ? 450 : f.ultActive ? 150 : 300; },
+    init(f) { f.maxAmmo = 8; f.ammo = 8; f.reloadTime = 1.6; f.wraith = 0; },
+    reset(f) { f.ammo = f.maxAmmo; f.reloadT = 0; f.wraith = 0; f.step = null; f.ultActive = false; },
+    // Moisson : récupère 30 % des dégâts infligés
+    onDealt(f, dmg, target, g) {
+        if (target.isTarget) return;
+        f.hp = Math.min(f.maxHp, f.hp + dmg * 0.3);
+    },
+    update(f, g, dt, inp) {
+        if (f.wraith > 0) {
+            f.wraith -= dt;
+            f.invuln = Math.max(f.invuln, 0.05);
+            if (g.time - (f._smokeT || 0) > 0.06) {
+                f._smokeT = g.time;
+                g.addEffect({ type: 'puff', x: f.x, y: f.y, color: '#22222a', dark: true, life: 0.7 });
+            }
+            if (f.wraith <= 0) { f.wraith = 0; f.ammo = f.maxAmmo; f.reloadT = 0; }
+            return;
+        }
+        // Pas de l'ombre : canalisation puis téléportation
+        if (f.step) {
+            f.step.t -= dt;
+            if (f.step.t <= 0) {
+                const s = f.step;
+                f.step = null;
+                f.anchored = false;
+                g.addEffect({ type: 'blink', x: f.x, y: f.y, x2: s.x, y2: s.y, color: '#ff3b4f', life: 0.4 });
+                f.x = s.x; f.y = s.y;
+                g.addEffect({ type: 'puff', x: f.x, y: f.y, color: '#22222a', dark: true, big: true, life: 0.8 });
+                g.sound('shadowStep', { x: f.x, y: f.y });
+            }
+            return;
+        }
+        if (f.ultActive) {
+            f.ultT -= dt;
+            if (f.ultT <= 0) { f.ultActive = false; return; }
+            f.blossomT = (f.blossomT || 0) - dt;
+            if (f.blossomT <= 0) {
+                f.blossomT = 0.1;
+                for (const t of g.targetsFor(f.team)) {
+                    if (Math.hypot(t.x - f.x, t.y - f.y) > 230 + t.r || !g.los(f.x, f.y, t.x, t.y)) continue;
+                    g.damage(t, 17, f, { how: 'Fleur de mort' });
+                }
+                for (let i = 0; i < 4; i++) {
+                    const a = g.time * 9 + (i / 4) * TAU;
+                    g.addEffect({ type: 'tracer', x: f.x + Math.cos(a) * 20, y: f.y + Math.sin(a) * 20, x2: f.x + Math.cos(a) * 230, y2: f.y + Math.sin(a) * 230, color: '#ff3b4f', width: 2.5, life: 0.08 });
+                }
+                g.sound('scrapgun', { x: f.x, y: f.y, src: f.id, vol: 0.5 });
+            }
+            f.angle = g.time * 9;
+            return;
+        }
+        if (gunReady(f, dt, inp, g) && inp.fire) {
+            f.fireT = 0.5;
+            f.ammo--;
+            const side = f.ammo % 2 ? 12 : -12;
+            pellets(g, f, 14, 0.34, 300, 6, { how: 'Fusils infernaux', color: '#ff7b6b', side, muzzle: 1.8 });
+            g.sound('shotgunR', { x: f.x, y: f.y });
+        }
+        // Forme spectrale (Maj)
+        if (inp.shift && ready(f, 'shift')) {
+            f.cd.shift = 8;
+            f.wraith = 3;
+            g.sound('wraith', { x: f.x, y: f.y });
+        }
+        // Pas de l'ombre (E)
+        if (inp.e && ready(f, 'e')) {
+            const d = Math.min(600, Math.hypot(inp.ax - f.x, inp.ay - f.y));
+            const a = Math.atan2(inp.ay - f.y, inp.ax - f.x);
+            const tx = f.x + Math.cos(a) * d, ty = f.y + Math.sin(a) * d;
+            const c = collide(g.map, tx, ty, f.r);
+            const enemyRoom = g.spawnRooms[f.team === 'blue' ? 'red' : 'blue'];
+            const inEnemy = enemyRoom && c.x > enemyRoom.x && c.x < enemyRoom.x + enemyRoom.w && c.y > enemyRoom.y && c.y < enemyRoom.y + enemyRoom.h;
+            if (!inEnemy && Math.hypot(c.x - tx, c.y - ty) < 40 && c.x > 60 && c.x < g.map.width - 60) {
+                f.cd.e = 10;
+                f.step = { t: 0.9, x: c.x, y: c.y };
+                f.anchored = true;
+                g.addEffect({ type: 'puff', x: c.x, y: c.y, color: '#22222a', dark: true, big: true, life: 0.9 });
+                g.sound('wraith', { x: f.x, y: f.y, vol: 0.6 });
+            } else if (f.isPlayer) g.emit('onHint', 'Impossible de se téléporter ici');
+        }
+        // Fleur de mort (Q)
+        if (inp.q && useUlt(f, g)) {
+            f.ultActive = true;
+            f.ultT = 3;
+            f.blossomT = 0;
+            g.sound('blossom', { x: f.x, y: f.y });
+        }
+    },
+    slots(f) {
+        return [
+            { key: 'Maj', name: 'Forme spectrale', cd: f.cd.shift || 0, max: 8, active: f.wraith > 0 },
+            { key: 'E', name: 'Pas de l\'ombre', cd: f.cd.e || 0, max: 10, active: Boolean(f.step) }
+        ];
+    }
+};
+
+/* ===================================================================
+   SHIRIN (Ana) : fusil biotique, fléchette soporifique, grenade biotique, nano-boost
+   =================================================================== */
+
+const shirin = {
+    hp: 225,
+    fxColor: '#c98bff',
+    healColor: '#e7c2ff',
+    ultCost: 1500,
+    speed() { return 290; },
+    init(f) { f.maxAmmo = 12; f.ammo = 12; f.reloadTime = 1.5; },
+    reset(f) { f.ammo = f.maxAmmo; f.reloadT = 0; },
+    // Tir qui touche alliés (soin) et ennemis (dégâts)
+    shoot(f, g) {
+        const m = front(f, 52, 3);
+        const dx = Math.cos(f.angle), dy = Math.sin(f.angle);
+        const wall = castWall(g.map, m.x, m.y, dx, dy, 1800);
+        let end = wall.t;
+        const bar = g.barrierHit(f.team, m.x, m.y, m.x + dx * end, m.y + dy * end);
+        let best = bar ? bar.t : end, hit = null;
+        const cands = [...g.targetsFor(f.team), ...g.alliesOf(f, false)];
+        for (const t of cands) {
+            const d = rayCircle(m.x, m.y, dx, dy, t.x, t.y, t.r + 4);
+            if (d < best) { best = d; hit = t; }
+        }
+        if (hit) {
+            end = best;
+            if (hit.team === f.team && !hit.isTarget) g.heal(hit, 75, f);
+            else g.damage(hit, 70, f, { how: 'Fusil biotique', x: m.x + dx * best, y: m.y + dy * best });
+        } else if (bar) {
+            end = bar.t;
+            g.damageBarrier(bar, 70);
+        }
+        g.addEffect({ type: 'tracer', x: m.x, y: m.y, x2: m.x + dx * end, y2: m.y + dy * end, color: '#c98bff', width: 3.5, life: 0.18 });
+        g.addEffect({ type: 'muzzle', x: m.x, y: m.y, angle: f.angle, color: '#c98bff', size: 1.4, life: 0.1 });
+        g.sound('anaRifle', { x: f.x, y: f.y });
+    },
+    update(f, g, dt, inp) {
+        if (gunReady(f, dt, inp, g) && inp.fire) {
+            f.fireT = 0.85;
+            f.ammo--;
+            this.shoot(f, g);
+        }
+        // Fléchette soporifique (Maj)
+        if (inp.shift && ready(f, 'shift')) {
+            f.cd.shift = 12;
+            const m = front(f, 40);
+            g.spawnProjectile({
+                kind: 'dart', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 1800, r: 6, life: 0.8, eatable: true, color: '#b6ff8a',
+                onHit: (p, t) => {
+                    if (t.isTarget) return;
+                    g.damage(t, 5, f, { how: 'Fléchette soporifique' });
+                    g.stunTarget(t, 4);
+                    t.sleep = 4;
+                    g.sound('sleep', { x: t.x, y: t.y });
+                }
+            });
+            g.sound('dart', { x: f.x, y: f.y });
+        }
+        // Grenade biotique (E)
+        if (inp.e && ready(f, 'e')) {
+            f.cd.e = 10;
+            const d = Math.min(700, Math.hypot(inp.ax - f.x, inp.ay - f.y));
+            const burst = (p) => {
+                g.addEffect({ type: 'bionade', x: p.x, y: p.y, r: 130, life: 0.7 });
+                g.sound('bionade', { x: p.x, y: p.y });
+                for (const t of g.fighters) {
+                    if (!t.alive || Math.hypot(t.x - p.x, t.y - p.y) > 130 + t.r || !g.los(p.x, p.y, t.x, t.y)) continue;
+                    if (t.team === f.team) { g.heal(t, 90, f); t.healBoost = 4; }
+                    else { g.damage(t, 60, f, { how: 'Grenade biotique' }); t.antiHeal = 3; }
+                }
+            };
+            const m = front(f, 30);
+            g.spawnProjectile({
+                kind: 'bionade', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 900, r: 9, life: Math.max(0.12, d / 900), eatable: true, color: '#c98bff',
+                onHit: burst, onWall: burst, onExpire: burst, onBarrier: burst
+            });
+            g.sound('mineThrow', { x: f.x, y: f.y });
+        }
+        // Nano-boost (Q) : sur l'allié le plus proche de la souris
+        if (inp.q && f.ult >= 100) {
+            let best = null, bd = 0.5;
+            const aim = Math.atan2(inp.ay - f.y, inp.ax - f.x);
+            for (const a of g.alliesOf(f, false)) {
+                if (Math.hypot(a.x - f.x, a.y - f.y) > 800 || !g.los(f.x, f.y, a.x, a.y)) continue;
+                const da = Math.abs(angleDiff(Math.atan2(a.y - f.y, a.x - f.x), aim));
+                if (da < bd) { bd = da; best = a; }
+            }
+            if (best && useUlt(f, g)) {
+                best.nano = 8;
+                g.heal(best, 250, f);
+                g.addEffect({ type: 'ring', x: best.x, y: best.y, r0: 100, r1: 20, color: '#5ff3ff', life: 0.6, follow: best });
+                g.sound('nano', { x: best.x, y: best.y });
+                g.emit('onNano', best, f);
+            } else if (f.isPlayer) g.emit('onHint', 'Vise un allié pour lui donner le Nano-boost');
+        }
+    },
+    slots(f) {
+        return [
+            { key: 'Maj', name: 'Fléchette soporifique', cd: f.cd.shift || 0, max: 12 },
+            { key: 'E', name: 'Grenade biotique', cd: f.cd.e || 0, max: 10 }
+        ];
+    }
+};
+
+/* ===================================================================
+   VESPERA (Moira) : étreinte (soin en cône / drain), évanescence, orbe, coalescence
+   =================================================================== */
+
+const vespera = {
+    hp: 225,
+    fxColor: '#b35cff',
+    healColor: '#ffd84a',
+    ultCost: 1700,
+    speed(f) { return f.fade > 0 ? 300 * 2.2 : f.ultActive ? 340 : 300; },
+    init(f) { f.energy = 100; f.fade = 0; },
+    reset(f) { f.energy = 100; f.fade = 0; f.spray = false; f.drain = null; f.coal = null; f.ultActive = false; },
+    update(f, g, dt, inp) {
+        f.spray = false;
+        f.drain = null;
+        f.coal = null;
+        if (f.fade > 0) {
+            f.fade -= dt;
+            f.invuln = Math.max(f.invuln, 0.05);
+            return;
+        }
+        if (f.ultActive) {
+            f.ultT -= dt;
+            if (f.ultT <= 0) f.ultActive = false;
+            // Coalescence : rayon long qui soigne les alliés et blesse les ennemis
+            const dx = Math.cos(f.angle), dy = Math.sin(f.angle);
+            const len = castWall(g.map, f.x, f.y, dx, dy, 950).t;
+            f.coal = { len };
+            for (const t of g.fighters) {
+                if (!t.alive || t === f) continue;
+                const px = t.x - f.x, py = t.y - f.y;
+                const along = px * dx + py * dy;
+                if (along < 0 || along > len) continue;
+                if (Math.abs(px * dy - py * dx) > 40 + t.r) continue;
+                if (t.team === f.team) g.heal(t, 140 * dt, f);
+                else g.damage(t, 70 * dt, f, { how: 'Coalescence' });
+            }
+            g.heal(f, 50 * dt, f);
+            return;
+        }
+        // Étreinte : soin en cône (Clic G)
+        if (inp.fire && f.energy > 0) {
+            f.spray = true;
+            f.energy = Math.max(0, f.energy - 18 * dt);
+            for (const a of g.alliesOf(f, true)) {
+                const d = Math.hypot(a.x - f.x, a.y - f.y);
+                if (a !== f && (d > 230 + a.r || Math.abs(angleDiff(Math.atan2(a.y - f.y, a.x - f.x), f.angle)) > 0.5 || !g.los(f.x, f.y, a.x, a.y))) continue;
+                g.heal(a, (a === f ? 20 : 65) * dt, f);
+            }
+        } else if (inp.fire2) {
+            // Étreinte : drain (Clic D) sur l'ennemi le plus proche de la visée
+            let best = null, bd = 0.45;
+            for (const t of g.targetsFor(f.team)) {
+                const d = Math.hypot(t.x - f.x, t.y - f.y);
+                if (d > 420) continue;
+                const da = Math.abs(angleDiff(Math.atan2(t.y - f.y, t.x - f.x), f.angle));
+                if (da < bd && g.los(f.x, f.y, t.x, t.y) && !g.barrierHit(f.team, f.x, f.y, t.x, t.y)) { bd = da; best = t; }
+            }
+            if (best) {
+                f.drain = best;
+                g.damage(best, 50 * dt, f, { how: 'Étreinte : drain' });
+                g.heal(f, 30 * dt, f);
+                f.energy = Math.min(100, f.energy + 9 * dt);
+            }
+        }
+        if (!inp.fire) f.energy = Math.min(100, f.energy + 3 * dt);
+
+        // Évanescence (Maj)
+        if (inp.shift && ready(f, 'shift')) {
+            f.cd.shift = 6;
+            f.fade = 0.8;
+            g.addEffect({ type: 'puff', x: f.x, y: f.y, color: '#b35cff', big: true, life: 0.6 });
+            g.sound('fade', { x: f.x, y: f.y });
+        }
+        // Orbe biotique (E) : rebondit et soigne les alliés croisés
+        if (inp.e && ready(f, 'e')) {
+            f.cd.e = 10;
+            const m = front(f, 26);
+            let pool = 300;
+            g.spawnProjectile({
+                kind: 'orb', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 360, r: 14, life: 7, bounces: 4, eatable: false,
+                color: '#ffd84a', pierce: true, ignoreBarrier: true,
+                onHit: () => {},
+                update: (p, gg, ddt) => {
+                    for (const a of gg.alliesOf(f, true)) {
+                        if (pool <= 0) { p.dead = true; return; }
+                        if (Math.hypot(a.x - p.x, a.y - p.y) > 150 + a.r || !gg.los(p.x, p.y, a.x, a.y)) continue;
+                        const h = gg.heal(a, 55 * ddt, f);
+                        pool -= Math.max(h, 10 * ddt);
+                    }
+                }
+            });
+            g.sound('orb', { x: f.x, y: f.y });
+        }
+        if (inp.q && useUlt(f, g)) {
+            f.ultActive = true;
+            f.ultT = 8;
+            g.sound('coalescence', { x: f.x, y: f.y });
+        }
+    },
+    slots(f) {
+        return [
+            { key: 'Clic G', name: 'Énergie', meter: f.energy / 100, active: f.spray },
+            { key: 'Maj', name: 'Évanescence', cd: f.cd.shift || 0, max: 6, active: f.fade > 0 },
+            { key: 'E', name: 'Orbe biotique', cd: f.cd.e || 0, max: 10 }
+        ];
+    }
+};
+
+export const KITS = { gorvald, volta, zephyr, kraz, seraphine, tempo, ragnok, kodo, kade, nox, shirin, vespera };
 
 // Utilisé par les bots et l'interface
 export { front, angleDiff, castWall };

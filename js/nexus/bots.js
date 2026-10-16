@@ -17,7 +17,13 @@ const STYLE = {
     zephyr: { range: 190, engage: 560, aimErr: 0.07 },
     kraz: { range: 380, engage: 760, aimErr: 0.06 },
     seraphine: { range: 230, engage: 0, aimErr: 0.02 },
-    tempo: { range: 240, engage: 520, aimErr: 0.07 }
+    tempo: { range: 240, engage: 520, aimErr: 0.07 },
+    ragnok: { range: 170, engage: 600, aimErr: 0.06 },
+    kodo: { range: 120, engage: 600, aimErr: 0.1 },
+    kade: { range: 430, engage: 900, aimErr: 0.04 },
+    nox: { range: 110, engage: 600, aimErr: 0.07 },
+    shirin: { range: 480, engage: 900, aimErr: 0.03 },
+    vespera: { range: 200, engage: 0, aimErr: 0.04 }
 };
 
 const rand = (a, b) => a + Math.random() * (b - a);
@@ -162,7 +168,7 @@ export class BotBrain {
 
     leadFor(f, t) {
         // Anticipation simple pour les projectiles lents (grenades, sons)
-        const speed = f.heroId === 'kraz' ? 700 : f.heroId === 'tempo' ? 1100 : 0;
+        const speed = f.heroId === 'kraz' ? 700 : f.heroId === 'tempo' ? 1100 : f.heroId === 'shirin' ? 2400 : 0;
         if (!speed || !t.input) return t;
         const d = dist(f, t);
         const k = d / speed;
@@ -257,6 +263,68 @@ export class BotBrain {
                 if ((wantSpeed && f.track === 'heal') || (!wantSpeed && f.track === 'speed')) inp.shift = true;
                 if (hurt >= 2 && f.track === 'heal') inp.e = true;
                 if (ult && t && allies.length >= 3 && hurt >= 2) inp.q = true;
+                break;
+            }
+            case 'ragnok': {
+                if (t && d < 360) inp.fire = true;
+                if (t && d > 220 && d < 700 && Math.random() < 0.06) inp.shift = true;
+                if (f.hp < f.maxHp * 0.45 && f.cd.e <= 0) inp.e = true;
+                if (ult && this.coneCount(f, 500, 0.45) >= 2) inp.q = true;
+                break;
+            }
+            case 'kodo': {
+                if (t && d < 260) inp.fire = true;
+                if (t && d > 200 && d < 460 && Math.random() < 0.06) { inp.ax = t.x; inp.ay = t.y; inp.shift = true; }
+                if (t && f.hp < f.maxHp * 0.7 && enemiesNear(600) >= 2) inp.e = true;
+                if (f.ultActive && t) inp.fire = d < 180;
+                if (ult && f.hp < f.maxHp * 0.5 && t) inp.q = true;
+                break;
+            }
+            case 'kade': {
+                if (t && d < 900) inp.fire = true;
+                if (t && d < 700 && Math.random() < 0.05) inp.fire2Pressed = true;
+                const hurt = g.alliesOf(f, true).filter(a => dist(a, f) < 170 && a.hp < a.maxHp * 0.7).length;
+                if (hurt >= 1 && f.hp < f.maxHp * 0.8) inp.e = true;
+                if (!t && !f.sprinting && g.phase !== 'setup' && dist(f, g.map.point) > 700) inp.shift = true;
+                if (ult && enemiesNear(800) >= 2) inp.q = true;
+                break;
+            }
+            case 'nox': {
+                if (t && d < 320) inp.fire = true;
+                if (f.hp < f.maxHp * 0.3 && t) inp.shift = true;
+                if (t && d > 400 && d < 600 && Math.random() < 0.02) { inp.ax = t.x; inp.ay = t.y; inp.e = true; }
+                if (ult && enemiesNear(240) >= 2) inp.q = true;
+                break;
+            }
+            case 'shirin': {
+                // Soigne en priorité un allié blessé visible, sinon tire sur l'ennemi
+                const hurt = g.alliesOf(f, false).filter(a => a.hp < a.maxHp * 0.85 && dist(a, f) < 1200 && g.los(f.x, f.y, a.x, a.y))
+                    .sort((a, b2) => a.hp / a.maxHp - b2.hp / b2.maxHp)[0];
+                if (hurt) { inp.ax = hurt.x; inp.ay = hurt.y; inp.fire = true; }
+                else if (t) inp.fire = true;
+                if (t && d < 500 && (t.ultActive || t.charging || t.boosting || t.tire) && f.cd.shift <= 0) { inp.ax = t.x; inp.ay = t.y; inp.shift = true; }
+                else if (t && d < 400 && Math.random() < 0.02) inp.shift = true;
+                const group = g.fighters.filter(o => o.alive && dist(o, t || f) < 140).length;
+                if (t && d < 650 && group >= 2 && Math.random() < 0.1) { inp.ax = t.x; inp.ay = t.y; inp.e = true; }
+                if (ult) {
+                    const dps = g.alliesOf(f, false).find(a => (a.role === 'damage' || a.role === 'tank') && dist(a, f) < 700 && this.pickTarget(a, 600));
+                    if (dps) { inp.ax = dps.x; inp.ay = dps.y; inp.q = true; }
+                }
+                break;
+            }
+            case 'vespera': {
+                const allies = g.alliesOf(f, false).filter(a => dist(a, f) < 230 && g.los(f.x, f.y, a.x, a.y));
+                const hurt = allies.filter(a => a.hp < a.maxHp * 0.9).sort((a, b2) => a.hp / a.maxHp - b2.hp / b2.maxHp)[0];
+                if (hurt && f.energy > 5) { inp.ax = hurt.x; inp.ay = hurt.y; inp.fire = true; }
+                else if (t && d < 420) inp.fire2 = true;
+                if (f.hp < f.maxHp * 0.35 && t) inp.shift = true;
+                if (g.alliesOf(f, false).some(a => a.hp < a.maxHp * 0.7 && dist(a, f) < 400)) inp.e = true;
+                if (ult && (t || g.alliesOf(f, false).filter(a => a.hp < a.maxHp * 0.6).length >= 2)) inp.q = true;
+                if (f.ultActive) {
+                    const low = g.alliesOf(f, false).sort((a, b2) => a.hp / a.maxHp - b2.hp / b2.maxHp)[0];
+                    const aimAt = t || low;
+                    if (aimAt) { inp.ax = aimAt.x; inp.ay = aimAt.y; }
+                }
                 break;
             }
         }

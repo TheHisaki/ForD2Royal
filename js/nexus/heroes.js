@@ -38,7 +38,7 @@ export const HEROES = [
         health: 650,
         stats: { health: 5, mobility: 1, difficulty: 1 },
         abilities: [
-            { key: 'Clic G', name: 'Marteau-fusée', text: 'Grand coup en arc devant lui (85 dégâts) qui touche et repousse tous les ennemis proches.' },
+            { key: 'Clic G', name: 'Marteau-fusée', text: 'Grand coup en arc devant lui (95 dégâts) qui touche et repousse tous les ennemis proches.' },
             { key: 'Clic D', name: 'Bastion', text: 'Maintenir : bouclier frontal de 1200 PV qui bloque tous les tirs. Ralentit. Se recharge baissé, se brise à 0 (5 s).' },
             { key: 'Maj', name: 'Charge', text: 'Fonce (virage lent à la souris), emporte le premier ennemi et l\'écrase contre un mur : 300 dégâts. Maj pour arrêter.' },
             { key: 'E', name: 'Frappe de feu', text: 'Vague de flammes (100 dégâts) qui traverse les ennemis et les boucliers.' },
@@ -134,6 +134,113 @@ export const HEROES = [
             { key: 'E', name: 'Volume à fond', text: 'Aura très renforcée pendant 3 s (gros soin ou +60 % de vitesse).' },
             { key: 'Q', name: 'Mur du son', text: 'Ultime : +650 PV de bouclier temporaire pour tous les alliés autour de lui.', ult: true },
             { key: 'Passif', name: 'Patins', text: 'Se déplace plus vite que les autres héros.' }
+        ]
+    },
+
+    /* ----- Nouveaux héros ----- */
+    {
+        id: 'ragnok',
+        name: 'Ragnok',
+        role: 'tank',
+        inspiredBy: 'Chopper (Roadhog)',
+        title: 'Le Boucher des Ferrailles',
+        lore: 'Colosse masqué des terres brûlées. Il attrape ses proies au crochet et les achève à bout portant.',
+        color: '#a0703a',
+        health: 700,
+        stats: { health: 5, mobility: 1, difficulty: 2 },
+        abilities: [
+            { key: 'Clic G', name: 'Fusil à ferraille', text: 'Gerbe de 12 éclats à courte portée (5 tirs par chargeur).' },
+            { key: 'Maj', name: 'Crochet', text: 'Lance une chaîne : le premier ennemi touché est tiré jusqu\'à lui et étourdi un instant.' },
+            { key: 'E', name: 'Bouffée d\'air', text: 'Respire son masque : 350 PV rendus en 2 s et dégâts subis réduits de moitié.' },
+            { key: 'Q', name: 'Porc entier', text: 'Ultime : 6 s de rafale continue d\'éclats qui repoussent tout devant lui.', ult: true }
+        ]
+    },
+    {
+        id: 'kodo',
+        name: 'Kodo',
+        role: 'tank',
+        inspiredBy: 'Winston',
+        title: 'Le Génie Primate',
+        lore: 'Gorille scientifique élevé sur une base lunaire. Il saute au cœur de la mêlée, protégé par son dôme d\'énergie.',
+        color: '#7d93b8',
+        health: 600,
+        stats: { health: 4, mobility: 4, difficulty: 2 },
+        abilities: [
+            { key: 'Clic G', name: 'Canon Tesla', text: 'Arc électrique à courte portée : touche jusqu\'à 3 ennemis, sans viser, même à travers les boucliers.' },
+            { key: 'Maj', name: 'Bond', text: 'Saut vers la souris : à l\'atterrissage, dégâts et petite poussée autour de lui.' },
+            { key: 'E', name: 'Dôme', text: 'Pose un dôme de 700 PV pendant 9 s : aucun tir ne le traverse, ni dans un sens ni dans l\'autre.' },
+            { key: 'Q', name: 'Rage primale', text: 'Ultime (10 s) : +500 PV, coups de poing qui projettent les ennemis, Bond rechargé très vite.', ult: true }
+        ]
+    },
+    {
+        id: 'kade',
+        name: 'Kade',
+        role: 'damage',
+        inspiredBy: 'Soldat : 76',
+        title: 'Le Vétéran',
+        lore: 'Ancien commandant revenu dans l\'ombre. Fusil fiable, roquettes et une visière qui ne rate jamais sa cible.',
+        color: '#3d5fa8',
+        health: 225,
+        stats: { health: 2, mobility: 3, difficulty: 1 },
+        abilities: [
+            { key: 'Clic G', name: 'Fusil à impulsion', text: 'Fusil automatique précis à longue portée (30 balles).' },
+            { key: 'Clic D', name: 'Roquettes hélices', text: 'Salve de roquettes explosives (120 dégâts).' },
+            { key: 'Maj', name: 'Sprint', text: 'Court 50 % plus vite. S\'arrête dès qu\'il tire.' },
+            { key: 'E', name: 'Champ biotique', text: 'Pose une zone qui soigne les alliés à l\'intérieur pendant 5 s.' },
+            { key: 'Q', name: 'Visière tactique', text: 'Ultime (6 s) : ses tirs se verrouillent tout seuls sur l\'ennemi visible le plus proche.', ult: true }
+        ]
+    },
+    {
+        id: 'nox',
+        name: 'Nox',
+        role: 'damage',
+        inspiredBy: 'Faucheur (Reaper)',
+        title: 'Le Spectre',
+        lore: 'Mercenaire mi-homme mi-ombre. Il surgit derrière les lignes et fauche tout ce qui l\'entoure.',
+        color: '#2b2b33',
+        health: 300,
+        stats: { health: 3, mobility: 3, difficulty: 2 },
+        abilities: [
+            { key: 'Clic G', name: 'Fusils infernaux', text: 'Deux fusils à pompe, dévastateurs de près (8 tirs).' },
+            { key: 'Maj', name: 'Forme spectrale', text: '3 s intouchable et plus rapide, mais sans pouvoir tirer.' },
+            { key: 'E', name: 'Pas de l\'ombre', text: 'Après 0,9 s, se téléporte à l\'endroit visé (600 max).' },
+            { key: 'Q', name: 'Fleur de mort', text: 'Ultime : tourne sur lui-même 3 s en tirant tout autour (170 dégâts/s).', ult: true },
+            { key: 'Passif', name: 'Moisson', text: 'Récupère 30 % des dégâts qu\'il inflige.' }
+        ]
+    },
+    {
+        id: 'shirin',
+        name: 'Shirin',
+        role: 'support',
+        inspiredBy: 'Ana',
+        title: 'L\'Œil du Faucon',
+        lore: 'Tireuse d\'élite légendaire sortie de sa retraite. Ses fléchettes soignent ses alliés et neutralisent ses ennemis.',
+        color: '#5b7fb5',
+        health: 225,
+        stats: { health: 2, mobility: 2, difficulty: 3 },
+        abilities: [
+            { key: 'Clic G', name: 'Fusil biotique', text: 'Tir précis : soigne l\'allié touché (75) ou blesse l\'ennemi (70). Traverse la carte !' },
+            { key: 'Maj', name: 'Fléchette soporifique', text: 'Endort le premier ennemi touché 4 s (il se réveille s\'il prend des dégâts).' },
+            { key: 'E', name: 'Grenade biotique', text: 'Soigne les alliés et les rend plus faciles à soigner ; blesse les ennemis et bloque leurs soins 3 s.' },
+            { key: 'Q', name: 'Nano-boost', text: 'Ultime : un allié visé inflige +50 % de dégâts et en subit 50 % de moins pendant 8 s.', ult: true }
+        ]
+    },
+    {
+        id: 'vespera',
+        name: 'Vespera',
+        role: 'support',
+        inspiredBy: 'Moira',
+        title: 'La Généticienne',
+        lore: 'Scientifique brillante et sans scrupules. Une main soigne, l\'autre aspire la vie de ses ennemis.',
+        color: '#9b4dca',
+        health: 225,
+        stats: { health: 2, mobility: 4, difficulty: 1 },
+        abilities: [
+            { key: 'Clic G', name: 'Étreinte : soin', text: 'Nuage doré en cône qui soigne tous les alliés devant elle (utilise de l\'énergie).' },
+            { key: 'Clic D', name: 'Étreinte : drain', text: 'Rayon violet qui se fixe sur un ennemi : le blesse, la soigne et recharge son énergie.' },
+            { key: 'Maj', name: 'Évanescence', text: 'Disparaît 0,8 s : intouchable et très rapide.' },
+            { key: 'E', name: 'Orbe biotique', text: 'Orbe qui rebondit sur les murs et soigne les alliés qu\'il croise.' },
+            { key: 'Q', name: 'Coalescence', text: 'Ultime (8 s) : long rayon qui soigne les alliés et blesse les ennemis sur sa trajectoire.', ult: true }
         ]
     }
 ];
