@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="theme-color" content="#0b1430">
+    <title>NEXUS · Héros 5v5 · FOR2D ROYAL</title>
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/nexus.css?v=1">
+</head>
+<body>
+    <!-- Chargement -->
+    <div id="nxLoading" class="nx-loading" role="status" aria-live="polite">
+        <div class="nx-logo">NEX<span>US</span></div>
+        <p>Chargement du Sanctuaire de Kaïro…</p>
+    </div>
+
+    <!-- ===== Sélection du héros ===== -->
+    <div id="nxSelect" class="nx-select" hidden>
+        <header class="nx-sel-head">
+            <a class="nx-back" href="index.html" aria-label="Retour au lobby">
+                <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7"/></svg>
+                Lobby
+            </a>
+            <div class="nx-sel-map">
+                <span class="nx-kicker">Contrôle · 5v5 · Avec bots</span>
+                <strong>Sanctuaire de Kaïro</strong>
+            </div>
+            <div class="nx-sel-title">
+                <h1>Choisis ton héros</h1>
+                <p id="nxSelHint" aria-live="polite"></p>
+            </div>
+            <div class="nx-sel-timer" aria-label="Temps restant"><span id="nxTimer">30</span></div>
+        </header>
+
+        <main class="nx-sel-main">
+            <aside class="nx-team nx-team-blue" aria-label="Ton équipe">
+                <h2>Ton équipe</h2>
+                <ol id="nxAllies" class="nx-slots"></ol>
+            </aside>
+
+            <section class="nx-showcase" aria-live="polite">
+                <div class="nx-showcase-art">
+                    <canvas id="nxShowcase" width="440" height="440" aria-hidden="true"></canvas>
+                    <span class="nx-unavailable-tag">Indisponible</span>
+                </div>
+                <div class="nx-hero-info">
+                    <span id="nxHeroRole" class="nx-role-badge"></span>
+                    <h2 id="nxHeroName"></h2>
+                    <p id="nxHeroTitle" class="nx-hero-title"></p>
+                    <p id="nxHeroLore" class="nx-hero-lore"></p>
+                    <p id="nxHeroInspired" class="nx-hero-inspired"></p>
+                    <div id="nxHeroStats" class="nx-stats"></div>
+                    <ul id="nxHeroAbilities" class="nx-abilities"></ul>
+                    <p id="nxRolePassive" class="nx-role-passive"></p>
+                </div>
+            </section>
+
+            <aside class="nx-team nx-team-red" aria-label="Équipe adverse">
+                <h2>Équipe adverse</h2>
+                <ol id="nxEnemies" class="nx-slots"></ol>
+                <p class="nx-team-note">Révélée au début du match</p>
+            </aside>
+        </main>
+
+        <footer class="nx-sel-foot">
+            <div id="nxRoster" class="nx-roster" role="group" aria-label="Héros"></div>
+            <button id="nxLock" class="nx-lock" type="button">VERROUILLER</button>
+        </footer>
+    </div>
+
+    <!-- ===== Aperçu de la carte ===== -->
+    <div id="nxGame" class="nx-game" hidden>
+        <canvas id="nxCanvas" aria-label="Carte du Sanctuaire de Kaïro"></canvas>
+
+        <div class="nx-hud">
+            <div class="nx-hud-tl">
+                <a class="nx-back" href="index.html" aria-label="Retour au lobby">
+                    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7"/></svg>
+                    Lobby
+                </a>
+                <button id="nxChangeHero" class="nx-back" type="button">Changer de héros</button>
+            </div>
+
+            <!-- Objectif : style du HUD de Contrôle (pourcentages, manches, état du point) -->
+            <div class="nx-objective">
+                <ul id="nxHudBlue" class="nx-hud-team is-blue" aria-label="Ton équipe"></ul>
+                <div class="nx-score is-blue">
+                    <span class="nx-pct">0%</span>
+                    <span class="nx-rounds" aria-label="Manches gagnées"><i></i><i></i></span>
+                </div>
+                <div class="nx-point">
+                    <span id="nxPointIcon" class="nx-point-icon is-locked">A</span>
+                    <span id="nxPointState" class="nx-point-state">POINT VERROUILLÉ</span>
+                    <span class="nx-point-sub">Manche 1 · au meilleur des 3</span>
+                </div>
+                <div class="nx-score is-red">
+                    <span class="nx-pct">0%</span>
+                    <span class="nx-rounds" aria-label="Manches gagnées"><i></i><i></i></span>
+                </div>
+                <ul id="nxHudRed" class="nx-hud-team is-red" aria-label="Équipe adverse"></ul>
+            </div>
+
+            <div id="nxLocation" class="nx-location" aria-live="polite"></div>
+            <div class="nx-preview-tag">APERÇU · Carte et héros — la capture du point et les pouvoirs arrivent à la prochaine étape</div>
+            <div id="nxToast" class="nx-toast" role="status" aria-live="polite" hidden></div>
+
+            <div class="nx-hud-hero">
+                <canvas id="nxHudPortrait" width="96" height="96" aria-hidden="true"></canvas>
+                <div>
+                    <span id="nxHudRole" class="nx-hud-role"></span>
+                    <strong id="nxHudName"></strong>
+                    <div class="nx-hp"><i></i><span id="nxHudHpText"></span></div>
+                </div>
+            </div>
+
+            <div id="nxHudAbilities" class="nx-hud-abilities" aria-label="Capacités (bientôt)"></div>
+
+            <div class="nx-keys"><kbd>ZQSD</kbd> Se déplacer · <kbd>Souris</kbd> Viser · <kbd>Molette</kbd> Zoom · <kbd>TAB</kbd> / <kbd>M</kbd> Vue d'ensemble</div>
+        </div>
+    </div>
+
+    <script type="module" src="js/nexus/main.js?v=1"></script>
+</body>
+</html>

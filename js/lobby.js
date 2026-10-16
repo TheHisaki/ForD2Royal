@@ -46,6 +46,7 @@ class LobbyManager {
         if (mode === 'DUEL' || mode === '1V1') this.teamSize = 1;
         else if (mode === 'GUNGAME' || mode === 'GUN GAME') this.teamSize = 1;
         else if (mode === 'ISOLA') this.teamSize = 1;
+        else if (mode === 'NEXUS') this.teamSize = 1;
         else if (mode === 'DUO') this.teamSize = 2;
         else if (mode === 'TRIO') this.teamSize = 3;
         else if (mode === 'ESCOUADE' || mode === 'SECTION') this.teamSize = 4;
@@ -317,6 +318,25 @@ class LobbyManager {
         if (!this.startChoiceOpen) return;
         this.closeStartChoice();
 
+        // NEXUS : seules les parties avec bots existent pour l'instant (hors ligne, sans serveur).
+        if (this.currentGameMode === 'NEXUS') {
+            if (choice === 'players') {
+                this.showToast('NEXUS : le multijoueur arrive bientôt, choisis « Avec des bots »');
+                this.localPlayerReady = false;
+                if (this.players[0]) this.players[0].ready = false;
+                const btn = document.getElementById('readyBtn');
+                btn?.classList.remove('is-ready');
+                const txt = btn?.querySelector('.ready-text');
+                if (txt) txt.textContent = 'PRÊT';
+                this.updatePlayerStatus(0, false);
+                return;
+            }
+            this.fillMatch = true;
+            this.saveGameConfig();
+            this.startGame();
+            return;
+        }
+
         // Compatibilité avec l’ancien système : le choix courant est quand même
         // sauvegardé et envoyé, mais il n’est plus décidé dans le menu des modes.
         this.fillMatch = choice === 'bots';
@@ -384,6 +404,14 @@ class LobbyManager {
             if (this.players[0]) this.players[0].ready = true;
             this.updatePlayerStatus(0, true);
             this.startGame();
+            return;
+        }
+
+        // NEXUS (héros 5v5) : pour l'instant seulement en solo hors groupe, avec des bots.
+        if (this.currentGameMode === 'NEXUS' && !this.localPlayerReady
+            && (window.networkManager?.roomCode || this.getRealPartyPlayerCount() > 1)) {
+            this.showToast('NEXUS : en groupe bientôt, lance-le seul avec des bots pour l\'instant');
+            window.SFX?.play('click');
             return;
         }
 
@@ -590,7 +618,7 @@ class LobbyManager {
         if (!overlay) return;
 
         const partyCount = this.getRealPartyPlayerCount();
-        const modeHierarchy = { duel: 1, solo: 1, gungame: 4, isola: 1, duo: 2, trio: 3, section: 4 };
+        const modeHierarchy = { duel: 1, solo: 1, gungame: 4, isola: 1, nexus: 1, duo: 2, trio: 3, section: 4 };
 
         overlay.querySelectorAll('.mode-card').forEach(card => {
             const mode = card.dataset.mode;
@@ -642,7 +670,7 @@ class LobbyManager {
 
     selectMode(mode) {
         const partyCount = this.getRealPartyPlayerCount();
-        const modeHierarchy = { duel: 1, solo: 1, gungame: 4, isola: 1, duo: 2, trio: 3, section: 4 };
+        const modeHierarchy = { duel: 1, solo: 1, gungame: 4, isola: 1, nexus: 1, duo: 2, trio: 3, section: 4 };
         if (modeHierarchy[mode] && modeHierarchy[mode] < partyCount) {
             const requiredName = partyCount === 2 ? 'Duo, Trio ou Section' : partyCount === 3 ? 'Trio ou Section' : 'Section';
             this.showToast(`Impossible en groupe de ${partyCount} joueurs : choisissez ${requiredName}.`);
@@ -651,8 +679,8 @@ class LobbyManager {
         }
 
         this._pendingMode = mode;
-        const modeMap = { duel: 'DUEL', solo: 'SOLO', gungame: 'GUNGAME', isola: 'ISOLA', duo: 'DUO', trio: 'TRIO', section: 'ESCOUADE' };
-        const teamSizes = { duel: 1, solo: 1, gungame: 1, isola: 1, duo: 2, trio: 3, section: 4 };
+        const modeMap = { duel: 'DUEL', solo: 'SOLO', gungame: 'GUNGAME', isola: 'ISOLA', nexus: 'NEXUS', duo: 'DUO', trio: 'TRIO', section: 'ESCOUADE' };
+        const teamSizes = { duel: 1, solo: 1, gungame: 1, isola: 1, nexus: 1, duo: 2, trio: 3, section: 4 };
 
         this.currentGameMode = modeMap[mode] || 'SOLO';
         this.teamSize = teamSizes[mode] || 1;
@@ -686,10 +714,15 @@ class LobbyManager {
 
         const modeNames = { duel: '1V1', solo: 'SOLO', gungame: 'GUN GAME', isola: 'ISOLA', duo: 'DUO', trio: 'TRIO', section: 'SECTION' };
         const modePlayers = { duel: '1 joueur + 1 adversaire', solo: '1 joueur', gungame: '15 joueurs max · chacun pour soi', isola: '1 joueur · prototype 3D', duo: '2 joueurs', trio: '3 joueurs', section: '4 joueurs' };
-        const teamSizes = { duel: 1, solo: 1, gungame: 1, isola: 1, duo: 2, trio: 3, section: 4 };
+        const teamSizes = { duel: 1, solo: 1, gungame: 1, isola: 1, nexus: 1, duo: 2, trio: 3, section: 4 };
         if (this._pendingMode === 'isola') {
             nameEl.textContent = 'ISOLA';
             detailEl.textContent = '1 joueur · prototype 3D · armes, soins et mannequins d\'entraînement (bots bientôt)';
+            return;
+        }
+        if (this._pendingMode === 'nexus') {
+            nameEl.textContent = 'NEXUS';
+            detailEl.textContent = 'Héros 5v5 · 1 tank, 2 dégâts, 2 soutiens · Contrôle de zone · avec bots (multijoueur bientôt)';
             return;
         }
 
@@ -706,12 +739,13 @@ class LobbyManager {
         const duel = this.currentGameMode === 'DUEL';
         const gunGame = this.currentGameMode === 'GUNGAME';
         const isola = this.currentGameMode === 'ISOLA';
+        const nexus = this.currentGameMode === 'NEXUS';
         const noTeamToFill = this.teamSize <= 1;
         const leader = this.isCurrentPartyLeader();
         const fillToggle = document.getElementById('botFillToggle');
         if (fillToggle) {
             fillToggle.setAttribute('aria-pressed', String(this.botsEnabled && !noTeamToFill));
-            fillToggle.textContent = solo ? 'Solo' : duel ? '1v1' : gunGame ? 'Gun Game' : isola ? 'ISOLA' : this.botsEnabled ? 'Activé' : 'Désactivé';
+            fillToggle.textContent = solo ? 'Solo' : duel ? '1v1' : gunGame ? 'Gun Game' : isola ? 'ISOLA' : nexus ? '5v5' : this.botsEnabled ? 'Activé' : 'Désactivé';
             fillToggle.classList.toggle('is-disabled-fill', noTeamToFill || !this.botsEnabled);
             fillToggle.disabled = noTeamToFill;
             fillToggle.title = solo
@@ -722,6 +756,8 @@ class LobbyManager {
                         ? 'Le Gun Game remplit la partie jusqu\'à 15 combattants'
                         : isola
                             ? 'ISOLA est un prototype solo : armes et soins, sans bots pour l\'instant'
+                            : nexus
+                                ? 'En NEXUS, les 9 autres héros sont des bots'
                             : leader ? 'Les places vides de ton équipe sont prises par des bots' : 'Seul le chef du groupe peut changer cette option';
         }
 
@@ -833,7 +869,7 @@ class LobbyManager {
 
     saveGameConfig() {
         try {
-            const modeMap = { DUEL: 'duel', SOLO: 'solo', GUNGAME: 'gungame', ISOLA: 'isola', DUO: 'duo', TRIO: 'trio', ESCOUADE: 'section' };
+            const modeMap = { DUEL: 'duel', SOLO: 'solo', GUNGAME: 'gungame', ISOLA: 'isola', NEXUS: 'nexus', DUO: 'duo', TRIO: 'trio', ESCOUADE: 'section' };
             const m = modeMap[this.currentGameMode] || 'solo';
 
             // Le duel et le Gun Game utilisent des profils de monde indépendants.
@@ -890,14 +926,14 @@ class LobbyManager {
     }
 
     confirmMode() {
-        const modeMap = { duel: 'DUEL', solo: 'SOLO', gungame: 'GUNGAME', isola: 'ISOLA', duo: 'DUO', trio: 'TRIO', section: 'ESCOUADE' };
-        const teamSizes = { duel: 1, solo: 1, gungame: 1, isola: 1, duo: 2, trio: 3, section: 4 };
+        const modeMap = { duel: 'DUEL', solo: 'SOLO', gungame: 'GUNGAME', isola: 'ISOLA', nexus: 'NEXUS', duo: 'DUO', trio: 'TRIO', section: 'ESCOUADE' };
+        const teamSizes = { duel: 1, solo: 1, gungame: 1, isola: 1, nexus: 1, duo: 2, trio: 3, section: 4 };
         this.currentGameMode = modeMap[this._pendingMode] || 'SOLO';
         this.teamSize = teamSizes[this._pendingMode] || 1;
         window.SFX?.play('mode');
 
-        // ISOLA est un prototype hors ligne : le serveur ne connaît pas encore ce mode.
-        if (this._pendingMode !== 'isola' && this.isCurrentPartyLeader() && window.networkManager?.roomCode) {
+        // ISOLA et NEXUS sont hors ligne : le serveur ne connaît pas encore ces modes.
+        if (this._pendingMode !== 'isola' && this._pendingMode !== 'nexus' && this.isCurrentPartyLeader() && window.networkManager?.roomCode) {
             window.networkManager.sendRoomConfig(this._pendingMode, this.fillMatch, this.botsEnabled);
         }
 
@@ -941,6 +977,10 @@ class LobbyManager {
         // ISOLA n'existe pas encore côté serveur : pas de salle multijoueur pour ce mode.
         if (this.currentGameMode === 'ISOLA') {
             this.showToast('ISOLA est en prototype : solo hors groupe pour l\'instant');
+            return;
+        }
+        if (this.currentGameMode === 'NEXUS') {
+            this.showToast('NEXUS : le multijoueur arrive bientôt, joue avec des bots pour l\'instant');
             return;
         }
 
@@ -1379,7 +1419,7 @@ class LobbyManager {
         this.currentGameMode = upper === 'SECTION' ? 'ESCOUADE' : upper;
         const display = document.getElementById('currentModeDisplay') || document.querySelector('.mode-display');
         if (display) display.textContent = this.currentGameMode === 'ESCOUADE' ? 'SECTION' : this.currentGameMode === 'GUNGAME' ? 'GUN GAME' : this.currentGameMode === 'DUEL' ? '1V1' : this.currentGameMode;
-        const modeSizes = { DUEL: 1, SOLO: 1, GUNGAME: 1, ISOLA: 1, DUO: 2, TRIO: 3, ESCOUADE: 4 };
+        const modeSizes = { DUEL: 1, SOLO: 1, GUNGAME: 1, ISOLA: 1, NEXUS: 1, DUO: 2, TRIO: 3, ESCOUADE: 4 };
         this.teamSize = modeSizes[this.currentGameMode] || 2;
         this.saveGameConfig();
         this.updateUI();
@@ -1466,7 +1506,7 @@ class LobbyManager {
             : String(this.currentGameMode || 'SOLO').toLowerCase();
         // Étiquette au-dessus du nom : famille du mode (Battle Royale ou arcade)
         const label = document.querySelector('.game-mode-section .mode-label');
-        if (label) label.textContent = mode === 'duel' || mode === 'gungame' ? 'Mode arcade' : mode === 'isola' ? 'Battle Royale 3D' : 'Battle Royale';
+        if (label) label.textContent = mode === 'duel' || mode === 'gungame' ? 'Mode arcade' : mode === 'isola' ? 'Battle Royale 3D' : mode === 'nexus' ? 'Héros 5v5' : 'Battle Royale';
         const source = document.querySelector(`.mode-card[data-mode="${mode}"] .mode-card-scene`);
         if (!source) return;
         if (art.dataset.mode === mode && host.querySelector('.mode-main-scene')) return;
@@ -1596,7 +1636,7 @@ class LobbyManager {
 
         // N'afficher que le nombre de places du mode (SOLO = 1 ... ESCOUADE = 4),
         // sans jamais cacher un joueur déjà présent
-        const modeSizes = { DUEL: 1, SOLO: 1, GUNGAME: 15, ISOLA: 1, DUO: 2, TRIO: 3, ESCOUADE: 4 };
+        const modeSizes = { DUEL: 1, SOLO: 1, GUNGAME: 15, ISOLA: 1, NEXUS: 1, DUO: 2, TRIO: 3, ESCOUADE: 4 };
         const visibleSlots = Math.max(modeSizes[this.currentGameMode] || 4, this.players.length);
         slots.forEach((slot, index) => {
             slot.classList.toggle('is-hidden', index >= visibleSlots);
@@ -1711,7 +1751,10 @@ class LobbyManager {
             clearTimeout(this.startTimer);
             window.SFX?.play('launch');
             this.startTimer = setTimeout(() => {
-                if (this.localPlayerReady) window.location.href = this.currentGameMode === 'ISOLA' ? 'isola.html' : 'game.html';
+                if (this.localPlayerReady) {
+                    window.location.href = this.currentGameMode === 'ISOLA' ? 'isola.html'
+                        : this.currentGameMode === 'NEXUS' ? 'nexus.html' : 'game.html';
+                }
             }, 1500);
         } else {
             this.addChatMessage('Tous les joueurs doivent être prêts !');

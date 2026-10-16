@@ -265,6 +265,16 @@
 .iso-tree      { fill: #2fa34a; stroke: #0b1430; stroke-width: 2; }
 .iso-ring      { fill: none; stroke: #2f7dff; stroke-width: 3; }
 
+/* NEXUS : héros 5v5 */
+.mode-card[data-mode="nexus"] .mode-card-art {
+    background: linear-gradient(135deg, #1e1b4b 0%, #f97316 55%, #fde047 100%);
+}
+.nx-point      { fill: rgba(255, 255, 255, 0.18); stroke: #ffffff; stroke-width: 2.5; stroke-dasharray: 6 4; }
+.nx-point-core { fill: #ffffff; }
+.nx-blue       { fill: #38bdf8; stroke: #0b1430; stroke-width: 2; stroke-linejoin: round; }
+.nx-red        { fill: #f43f5e; stroke: #0b1430; stroke-width: 2; stroke-linejoin: round; }
+.nx-vs         { fill: #ffffff; stroke: #0b1430; stroke-width: 3; paint-order: stroke; font-family: 'Bebas Neue', Impact, sans-serif; font-size: 26px; letter-spacing: 1px; }
+
 /* ----- Illustration SVG du mode (soldats casqués, sprite dans index.html) ----- */
 .op-sprite {
     position: absolute;

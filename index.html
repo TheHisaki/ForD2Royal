@@ -42,7 +42,7 @@
     <link rel="stylesheet" href="css/settings.css">
     <link rel="stylesheet" href="css/store.css">
     <link rel="stylesheet" href="css/hub.css">
-    <link rel="stylesheet" href="css/mode-selector.css?v=3">
+    <link rel="stylesheet" href="css/mode-selector.css?v=4">
     <link rel="stylesheet" href="css/welcome.css">
 </head>
 <body>
@@ -1028,6 +1028,41 @@
                             </div>
                             <div class="mode-card-lock"><span class="lock-text">🔒 Prototype : 1 joueur</span></div>
                         </div>
+
+                        <!-- NEXUS : héros 5v5 en contrôle de zone (inspiré d'Overwatch) -->
+                        <div class="mode-card mode-card-wide mode-card-feature" data-mode="nexus" tabindex="0" role="button" aria-pressed="false">
+                            <div class="mode-card-art">
+                                <span class="mode-card-new">Inédit</span>
+                                <svg class="mode-card-scene" viewBox="0 0 200 120" preserveAspectRatio="xMidYMax meet" aria-hidden="true" focusable="false">
+                                    <ellipse class="op-glow" cx="100" cy="112" rx="90" ry="12"/>
+                                    <!-- Point de contrôle central -->
+                                    <ellipse class="nx-point" cx="100" cy="96" rx="44" ry="12"/>
+                                    <ellipse class="nx-point-core" cx="100" cy="96" rx="14" ry="4"/>
+                                    <!-- Équipe bleue / équipe rouge -->
+                                    <path class="nx-blue" d="M30 92l10-26 10 26z"/>
+                                    <circle class="nx-blue" cx="40" cy="62" r="7"/>
+                                    <path class="nx-blue" d="M54 98l8-20 8 20z"/>
+                                    <circle class="nx-blue" cx="62" cy="75" r="5.5"/>
+                                    <path class="nx-red" d="M150 92l10-26 10 26z"/>
+                                    <circle class="nx-red" cx="160" cy="62" r="7"/>
+                                    <path class="nx-red" d="M130 98l8-20 8 20z"/>
+                                    <circle class="nx-red" cx="138" cy="75" r="5.5"/>
+                                    <text class="nx-vs" x="100" y="58" text-anchor="middle">5V5</text>
+                                    <path class="op-spark" d="M100 20l1.6 4.2 4.2 1.6-4.2 1.6-1.6 4.2-1.6-4.2-4.2-1.6 4.2-1.6z"/>
+                                </svg>
+                            </div>
+                            <div class="mode-card-body">
+                                <div class="mode-card-name">NEXUS</div>
+                                <p class="mode-card-desc">Héros 5v5 : choisis ton héros (Tank, Dégâts ou Soutien) et prends le contrôle du point au Sanctuaire de Kaïro.</p>
+                                <ul class="mode-tags" aria-label="Particularités">
+                                    <li>1 Tank · 2 Dégâts · 2 Soutiens</li>
+                                    <li>Contrôle de zone</li>
+                                    <li>Aperçu</li>
+                                </ul>
+                                <span class="mode-card-players"><span class="mode-pips" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></span>5 contre 5 · avec bots (multijoueur bientôt)</span>
+                            </div>
+                            <div class="mode-card-lock"><span class="lock-text">🔒 Pour l'instant : 1 joueur</span></div>
+                        </div>
                     </div>
                 </section>
             </div>
@@ -1242,7 +1277,7 @@
     <script type="module" src="js/lobby-admin.js?v=2"></script>
     <script src="js/network.js?v=12"></script>
     <script src="js/friends.js?v=4"></script>
-    <script src="js/lobby.js?v=15"></script>
+    <script src="js/lobby.js?v=16"></script>
     <script src="js/main.js"></script>
 </body>
 </html>
