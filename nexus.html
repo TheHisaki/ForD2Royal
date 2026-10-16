@@ -9,7 +9,7 @@
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Rubik:wght@400;600;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="css/nexus.css?v=3">
+    <link rel="stylesheet" href="css/nexus.css?v=4">
 </head>
 <body>
     <!-- Chargement -->
@@ -82,7 +82,7 @@
                     <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M15 5l-7 7 7 7"/></svg>
                     Lobby
                 </a>
-                <button id="nxChangeHero" class="nx-back" type="button">Changer de héros</button>
+                <button id="nxChangeHero" class="nx-back" type="button">Changer de héros (H)</button>
             </div>
 
             <!-- Objectif (Contrôle) : % de chaque équipe, manches, état du point -->
@@ -113,6 +113,18 @@
                 <strong>ÉLIMINÉ</strong>
                 <span id="nxDeathBy"></span>
                 <span id="nxDeathT" class="nx-death-t"></span>
+                <span class="nx-death-hint"><kbd>H</kbd> Changer de héros</span>
+            </div>
+            <div id="nxSpawnHint" class="nx-spawn-hint" hidden><kbd>H</kbd> Changer de héros (dans ta base)</div>
+
+            <!-- Changement de héros : mort ou dans sa base, même rôle -->
+            <div id="nxSwap" class="nx-swap" hidden role="dialog" aria-labelledby="nxSwapTitle">
+                <div class="nx-swap-card">
+                    <h2 id="nxSwapTitle">CHANGER DE HÉROS</h2>
+                    <p id="nxSwapSub" class="nx-swap-sub"></p>
+                    <div id="nxSwapList" class="nx-swap-list"></div>
+                    <button id="nxSwapClose" class="nx-back" type="button">Fermer <kbd>H</kbd></button>
+                </div>
             </div>
 
             <div id="nxHudHero" class="nx-hud-hero">
@@ -163,6 +175,6 @@
         </div>
     </div>
 
-    <script type="module" src="js/nexus/main.js?v=4"></script>
+    <script type="module" src="js/nexus/main.js?v=5"></script>
 </body>
 </html>

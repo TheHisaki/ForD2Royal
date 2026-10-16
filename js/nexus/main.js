@@ -5,12 +5,12 @@
       manches au meilleur des 3.
    ================================== */
 
-import { HERO_BY_ID, ROLES } from './heroes.js?v=3';
+import { HERO_BY_ID, ROLES } from './heroes.js?v=4';
 import { drawPortrait } from './sprites.js?v=3';
 import { KAIRO, buildMapLayers, placeAt } from './map.js?v=2';
-import { HeroSelect } from './select.js?v=3';
-import { Game, RULES } from './game.js?v=3';
-import { BotBrain } from './bots.js?v=2';
+import { HeroSelect } from './select.js?v=4';
+import { Game, RULES } from './game.js?v=4';
+import { BotBrain } from './bots.js?v=3';
 import { renderGame } from './render.js?v=3';
 import { NexusAudio } from './audio.js?v=2';
 
@@ -84,6 +84,8 @@ class Match {
             if (e.code === 'KeyQ') this.pending.q = true;
             if (e.code === 'KeyR') this.pending.reload = true;
             if (e.code === 'Tab') this.showBoard(true);
+            if (e.code === 'KeyH') this.toggleSwap();
+            if (e.code === 'Escape' && this.swapOpen) this.closeSwap();
         });
         addEventListener('keyup', (e) => {
             this.keys.delete(e.code);
@@ -116,6 +118,8 @@ class Match {
         this.endShown = false;
         this.hurtFlash = 0;
         this.buildHud();
+        $('nxFeed').innerHTML = '';
+        this.closeSwap();
         $('nxEnd').hidden = true;
         this.root.hidden = false;
         this.resize();
@@ -246,7 +250,12 @@ class Match {
                 this.addFeed(f, null, ult, f.team === this.me.team);
                 if (f !== this.me) SFX.play(f.team === this.me.team ? 'ultAlly' : 'ultEnemy', { vol: 0.8 });
             },
-            onHint: (text) => this.toast(text)
+            onHint: (text) => this.toast(text),
+            onHeroChange: (nf, old) => {
+                if (nf.isPlayer) return; // le joueur est géré par swapTo()
+                this.buildHud();
+                if (nf.team === this.me.team) this.addFeed(nf, null, `→ ${nf.hero.name}`, true);
+            }
         };
     }
 
@@ -399,6 +408,55 @@ class Match {
         }
     }
 
+    /* ----- Changement de héros ----- */
+
+    toggleSwap() {
+        if (this.swapOpen) this.closeSwap();
+        else this.openSwap();
+    }
+
+    openSwap() {
+        const g = this.game;
+        if (!this.running || !g) return;
+        if (!g.canSwap(this.me)) {
+            this.toast('Tu peux changer de héros quand tu es mort ou dans ta base');
+            return;
+        }
+        const role = ROLES[this.me.role];
+        $('nxSwapSub').textContent = `Rôle : ${role.name} · tu gardes 30 % de ta charge d'ultime · ${this.me.alive ? 'tu restes dans ta base' : 'tu réapparais avec le nouveau héros'}`;
+        const list = $('nxSwapList');
+        list.replaceChildren();
+        for (const c of g.swapChoices(this.me)) {
+            const h = HERO_BY_ID[c.id];
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = `nx-tile ${c.current ? 'is-current is-selected' : ''} ${c.taken ? 'is-unavailable is-taken' : ''}`;
+            btn.disabled = c.taken || c.current;
+            btn.innerHTML = `<canvas width="120" height="120"></canvas><span class="nx-tile-name">${h.name}</span><span class="nx-tile-taken">${c.current ? 'Actuel' : c.taken ? 'Pris' : ''}</span>`;
+            drawPortrait(btn.querySelector('canvas'), h.id, { roleColor: role.color, zoom: 1.05 });
+            btn.addEventListener('click', () => this.swapTo(c.id));
+            list.appendChild(btn);
+        }
+        $('nxSwap').hidden = false;
+        this.swapOpen = true;
+        SFX.play('whoosh');
+    }
+
+    closeSwap() {
+        $('nxSwap').hidden = true;
+        this.swapOpen = false;
+    }
+
+    swapTo(heroId) {
+        const nf = this.game.changeHero(this.me, heroId);
+        this.closeSwap();
+        if (!nf) { this.toast('Changement impossible maintenant'); return; }
+        this.me = nf;
+        this.buildHud();
+        SFX.play('respawn');
+        this.toast(`Tu joues maintenant ${nf.hero.name}`);
+    }
+
     /* ----- HUD ----- */
 
     buildHud() {
@@ -421,8 +479,7 @@ class Match {
             const hh = HERO_BY_ID[c.dataset.hero];
             drawPortrait(c, hh.id, { roleColor: ROLES[hh.role].color, zoom: 1.1 });
         }
-        this.portraitEls = [...document.querySelectorAll('#nxHudBlue li, #nxHudRed li')].map(li => ({ li, f: this.game.fighters[Number(li.dataset.id)], t: li.querySelector('.nx-dead-t') }));
-        $('nxFeed').innerHTML = '';
+        this.portraitEls = [...document.querySelectorAll('#nxHudBlue li, #nxHudRed li')].map(li => ({ li, id: Number(li.dataset.id), t: li.querySelector('.nx-dead-t') }));
         this.hudCache = {};
     }
 
@@ -516,6 +573,8 @@ class Match {
 
         // Portraits (morts grisés avec leur temps de réapparition)
         for (const p of this.portraitEls) {
+            p.f = g.fighters.find(f => f.id === p.id);
+            if (!p.f) continue;
             const dead = !p.f.alive;
             p.li.classList.toggle('is-dead', dead);
             const t = dead ? String(Math.ceil(p.f.respawnT)) : '';
@@ -563,9 +622,14 @@ class Match {
         ultEl.style.setProperty('--u', `${ult}%`);
         this.setText('nxUltPct', me.ultActive || me.tire ? 'ACTIF' : ult >= 100 ? 'PRÊT' : `${ult}%`);
 
+        // Changement de héros possible ?
+        const canSwap = g.canSwap(me);
+        $('nxSpawnHint').hidden = !(canSwap && me.alive) || this.swapOpen;
+        if (this.swapOpen && !canSwap) this.closeSwap();
+
         // Mort
         const death = $('nxDeath');
-        death.hidden = me.alive || g.phase === 'matchEnd';
+        death.hidden = me.alive || g.phase === 'matchEnd' || this.swapOpen;
         if (!me.alive) {
             const by = this.deathBy;
             this.setText('nxDeathBy', by ? `Éliminé par ${by.name} (${by.hero.name})` : 'Éliminé');
@@ -646,9 +710,8 @@ async function boot() {
         onDone: (result) => match.start(result)
     });
     const backToSelect = () => { match.stop(); select.start(); };
-    $('nxChangeHero')?.addEventListener('click', () => {
-        if (confirm('Quitter la partie et revenir à la sélection des héros ?')) backToSelect();
-    });
+    $('nxChangeHero')?.addEventListener('click', () => match.toggleSwap());
+    $('nxSwapClose')?.addEventListener('click', () => match.closeSwap());
     $('nxReplay')?.addEventListener('click', backToSelect);
     const loading = $('nxLoading');
     loading?.classList.add('done');
@@ -665,6 +728,11 @@ async function boot() {
 
         const skip = Number(qp.get('skip')) || 0; // simuler N secondes (tests)
         for (let i = 0; i < skip * 60 && match.running; i++) { match.bots.update(STEP); match.game.update(STEP); }
+        // Test : ?swap ouvre le choix de héros (le joueur est considéré mort)
+        if (qp.has('swap') && match.running) {
+            if (match.me.alive) match.game.kill(match.me, null);
+            match.openSwap();
+        }
     }
     window.NEXUS = { match, select };
 }

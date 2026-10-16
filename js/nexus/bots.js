@@ -53,7 +53,19 @@ export class BotBrain {
     update(dt) {
         for (const f of this.game.fighters) {
             if (!f.isBot) continue;
-            if (!f.alive) { f.input.fire = f.input.fire2 = false; continue; }
+            if (!f.alive) {
+                f.input.fire = f.input.fire2 = false;
+                // Parfois, un bot mort change de héros (même rôle, héros libre)
+                if (!f.brain.swapDecided && f.respawnT < 8) {
+                    f.brain.swapDecided = true;
+                    if (Math.random() < 0.25) {
+                        const free = this.game.swapChoices(f).filter(c => !c.taken && !c.current);
+                        if (free.length) this.game.changeHero(f, free[Math.floor(Math.random() * free.length)].id);
+                    }
+                }
+                continue;
+            }
+            f.brain.swapDecided = false;
             const b = f.brain;
             b.think -= dt;
             if (b.think <= 0) {

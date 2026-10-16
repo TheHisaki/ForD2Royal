@@ -9,7 +9,7 @@
    les autres complètent la composition après le choix du joueur.
    ================================== */
 
-import { HEROES, HERO_BY_ID, ROLES, ROLE_ORDER, TEAM_COMPOSITION, heroesOfRole, isValidTeam } from './heroes.js?v=3';
+import { HEROES, HERO_BY_ID, ROLES, ROLE_ORDER, TEAM_COMPOSITION, heroesOfRole, isValidTeam } from './heroes.js?v=4';
 import { drawPortrait } from './sprites.js?v=3';
 
 const SELECT_TIME = 30;

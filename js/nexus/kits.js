@@ -79,9 +79,9 @@ function useUlt(f, g) {
    =================================================================== */
 
 const gorvald = {
-    hp: 650,
+    hp: 700,
     fxColor: '#ffb347',
-    ultCost: 1500,
+    ultCost: 1680,
     barrierBreakTime: 5,
     speed(f) {
         if (f.swingLock > 0) return 200;
@@ -126,14 +126,14 @@ const gorvald = {
 
         // Marteau (Clic G maintenu) : impossible derrière le bouclier
         if (inp.fire && !b.up && f.fireT <= 0) {
-            f.fireT = 0.9;
+            f.fireT = 0.96;
             f.swingLock = 0.35;
             f.swing = { t: 0, dir: (f.swingDir = -(f.swingDir || 1)) };
             g.sound('hammerSwing', { x: f.x, y: f.y });
             let hit = false;
             g.cone(f, 130, 1.05, (t) => {
                 if (!hit) { hit = true; g.sound('hammerHit', { x: t.x, y: t.y }); }
-                g.damage(t, 95, f, { how: 'Marteau-fusée', x: t.x, y: t.y });
+                g.damage(t, 85, f, { how: 'Marteau-fusée', x: t.x, y: t.y });
                 const l = Math.hypot(t.x - f.x, t.y - f.y) || 1;
                 g.knock(t, ((t.x - f.x) / l) * 260, ((t.y - f.y) / l) * 260);
             });
@@ -150,7 +150,7 @@ const gorvald = {
             g.spawnProjectile({
                 kind: 'firestrike', owner: f, x: p.x, y: p.y, angle: f.angle, speed: 950, r: 28, life: 1.2,
                 pierce: true, ignoreBarrier: true, eatable: false, color: '#ff7a1f',
-                onHit: (pr, t) => g.damage(t, 100, f, { how: 'Frappe de feu' })
+                onHit: (pr, t) => g.damage(t, 90, f, { how: 'Frappe de feu' })
             });
             g.addEffect({ type: 'muzzle', x: p.x, y: p.y, angle: f.angle, color: '#ff7a1f', size: 3, life: 0.2 });
             g.sound('firestrike', { x: f.x, y: f.y });
@@ -162,8 +162,8 @@ const gorvald = {
             f.anchoredT = 0.7;
             b.up = false;
             g.cone(f, 440, 0.62, (t) => {
-                g.damage(t, 170, f, { how: 'Fracas' });
-                g.stunTarget(t, 2.4);
+                g.damage(t, 250, f, { how: 'Fracas' });
+                g.stunTarget(t, 2.5);
             });
             g.addEffect({ type: 'shatter', x: f.x, y: f.y, angle: f.angle, range: 440, half: 0.62, life: 1.1, seed: Math.random() * 1000 });
             g.sound('earthshatter', { x: f.x, y: f.y });
@@ -171,7 +171,7 @@ const gorvald = {
         }
     },
     startCharge(f, g) {
-        f.cd.shift = 8;
+        f.cd.shift = 7;
         const speed = 880;
         f.charging = { pinned: null, brushed: new Set() };
         f.dash = {
@@ -211,7 +211,7 @@ const gorvald = {
             onWall: (ff) => {
                 const c = ff.charging;
                 if (c?.pinned) {
-                    g.damage(c.pinned, 300, ff, { how: 'Charge' });
+                    g.damage(c.pinned, 225, ff, { how: 'Charge' });
                     g.addEffect({ type: 'slam', x: c.pinned.x, y: c.pinned.y, angle: ff.angle, color: '#ffffff', life: 0.6 });
                     g.sound('slam', { x: ff.x, y: ff.y });
                     g.emit('onShake', ff.x, ff.y, 0.9);
@@ -246,9 +246,9 @@ const gorvald = {
    =================================================================== */
 
 const volta = {
-    hp: 650,
+    hp: 700,
     fxColor: '#7ff6ff',
-    ultCost: 2000,
+    ultCost: 1540,
     speed(f) {
         if (!f.mech) return 300;
         if (f.boosting) return 0;
@@ -260,8 +260,8 @@ const volta = {
     },
     toMech(f) {
         f.mech = true;
-        f.maxHp = 650;
-        f.hp = 650;
+        f.maxHp = 700;
+        f.hp = 700;
         f.r = 30;
         f.matrix.on = false;
         f.matrix.meter = 100;
@@ -276,7 +276,7 @@ const volta = {
             if (inp.fire && f.fireT <= 0) {
                 f.fireT = 0.14;
                 const m = front(f, 14);
-                g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * 0.05, 700, (d) => (d < 250 ? 14 : 9), { color: '#ff9bd0', width: 2, how: 'Pistolet' });
+                g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * 0.05, 700, (d) => (d < 300 ? 18 : 12), { color: '#ff9bd0', width: 2, how: 'Pistolet' });
                 g.sound('pilotShot', { x: f.x, y: f.y });
             }
             if (inp.q && useUlt(f, g)) {
@@ -316,7 +316,7 @@ const volta = {
                 const m = front(f, 44, side * 30);
                 for (let i = 0; i < 2; i++) {
                     g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * 0.3, 420,
-                        (d) => 6 * Math.max(0.3, 1 - Math.max(0, d - 150) / 360),
+                        (d) => 5.5 * Math.max(0.3, 1 - Math.max(0, d - 150) / 360),
                         { color: '#7ff6ff', width: 2.5, spark: i === 0, muzzle: i === 0, muzzleSize: 1.6, how: 'Canons à fusion' });
                 }
             }
@@ -417,7 +417,6 @@ const volta = {
         g.addEffect({ type: 'explosion', x: f.x, y: f.y, r: 110, color: '#ff6fb5', life: 0.7 });
         g.addEffect({ type: 'debris', x: f.x, y: f.y, color: '#ff6fb5', life: 0.9, seed: Math.random() * 1000 });
         g.sound('mechDown', { x: f.x, y: f.y });
-        f.ult = Math.min(100, f.ult + 25);
         this.eject(f, g, src ? Math.atan2(f.y - src.y, f.x - src.x) : f.angle + Math.PI);
         g.emit('onMechDown', f, src);
         return true;
@@ -439,7 +438,7 @@ const volta = {
 const zephyr = {
     hp: 175,
     fxColor: '#5ff3ff',
-    ultCost: 1100,
+    ultCost: 1260,
     speed() { return 330; },
     init(f) {
         f.maxAmmo = 40; f.ammo = 40; f.reloadTime = 1;
@@ -482,7 +481,7 @@ const zephyr = {
             const side = f.ammo % 2 ? 9 : -9;
             const m = front(f, 26, side);
             g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * 0.09, 520,
-                (d) => 6 * Math.max(0.35, 1 - Math.max(0, d - 220) / 300),
+                (d) => 6 * Math.max(0.3, 1 - Math.max(0, d - 220) / 300),
                 { color: '#5ff3ff', width: 2, spark: f.ammo % 3 === 0, how: 'Pistolets à impulsion' });
             g.sound('pulse', { x: f.x, y: f.y, src: f.id });
         }
@@ -554,7 +553,7 @@ const zephyr = {
 const kraz = {
     hp: 250,
     fxColor: '#ffb03a',
-    ultCost: 2100,
+    ultCost: 1925,
     speed(f) { return f.tire ? 0 : 290; },
     init(f) {
         f.maxAmmo = 5; f.ammo = 5; f.reloadTime = 1.5;
@@ -569,8 +568,8 @@ const kraz = {
         g.spawnProjectile({
             kind: 'grenade', owner: f, x, y, angle, speed: 760, r: 9, life: 1.5, bounces: 3, friction: 1.4, color: '#59703c',
             // Coup direct : 80 sur la cible + éclats autour ; au sol : éclats seulement
-            onHit: (p, t) => { g.damage(t, 40, f, { how: 'Lance-grenades' }); g.explode(p.x, p.y, 80, 45, f, { how: 'Lance-grenades' }); },
-            onExpire: (p) => g.explode(p.x, p.y, 80, 55, f, { how: 'Lance-grenades' }),
+            onHit: (p, t) => { g.damage(t, 40, f, { how: 'Lance-grenades' }); g.explode(p.x, p.y, 80, 80, f, { how: 'Lance-grenades' }); },
+            onExpire: (p) => g.explode(p.x, p.y, 80, 80, f, { how: 'Lance-grenades' }),
             onBounce: (p) => g.sound('bounce', { x: p.x, y: p.y })
         });
     },
@@ -588,7 +587,7 @@ const kraz = {
         }
 
         if (gunReady(f, dt, inp, g) && inp.fire) {
-            f.fireT = 0.72;
+            f.fireT = 0.667;
             f.ammo--;
             const m = front(f, 30, 6);
             this.grenade(f, g, m.x, m.y, f.angle);
@@ -726,10 +725,10 @@ function beamCandidates(f, g, range) {
 }
 
 const seraphine = {
-    hp: 225,
+    hp: 250,
     fxColor: '#ffe27a',
     healColor: '#ffe27a',
-    ultCost: 1500,
+    ultCost: 1820,
     speed(f) { return f.casting ? 0 : f.ultActive ? 390 : 300; },
     init(f) { f.beam = null; },
     reset(f) { f.beam = null; f.casting = null; f.ultActive = false; f.anchored = false; },
@@ -849,10 +848,10 @@ const seraphine = {
    =================================================================== */
 
 const tempo = {
-    hp: 225,
+    hp: 250,
     fxColor: '#7ee34f',
     healColor: '#7ee34f',
-    ultCost: 1800,
+    ultCost: 2690,
     speed() { return 345; },
     init(f) {
         f.maxAmmo = 20; f.ammo = 20; f.reloadTime = 1.25;
@@ -865,7 +864,7 @@ const tempo = {
         for (const a of g.alliesOf(f, true)) {
             if (Math.hypot(a.x - f.x, a.y - f.y) > 280 || !g.los(f.x, f.y, a.x, a.y)) continue;
             if (f.track === 'heal') {
-                const rate = (boosted ? 60 : 18) * (a === f ? 0.6 : 1);
+                const rate = (boosted ? 52 : 18) * (a === f ? 0.5 : 1);
                 g.heal(a, rate * dt, f);
             } else {
                 a.speedBuff = Math.max(a.speedBuff, boosted ? 1.6 : 1.25);
@@ -902,7 +901,7 @@ const tempo = {
         if (inp.fire2Pressed && ready(f, 'rmb')) {
             f.cd.rmb = 4;
             g.cone(f, 250, 0.75, (t) => {
-                g.damage(t, 35, f, { how: 'Onde de choc' });
+                g.damage(t, 25, f, { how: 'Onde de choc' });
                 const l = Math.hypot(t.x - f.x, t.y - f.y) || 1;
                 g.knock(t, ((t.x - f.x) / l) * 1150, ((t.y - f.y) / l) * 1150);
             });
@@ -929,8 +928,8 @@ const tempo = {
         if (inp.q && useUlt(f, g)) {
             for (const a of g.alliesOf(f, true)) {
                 if (Math.hypot(a.x - f.x, a.y - f.y) > 320 || !g.los(f.x, f.y, a.x, a.y)) continue;
-                a.over = 650;
-                a.overDecay = 95;
+                a.over = 750;
+                a.overDecay = 110;
             }
             g.addEffect({ type: 'ring', x: f.x, y: f.y, r0: 20, r1: 320, color: '#d8ff7a', life: 0.8 });
             g.addEffect({ type: 'barrierDrop', x: f.x, y: f.y, color: '#d8ff7a', life: 1.2 });
@@ -960,12 +959,12 @@ function pellets(g, f, n, spread, range, dmg, opts = {}) {
 }
 
 const ragnok = {
-    hp: 700,
+    hp: 750,
     fxColor: '#ffb03a',
-    ultCost: 1600,
+    ultCost: 2240,
     speed(f) { return f.breatheT > 0 ? 200 : f.ultActive ? 160 : 245; },
-    init(f) { f.maxAmmo = 5; f.ammo = 5; f.reloadTime = 1.5; },
-    reset(f) { f.ammo = f.maxAmmo; f.reloadT = 0; f.hook = null; },
+    init(f) { f.maxAmmo = 6; f.ammo = 6; f.reloadTime = 1.5; f.breath = 100; f.breathIdle = 0; },
+    reset(f) { f.ammo = f.maxAmmo; f.reloadT = 0; f.hook = null; f.breath = 100; f.breathing = false; },
     update(f, g, dt, inp) {
         // Porc entier : rafale continue qui repousse
         if (f.ultActive) {
@@ -986,14 +985,14 @@ const ragnok = {
         }
         if (f.breatheT > 0) this.heal(f, g, dt);
         if (gunReady(f, dt, inp, g) && inp.fire && !(f.breatheT > 0)) {
-            f.fireT = 0.85;
+            f.fireT = 0.8;
             f.ammo--;
-            pellets(g, f, 12, 0.3, 380, 9, { how: 'Fusil à ferraille' });
+            pellets(g, f, 12, 0.3, 380, 13.3, { how: 'Fusil à ferraille' });
             g.sound('scrapgun', { x: f.x, y: f.y });
         }
         // Crochet (Maj)
         if (inp.shift && ready(f, 'shift')) {
-            f.cd.shift = 8;
+            f.cd.shift = 6;
             const m = front(f, f.r + 8);
             g.spawnProjectile({
                 kind: 'hook', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 1300, r: 12, life: 0.5, eatable: false, color: '#c3ccd8',
@@ -1049,14 +1048,14 @@ const ragnok = {
    =================================================================== */
 
 const kodo = {
-    hp: 600,
+    hp: 625,
     fxColor: '#5ff3ff',
-    ultCost: 1700,
+    ultCost: 2240,
     speed(f) { return f.ultActive ? 320 : 270; },
     init(f) { f.tesla = []; },
     reset(f) {
         f.tesla = [];
-        if (f.ultActive || f.maxHp !== 600) { f.maxHp = 600; f.hp = Math.min(f.hp, 600); }
+        if (f.ultActive || f.maxHp !== 625) { f.maxHp = 625; f.hp = Math.min(f.hp, 625); }
         f.ultActive = false;
         f.leap = null;
     },
@@ -1067,8 +1066,8 @@ const kodo = {
             f.ultT -= dt;
             if (f.ultT <= 0) {
                 f.ultActive = false;
-                f.maxHp = 600;
-                f.hp = Math.min(f.hp, 600);
+                f.maxHp = 625;
+                f.hp = Math.min(f.hp, 625);
             }
         }
         // Atterrissage du Bond
@@ -1109,7 +1108,7 @@ const kodo = {
             f.teslaFiring = true;
             if (f.fireT <= 0) {
                 f.fireT = 0.1;
-                for (const t of targets) g.damage(t, 8.5, f, { how: 'Canon Tesla' });
+                for (const t of targets) g.damage(t, 7, f, { how: 'Canon Tesla' });
             }
         }
         f.teslaFiring = inp.fire && !f.ultActive;
@@ -1143,8 +1142,8 @@ const kodo = {
         if (inp.q && useUlt(f, g)) {
             f.ultActive = true;
             f.ultT = 10;
-            f.maxHp = 1100;
-            f.hp = Math.min(1100, f.hp + 500);
+            f.maxHp = 1125;
+            f.hp = Math.min(1125, f.hp + 500);
             f.cd.shift = 0;
             g.addEffect({ type: 'ring', x: f.x, y: f.y, r0: 20, r1: 200, color: '#7fd8ff', life: 0.7, follow: f });
             g.sound('primal', { x: f.x, y: f.y });
@@ -1164,10 +1163,10 @@ const kodo = {
    =================================================================== */
 
 const kade = {
-    hp: 225,
+    hp: 250,
     fxColor: '#7fd8ff',
     healColor: '#7fd8ff',
-    ultCost: 1500,
+    ultCost: 2310,
     speed(f) { return f.sprinting ? 300 * 1.5 : 300; },
     init(f) { f.maxAmmo = 30; f.ammo = 30; f.reloadTime = 1.5; },
     reset(f) { f.ammo = f.maxAmmo; f.reloadT = 0; f.sprinting = false; f.ultActive = false; },
@@ -1195,7 +1194,7 @@ const kade = {
             f.ammo--;
             const m = front(f, 44, 4);
             const spread = f.ultActive ? 0 : 0.035;
-            g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * spread, 950, (d) => (d < 450 ? 16 : 10),
+            g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * spread, 950, (d) => 18 * Math.max(0.5, 1 - Math.max(0, d - 600) / 700),
                 { color: f.ultActive ? '#ff5a5a' : '#7fd8ff', width: 2.5, spark: f.ammo % 2 === 0, how: f.ultActive ? 'Visière tactique' : 'Fusil à impulsion' });
             g.sound('rifle', { x: f.x, y: f.y, src: f.id });
         }
@@ -1206,15 +1205,15 @@ const kade = {
                 const m = front(f, 30, (i - 1) * 8);
                 g.spawnProjectile({
                     kind: 'helix', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 1100, r: 8, life: 0.9, color: '#7fd8ff', phase: i * 2.1,
-                    onHit: (p, t) => { g.damage(t, 26, f, { how: 'Roquettes hélices' }); g.explode(p.x, p.y, 70, 14, f, { how: 'Roquettes hélices', color: '#7fd8ff' }); },
-                    onWall: (p) => g.explode(p.x, p.y, 70, 14, f, { how: 'Roquettes hélices', color: '#7fd8ff' })
+                    onHit: (p, t) => { g.damage(t, 13.3, f, { how: 'Roquettes hélices' }); g.explode(p.x, p.y, 70, 26.7, f, { how: 'Roquettes hélices', color: '#7fd8ff' }); },
+                    onWall: (p) => g.explode(p.x, p.y, 70, 26.7, f, { how: 'Roquettes hélices', color: '#7fd8ff' })
                 });
             }
             g.sound('helix', { x: f.x, y: f.y });
         }
         // Champ biotique (E)
         if (inp.e && ready(f, 'e')) {
-            f.cd.e = 12;
+            f.cd.e = 15;
             g.objects.push({
                 kind: 'field', team: f.team, owner: f, x: f.x, y: f.y, r: 170, life: 5, alive: true, age: 0,
                 update: (o, gg, ddt) => {
@@ -1241,7 +1240,7 @@ const kade = {
         return [
             { key: 'Clic D', name: 'Roquettes hélices', cd: f.cd.rmb || 0, max: 6 },
             { key: 'Maj', name: 'Sprint', cd: 0, max: 1, active: f.sprinting },
-            { key: 'E', name: 'Champ biotique', cd: f.cd.e || 0, max: 12 }
+            { key: 'E', name: 'Champ biotique', cd: f.cd.e || 0, max: 15 }
         ];
     }
 };
@@ -1253,9 +1252,9 @@ const kade = {
 const nox = {
     hp: 300,
     fxColor: '#ff3b4f',
-    ultCost: 1500,
+    ultCost: 2100,
     speed(f) { return f.wraith > 0 ? 450 : f.ultActive ? 150 : 300; },
-    init(f) { f.maxAmmo = 8; f.ammo = 8; f.reloadTime = 1.6; f.wraith = 0; },
+    init(f) { f.maxAmmo = 8; f.ammo = 8; f.reloadTime = 1.5; f.wraith = 0; },
     reset(f) { f.ammo = f.maxAmmo; f.reloadT = 0; f.wraith = 0; f.step = null; f.ultActive = false; },
     // Moisson : récupère 30 % des dégâts infligés
     onDealt(f, dmg, target, g) {
@@ -1310,7 +1309,7 @@ const nox = {
             f.fireT = 0.5;
             f.ammo--;
             const side = f.ammo % 2 ? 12 : -12;
-            pellets(g, f, 14, 0.34, 300, 6, { how: 'Fusils infernaux', color: '#ff7b6b', side, muzzle: 1.8 });
+            pellets(g, f, 14, 0.34, 300, 7.7, { how: 'Fusils infernaux', color: '#ff7b6b', side, muzzle: 1.8 });
             g.sound('shotgunR', { x: f.x, y: f.y });
         }
         // Forme spectrale (Maj)
@@ -1356,12 +1355,12 @@ const nox = {
    =================================================================== */
 
 const shirin = {
-    hp: 225,
+    hp: 250,
     fxColor: '#c98bff',
     healColor: '#e7c2ff',
-    ultCost: 1500,
+    ultCost: 2100,
     speed() { return 290; },
-    init(f) { f.maxAmmo = 12; f.ammo = 12; f.reloadTime = 1.5; },
+    init(f) { f.maxAmmo = 15; f.ammo = 15; f.reloadTime = 1.5; },
     reset(f) { f.ammo = f.maxAmmo; f.reloadT = 0; },
     // Tir qui touche alliés (soin) et ennemis (dégâts)
     shoot(f, g) {
@@ -1379,7 +1378,7 @@ const shirin = {
         if (hit) {
             end = best;
             if (hit.team === f.team && !hit.isTarget) g.heal(hit, 75, f);
-            else g.damage(hit, 70, f, { how: 'Fusil biotique', x: m.x + dx * best, y: m.y + dy * best });
+            else g.damage(hit, 75, f, { how: 'Fusil biotique', x: m.x + dx * best, y: m.y + dy * best });
         } else if (bar) {
             end = bar.t;
             g.damageBarrier(bar, 70);
@@ -1390,21 +1389,21 @@ const shirin = {
     },
     update(f, g, dt, inp) {
         if (gunReady(f, dt, inp, g) && inp.fire) {
-            f.fireT = 0.85;
+            f.fireT = 0.8;
             f.ammo--;
             this.shoot(f, g);
         }
         // Fléchette soporifique (Maj)
         if (inp.shift && ready(f, 'shift')) {
-            f.cd.shift = 12;
+            f.cd.shift = 14;
             const m = front(f, 40);
             g.spawnProjectile({
                 kind: 'dart', owner: f, x: m.x, y: m.y, angle: f.angle, speed: 1800, r: 6, life: 0.8, eatable: true, color: '#b6ff8a',
                 onHit: (p, t) => {
                     if (t.isTarget) return;
                     g.damage(t, 5, f, { how: 'Fléchette soporifique' });
-                    g.stunTarget(t, 4);
-                    t.sleep = 4;
+                    g.stunTarget(t, 5);
+                    t.sleep = 5;
                     g.sound('sleep', { x: t.x, y: t.y });
                 }
             });
@@ -1412,14 +1411,14 @@ const shirin = {
         }
         // Grenade biotique (E)
         if (inp.e && ready(f, 'e')) {
-            f.cd.e = 10;
+            f.cd.e = 12;
             const d = Math.min(700, Math.hypot(inp.ax - f.x, inp.ay - f.y));
             const burst = (p) => {
                 g.addEffect({ type: 'bionade', x: p.x, y: p.y, r: 130, life: 0.7 });
                 g.sound('bionade', { x: p.x, y: p.y });
                 for (const t of g.fighters) {
                     if (!t.alive || Math.hypot(t.x - p.x, t.y - p.y) > 130 + t.r || !g.los(p.x, p.y, t.x, t.y)) continue;
-                    if (t.team === f.team) { g.heal(t, 90, f); t.healBoost = 4; }
+                    if (t.team === f.team) { g.heal(t, 60, f); t.healBoost = 4; }
                     else { g.damage(t, 60, f, { how: 'Grenade biotique' }); t.antiHeal = 3; }
                 }
             };
@@ -1450,8 +1449,8 @@ const shirin = {
     },
     slots(f) {
         return [
-            { key: 'Maj', name: 'Fléchette soporifique', cd: f.cd.shift || 0, max: 12 },
-            { key: 'E', name: 'Grenade biotique', cd: f.cd.e || 0, max: 10 }
+            { key: 'Maj', name: 'Fléchette soporifique', cd: f.cd.shift || 0, max: 14 },
+            { key: 'E', name: 'Grenade biotique', cd: f.cd.e || 0, max: 12 }
         ];
     }
 };
@@ -1461,10 +1460,10 @@ const shirin = {
    =================================================================== */
 
 const vespera = {
-    hp: 225,
+    hp: 250,
     fxColor: '#b35cff',
     healColor: '#ffd84a',
-    ultCost: 1700,
+    ultCost: 2125,
     speed(f) { return f.fade > 0 ? 300 * 2.2 : f.ultActive ? 340 : 300; },
     init(f) { f.energy = 100; f.fade = 0; },
     reset(f) { f.energy = 100; f.fade = 0; f.spray = false; f.drain = null; f.coal = null; f.ultActive = false; },
@@ -1499,7 +1498,7 @@ const vespera = {
         // Étreinte : soin en cône (Clic G)
         if (inp.fire && f.energy > 0) {
             f.spray = true;
-            f.energy = Math.max(0, f.energy - 18 * dt);
+            f.energy = Math.max(0, f.energy - 10 * dt);
             for (const a of g.alliesOf(f, true)) {
                 const d = Math.hypot(a.x - f.x, a.y - f.y);
                 if (a !== f && (d > 230 + a.r || Math.abs(angleDiff(Math.atan2(a.y - f.y, a.x - f.x), f.angle)) > 0.5 || !g.los(f.x, f.y, a.x, a.y))) continue;
@@ -1543,7 +1542,7 @@ const vespera = {
                     for (const a of gg.alliesOf(f, true)) {
                         if (pool <= 0) { p.dead = true; return; }
                         if (Math.hypot(a.x - p.x, a.y - p.y) > 150 + a.r || !gg.los(p.x, p.y, a.x, a.y)) continue;
-                        const h = gg.heal(a, 55 * ddt, f);
+                        const h = gg.heal(a, 65 * ddt, f);
                         pool -= Math.max(h, 10 * ddt);
                     }
                 }

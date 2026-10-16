@@ -11,9 +11,9 @@
 
 import { collide } from './map.js?v=2';
 import { castWall, lineOfSight, rayCircle } from './geom.js?v=1';
-import { HERO_BY_ID } from './heroes.js?v=3';
+import { HERO_BY_ID } from './heroes.js?v=4';
 import { HERO_RADIUS } from './sprites.js?v=3';
-import { KITS } from './kits.js?v=3';
+import { KITS } from './kits.js?v=4';
 import { NexusAudio } from './audio.js?v=2';
 
 const TAU = Math.PI * 2;
@@ -30,10 +30,12 @@ export const RULES = {
     roundEndTime: 6,
     passiveUlt: 0.35,       // % d'ultime par seconde
     woundTime: 2,           // passif Dégâts : soins reçus réduits
-    woundMul: 0.75,
+    woundMul: 0.8,          // Dégâts : -20 % de soins reçus par la cible
+    regenDelay: 6,          // Tous les héros : 10 PV + 5 % des PV max par seconde après 6 s sans dégâts
+    passiveUltPoints: 5,    // Charge d'ultime passive : 5 points par seconde
     supportRegenDelay: 2.5, // passif Soutien
     supportRegen: 15,
-    tankKnockMul: 0.6,      // passif Tank
+    tankKnockMul: 0.7,      // passif Tank : 30 % de recul en moins
     tankUltMul: 0.7
 };
 
@@ -111,6 +113,56 @@ export class Game {
         };
         kit.init?.(f, this);
         return f;
+    }
+
+    /* ----- Changement de héros (comme Overwatch : mort ou dans sa base) ----- */
+
+    canSwap(f) {
+        if (this.phase === 'matchEnd' || this.phase === 'roundEnd') return false;
+        return !f.alive || this.inSpawn(f);
+    }
+
+    // Héros proposés : même rôle (file par rôle), pas déjà pris par un coéquipier
+    swapChoices(f) {
+        return Object.keys(KITS).filter(id => HERO_BY_ID[id].role === f.role).map(id => ({
+            id,
+            current: id === f.heroId,
+            taken: this.fighters.some(o => o !== f && o.team === f.team && o.heroId === id)
+        }));
+    }
+
+    changeHero(f, heroId) {
+        const h = HERO_BY_ID[heroId];
+        if (!h || heroId === f.heroId || h.role !== f.role || !this.canSwap(f)) return null;
+        if (this.fighters.some(o => o !== f && o.team === f.team && o.heroId === heroId)) return null;
+        // Les objets posés par l'ancien héros disparaissent (mines, pièges, dôme, champ…)
+        for (const o of this.objects) if (o.owner === f && o.kind !== 'soul') o.alive = false;
+        for (const p of this.projectiles) if (p.owner === f) p.dead = true;
+        const nf = this.makeFighter({ name: f.name, heroId, isPlayer: f.isPlayer }, f.team, f.index, f.id);
+        nf.stats = f.stats;
+        nf.input = f.input;
+        nf.brain = f.brain;
+        // Overwatch 2 : on garde 30 % de la charge d'ultime en changeant de héros
+        nf.ult = Math.floor(f.ult * 0.3);
+        if (f.alive) {
+            nf.x = f.x; nf.y = f.y; nf.angle = f.angle;
+            nf.hp = nf.maxHp;
+            nf.invuln = 0.5;
+            this.addEffect({ type: 'revive', x: nf.x, y: nf.y, color: f.team === 'blue' ? '#38bdf8' : '#f43f5e', life: 0.8 });
+            this.sound('respawn', { x: nf.x, y: nf.y });
+        } else {
+            nf.alive = false;
+            nf.hp = 0;
+            nf.respawnT = f.respawnT;
+            // Plus de résurrection possible pour l'ancien héros
+            for (const o of this.objects) if (o.kind === 'soul' && o.fighter === f) o.alive = false;
+        }
+        const i = this.fighters.indexOf(f);
+        this.fighters[i] = nf;
+        if (this.player === f) this.player = nf;
+        for (const o of this.fighters) if (o.lastAttacker === f) o.lastAttacker = nf;
+        this.emit('onHeroChange', nf, f);
+        return nf;
     }
 
     /* ----- Manches ----- */
@@ -718,7 +770,9 @@ export class Game {
             f.wound = Math.max(0, f.wound - dt);
             for (const k of ['nano', 'antiHeal', 'healBoost', 'breatheT', 'sleep']) if (f[k] > 0) f[k] = Math.max(0, f[k] - dt);
             f.slow = 1;
-            if (!f.ultActive && f.ult < 100) f.ult = Math.min(100, f.ult + RULES.passiveUlt * dt * (f.ultMul || 1));
+            if (!f.ultActive && f.ult < 100) f.ult = Math.min(100, f.ult + (RULES.passiveUltPoints * dt / (f.kit.ultCost || 2000)) * 100);
+            // Récupération passive de tous les héros (Overwatch 2)
+            if (this.time - f.lastHurt > RULES.regenDelay) this.heal(f, (10 + f.maxHp * 0.05) * dt, null);
             // Passif Soutien : récupération
             if (f.role === 'support' && this.time - f.lastHurt > RULES.supportRegenDelay) this.heal(f, RULES.supportRegen * dt, null);
             // Base : soin rapide
