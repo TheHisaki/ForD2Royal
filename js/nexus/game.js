@@ -13,8 +13,8 @@ import { collide } from './map.js?v=2';
 import { castWall, lineOfSight, rayCircle } from './geom.js?v=1';
 import { HERO_BY_ID } from './heroes.js?v=2';
 import { HERO_RADIUS } from './sprites.js?v=2';
-import { KITS } from './kits.js?v=1';
-import { SFX } from '../sfx.js?v=17';
+import { KITS } from './kits.js?v=2';
+import { NexusAudio } from './audio.js?v=1';
 
 const TAU = Math.PI * 2;
 
@@ -149,7 +149,8 @@ export class Game {
     }
 
     sound(name, opts = {}) {
-        try { SFX.play(name, opts); } catch { /* son facultatif */ }
+        if (this.silent) return; // simulations / tests
+        try { NexusAudio.play(name, opts); } catch { /* son facultatif */ }
     }
 
     /* ----- Requêtes ----- */
@@ -208,12 +209,14 @@ export class Game {
         if (!b) return;
         b.hp -= amount;
         b.lastHit = this.time;
+        b.flash = 1;
+        this.sound('shieldHit', { x: owner.x, y: owner.y, src: owner.id });
         if (b.hp <= 0) {
             b.hp = 0;
             b.up = false;
             b.broken = owner.kit.barrierBreakTime || 5;
-            this.addEffect({ type: 'ring', x: owner.x, y: owner.y, r0: 40, r1: 150, color: '#8fd3ff', life: 0.5 });
-            this.sound('impact', { kind: 'shield', x: owner.x, y: owner.y });
+            this.addEffect({ type: 'shieldBreak', x: owner.x, y: owner.y, angle: b.angle, radius: b.radius, half: b.half, color: '#8fd3ff', life: 0.8 });
+            this.sound('shieldBreak', { x: owner.x, y: owner.y });
         }
     }
 
@@ -245,6 +248,12 @@ export class Game {
             this.gainUlt(src, dmg * (target.role === 'tank' ? RULES.tankUltMul : 1));
             target.lastAttacker = src;
         }
+        // Étincelles d'impact (limitées pour les armes automatiques)
+        if (this.time - (target._hitFx || -1) > 0.05) {
+            target._hitFx = this.time;
+            this.addEffect({ type: 'hit', x: opts.x ?? target.x, y: opts.y ?? target.y, color: src?.kit?.fxColor || '#ffffff', angle: src ? Math.atan2(target.y - src.y, target.x - src.x) : 0, life: 0.3 });
+        }
+        target.hurtT = 0.12;
         this.emit('onDamage', target, dmg, src, opts);
         if (target.hp <= 0) {
             target.hp = 0;
@@ -263,6 +272,12 @@ export class Game {
         if (src && done > 0) {
             src.stats.healing += done;
             if (src !== target) this.gainUlt(src, done);
+            // Petites croix de soin qui montent
+            if (this.time - (target._healFx || -1) > 0.22) {
+                target._healFx = this.time;
+                this.addEffect({ type: 'heal', x: target.x, y: target.y, follow: target, color: src.kit?.healColor || '#7ee34f', life: 0.8 });
+                this.emit('onHeal', target, src);
+            }
         }
         return done;
     }
@@ -287,10 +302,9 @@ export class Game {
         if (killer && killer.team !== target.team) killer.stats.kills++;
         this.feed.unshift({ killer, victim: target, how, t: this.time });
         this.feed.length = Math.min(this.feed.length, 6);
-        this.addEffect({ type: 'burst', x: target.x, y: target.y, color: target.team === 'blue' ? '#38bdf8' : '#f43f5e', life: 0.6 });
+        this.addEffect({ type: 'death', x: target.x, y: target.y, color: target.team === 'blue' ? '#38bdf8' : '#f43f5e', heroColor: target.hero.color, life: 0.9 });
         // Souvenir au sol : permet la résurrection (Séraphine)
         this.objects.push({ kind: 'soul', team: target.team, fighter: target, x: target.x, y: target.y, life: RULES.respawn, alive: true });
-        this.sound('eliminate', { x: target.x, y: target.y });
         this.emit('onKill', killer, target, how);
     }
 
@@ -303,8 +317,8 @@ export class Game {
         target.kit.reset?.(target, this, false);
         target.hp = target.maxHp;
         this.objects = this.objects.filter(o => !(o.kind === 'soul' && o.fighter === target));
-        this.addEffect({ type: 'ring', x: target.x, y: target.y, r0: 10, r1: 120, color: '#ffe27a', life: 0.8 });
-        this.sound('healDone', { x: target.x, y: target.y });
+        this.addEffect({ type: 'revive', x: target.x, y: target.y, color: '#ffe27a', life: 1.2 });
+        this.sound('resurrect', { x: target.x, y: target.y });
         this.emit('onRevive', target, src);
     }
 
@@ -346,10 +360,14 @@ export class Game {
         }
         const ex = ox + dx * end, ey = oy + dy * end;
         if (opts.tracer !== false) {
-            this.addEffect({ type: 'tracer', x: ox, y: oy, x2: ex, y2: ey, color: opts.color || '#fff', width: opts.width || 3, life: 0.07 });
+            this.addEffect({ type: 'tracer', x: ox, y: oy, x2: ex, y2: ey, color: opts.color || '#fff', width: opts.width || 3, life: opts.tracerLife || 0.09 });
         }
-        if (!hitTarget && !bar && wall.t < range && opts.spark !== false) {
-            this.addEffect({ type: 'spark', x: ex, y: ey, color: opts.color || '#fff', life: 0.18 });
+        if (opts.muzzle !== false) {
+            this.addEffect({ type: 'muzzle', x: ox, y: oy, angle, color: opts.color || '#fff', size: opts.muzzleSize || 1, life: 0.07 });
+        }
+        if (!hitTarget && wall.t < range && opts.spark !== false) {
+            this.addEffect({ type: 'spark', x: ex, y: ey, nx: bar ? -dx : wall.nx, ny: bar ? -dy : wall.ny, color: opts.color || '#fff', life: 0.25 });
+            this.sound('impactWall', { x: ex, y: ey, vol: 0.6 });
         }
         return { x: ex, y: ey, target: hitTarget };
     }
@@ -375,6 +393,11 @@ export class Game {
             const p = list[i];
             p.age += dt;
             if (p.dead) { list.splice(i, 1); continue; }
+            // Traînée (positions récentes) pour le rendu
+            if (!p.stuck && !p.stuckTo) {
+                (p.trail ||= []).push(p.x, p.y);
+                if (p.trail.length > 20) p.trail.splice(0, 2);
+            }
             if (p.stuckTo) {
                 // Collé à une cible (bombe à impulsion)
                 if (p.stuckTo.alive) { p.x = p.stuckTo.x + p.stuckOx; p.y = p.stuckTo.y + p.stuckOy; }
@@ -476,8 +499,9 @@ export class Game {
                 else this.knock(t, ((t.x - x) / l) * power, ((t.y - y) / l) * power);
             }
         }
-        this.addEffect({ type: 'explosion', x, y, r: radius, color: opts.color || '#ffb03a', life: opts.big ? 0.7 : 0.45 });
-        this.sound('explosion', { kind: opts.sound || 'explosive', x, y });
+        this.addEffect({ type: 'explosion', x, y, r: radius, color: opts.color || '#ffb03a', big: Boolean(opts.big), life: opts.big ? 1.1 : radius < 60 ? 0.35 : 0.6 });
+        this.sound(opts.sound || (opts.big ? 'bigExplosion' : radius < 60 ? 'smallBoom' : 'explosion'), { x, y });
+        this.emit('onExplode', x, y, radius, Boolean(opts.big));
     }
 
     /** Applique fn à chaque cible dans un cône (ligne de vue obligatoire). */
@@ -550,7 +574,6 @@ export class Game {
             if (this.lockLeft <= 0) {
                 this.lockLeft = 0;
                 this.phase = 'live';
-                this.sound('ready');
                 this.emit('onPointUnlocked');
             }
             return;
@@ -577,7 +600,7 @@ export class Game {
                     this.owner = alone;
                     pr.team = null;
                     pr.value = 0;
-                    this.sound('ready');
+                    this.addEffect({ type: 'capture', x: this.map.point.x, y: this.map.point.y, team: alone, r: this.map.point.r, life: 1.2 });
                     this.emit('onCapture', alone);
                 }
             } else {
@@ -644,10 +667,15 @@ export class Game {
             f.t += dt;
             if (!f.alive) {
                 f.respawnT -= dt;
-                if (f.respawnT <= 0) this.respawn(f);
+                if (f.respawnT <= 0) { this.respawn(f); this.emit('onRespawn', f); }
                 continue;
             }
             for (const k in f.cd) if (f.cd[k] > 0) f.cd[k] = Math.max(0, f.cd[k] - dt);
+            if (f.hurtT > 0) f.hurtT = Math.max(0, f.hurtT - dt);
+            if (f.barrier?.flash > 0) f.barrier.flash = Math.max(0, f.barrier.flash - dt * 5);
+            // Ultime prête : signal
+            if (f.ult >= 100 && !f.ultReadyFlag) { f.ultReadyFlag = true; this.emit('onUltReady', f); }
+            if (f.ult < 100) f.ultReadyFlag = false;
             f.stun = Math.max(0, f.stun - dt);
             f.root = Math.max(0, f.root - dt);
             f.invuln = Math.max(0, f.invuln - dt);

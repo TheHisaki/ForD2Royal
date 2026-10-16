@@ -80,6 +80,7 @@ function useUlt(f, g) {
 
 const gorvald = {
     hp: 650,
+    fxColor: '#ffb347',
     ultCost: 1500,
     barrierBreakTime: 5,
     speed(f) {
@@ -116,7 +117,10 @@ const gorvald = {
         }
 
         // Bouclier (Clic D maintenu)
+        const wasUp = b.up;
         b.up = inp.fire2 && b.broken <= 0 && b.hp > 0;
+        if (b.up && !wasUp) g.sound('shieldUp', { x: f.x, y: f.y });
+        else if (!b.up && wasUp && b.hp > 0) g.sound('shieldDown', { x: f.x, y: f.y });
         b.angle = f.angle;
         if (!b.up && g.time - b.lastHit > 2 && b.hp < b.max && b.broken <= 0) b.hp = Math.min(b.max, b.hp + 144 * dt);
 
@@ -125,9 +129,11 @@ const gorvald = {
             f.fireT = 0.9;
             f.swingLock = 0.35;
             f.swing = { t: 0, dir: (f.swingDir = -(f.swingDir || 1)) };
-            g.sound('shot', { weapon: 'shotgun', x: f.x, y: f.y });
+            g.sound('hammerSwing', { x: f.x, y: f.y });
+            let hit = false;
             g.cone(f, 130, 1.05, (t) => {
-                g.damage(t, 95, f, { how: 'Marteau-fusée' });
+                if (!hit) { hit = true; g.sound('hammerHit', { x: t.x, y: t.y }); }
+                g.damage(t, 95, f, { how: 'Marteau-fusée', x: t.x, y: t.y });
                 const l = Math.hypot(t.x - f.x, t.y - f.y) || 1;
                 g.knock(t, ((t.x - f.x) / l) * 260, ((t.y - f.y) / l) * 260);
             });
@@ -146,7 +152,8 @@ const gorvald = {
                 pierce: true, ignoreBarrier: true, eatable: false, color: '#ff7a1f',
                 onHit: (pr, t) => g.damage(t, 100, f, { how: 'Frappe de feu' })
             });
-            g.sound('explosion', { kind: 'propulsion', x: f.x, y: f.y });
+            g.addEffect({ type: 'muzzle', x: p.x, y: p.y, angle: f.angle, color: '#ff7a1f', size: 3, life: 0.2 });
+            g.sound('firestrike', { x: f.x, y: f.y });
         }
 
         // Fracas (Q) : onde en cône qui renverse
@@ -158,8 +165,9 @@ const gorvald = {
                 g.damage(t, 170, f, { how: 'Fracas' });
                 g.stunTarget(t, 2.4);
             });
-            g.addEffect({ type: 'shatter', x: f.x, y: f.y, angle: f.angle, range: 440, half: 0.62, life: 0.6 });
-            g.sound('explosion', { kind: 'explosive', x: f.x, y: f.y });
+            g.addEffect({ type: 'shatter', x: f.x, y: f.y, angle: f.angle, range: 440, half: 0.62, life: 1.1, seed: Math.random() * 1000 });
+            g.sound('earthshatter', { x: f.x, y: f.y });
+            g.emit('onShake', f.x, f.y, 1.2);
         }
     },
     startCharge(f, g) {
@@ -186,7 +194,7 @@ const gorvald = {
                         c.pinned = t;
                         t.stun = 9;
                         t.dash = null;
-                        g.sound('impact', { kind: 'health', x: t.x, y: t.y });
+                        g.sound('pin', { x: t.x, y: t.y });
                     } else {
                         c.brushed.add(t);
                         g.damage(t, 50, ff, { how: 'Charge' });
@@ -204,14 +212,15 @@ const gorvald = {
                 const c = ff.charging;
                 if (c?.pinned) {
                     g.damage(c.pinned, 300, ff, { how: 'Charge' });
-                    g.addEffect({ type: 'ring', x: c.pinned.x, y: c.pinned.y, r0: 20, r1: 90, color: '#ffffff', life: 0.4 });
-                    g.sound('explosion', { kind: 'explosive', x: ff.x, y: ff.y });
+                    g.addEffect({ type: 'slam', x: c.pinned.x, y: c.pinned.y, angle: ff.angle, color: '#ffffff', life: 0.6 });
+                    g.sound('slam', { x: ff.x, y: ff.y });
+                    g.emit('onShake', ff.x, ff.y, 0.9);
                 }
                 this.endCharge(ff, g);
             },
             onEnd: (ff) => this.endCharge(ff, g)
         };
-        g.sound('explosion', { kind: 'propulsion', x: f.x, y: f.y });
+        g.sound('chargeStart', { x: f.x, y: f.y });
     },
     endCharge(f, g) {
         const c = f.charging;
@@ -238,6 +247,7 @@ const gorvald = {
 
 const volta = {
     hp: 650,
+    fxColor: '#7ff6ff',
     ultCost: 2000,
     speed(f) {
         if (!f.mech) return 300;
@@ -267,13 +277,13 @@ const volta = {
                 f.fireT = 0.14;
                 const m = front(f, 14);
                 g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * 0.05, 700, (d) => (d < 250 ? 14 : 9), { color: '#ff9bd0', width: 2, how: 'Pistolet' });
-                g.sound('shot', { weapon: 'pistol', x: f.x, y: f.y });
+                g.sound('pilotShot', { x: f.x, y: f.y });
             }
             if (inp.q && useUlt(f, g)) {
                 this.toMech(f);
                 f.invuln = 0.6;
-                g.addEffect({ type: 'ring', x: f.x, y: f.y, r0: 80, r1: 10, color: '#ff6fb5', life: 0.5 });
-                g.sound('explosion', { kind: 'propulsion', x: f.x, y: f.y });
+                g.addEffect({ type: 'callMech', x: f.x, y: f.y, color: '#ff6fb5', life: 0.9 });
+                g.sound('callMech', { x: f.x, y: f.y });
             }
             return;
         }
@@ -290,7 +300,8 @@ const volta = {
                 if (d > 270) continue;
                 if (Math.abs(angleDiff(Math.atan2(p.y - f.y, p.x - f.x), f.angle)) > 0.62) continue;
                 p.dead = true;
-                g.addEffect({ type: 'spark', x: p.x, y: p.y, color: '#7ff6ff', life: 0.25 });
+                g.addEffect({ type: 'absorb', x: p.x, y: p.y, tx: f.x, ty: f.y, color: '#ff9bd0', life: 0.3 });
+                g.sound('shieldHit', { x: p.x, y: p.y, src: f.id, vol: 0.5 });
             }
             // Les mines et le pneu ne sont pas des projectiles : la matrice ne les arrête pas
         } else {
@@ -306,10 +317,10 @@ const volta = {
                 for (let i = 0; i < 2; i++) {
                     g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * 0.3, 420,
                         (d) => 6 * Math.max(0.3, 1 - Math.max(0, d - 150) / 360),
-                        { color: '#7ff6ff', width: 2, spark: i === 0, how: 'Canons à fusion' });
+                        { color: '#7ff6ff', width: 2.5, spark: i === 0, muzzle: i === 0, muzzleSize: 1.6, how: 'Canons à fusion' });
                 }
             }
-            g.sound('shot', { weapon: 'shotgun', x: f.x, y: f.y });
+            g.sound('fusion', { x: f.x, y: f.y, src: f.id });
         }
 
         // Propulseurs (Maj) : vol dirigé à la souris, renverse au contact
@@ -319,7 +330,7 @@ const volta = {
                 f.boosting = true;
                 f.boostT = 2;
                 f.boostHit = new Set();
-                g.sound('explosion', { kind: 'propulsion', x: f.x, y: f.y });
+                g.sound('boostStart', { x: f.x, y: f.y });
             }
         }
         if (f.boosting) {
@@ -335,6 +346,7 @@ const volta = {
                     if (f.boostHit.has(t) || Math.hypot(t.x - f.x, t.y - f.y) > f.r + t.r + 4) continue;
                     f.boostHit.add(t);
                     g.damage(t, 25, f, { how: 'Propulseurs' });
+                    g.sound('pin', { x: t.x, y: t.y });
                     g.knock(t, Math.cos(a) * 700, Math.sin(a) * 700);
                 }
             }
@@ -352,6 +364,7 @@ const volta = {
                 f.missiles.n--;
                 const side = f.missiles.n % 2 ? 1 : -1;
                 const m = front(f, 10, side * 24);
+                g.sound('missile', { x: f.x, y: f.y, src: f.id });
                 g.spawnProjectile({
                     kind: 'missile', owner: f, x: m.x, y: m.y, angle: f.angle + (Math.random() - 0.5) * 0.22, speed: 820, r: 5, life: 0.9,
                     color: '#ffb03a',
@@ -382,7 +395,7 @@ const volta = {
             };
             g.objects.push(bomb);
             this.eject(f, g, a + Math.PI);
-            g.sound('explosion', { kind: 'propulsion', x: f.x, y: f.y });
+            g.sound('selfDestruct', { x: f.x, y: f.y });
         }
     },
     eject(f, g, angle) {
@@ -396,12 +409,14 @@ const volta = {
         f.missiles = null;
         f.invuln = 0.5;
         g.addEffect({ type: 'ring', x: f.x, y: f.y, r0: 10, r1: 90, color: '#ff6fb5', life: 0.4 });
+        g.sound('eject', { x: f.x, y: f.y });
     },
     // Méca détruit : la pilote survit (Éjection)
     onLethal(f, src, g) {
         if (!f.mech) return false;
-        g.addEffect({ type: 'explosion', x: f.x, y: f.y, r: 90, color: '#ff6fb5', life: 0.5 });
-        g.sound('explosion', { kind: 'explosive', x: f.x, y: f.y });
+        g.addEffect({ type: 'explosion', x: f.x, y: f.y, r: 110, color: '#ff6fb5', life: 0.7 });
+        g.addEffect({ type: 'debris', x: f.x, y: f.y, color: '#ff6fb5', life: 0.9, seed: Math.random() * 1000 });
+        g.sound('mechDown', { x: f.x, y: f.y });
         f.ult = Math.min(100, f.ult + 25);
         this.eject(f, g, src ? Math.atan2(f.y - src.y, f.x - src.x) : f.angle + Math.PI);
         g.emit('onMechDown', f, src);
@@ -423,6 +438,7 @@ const volta = {
 
 const zephyr = {
     hp: 175,
+    fxColor: '#5ff3ff',
     ultCost: 1100,
     speed() { return 330; },
     init(f) {
@@ -468,7 +484,7 @@ const zephyr = {
             g.hitscan(f, m.x, m.y, f.angle + (Math.random() - 0.5) * 0.09, 520,
                 (d) => 6 * Math.max(0.35, 1 - Math.max(0, d - 220) / 300),
                 { color: '#5ff3ff', width: 2, spark: f.ammo % 3 === 0, how: 'Pistolets à impulsion' });
-            if (f.ammo % 2) g.sound('shot', { weapon: 'smg', x: f.x, y: f.y });
+            g.sound('pulse', { x: f.x, y: f.y, src: f.id });
         }
 
         // Transfert (Maj) : dans le sens du déplacement
@@ -477,8 +493,8 @@ const zephyr = {
             const from = { x: f.x, y: f.y };
             const to = travel(g, f, moveAngle(f), 230);
             f.x = to.x; f.y = to.y;
-            g.addEffect({ type: 'blink', x: from.x, y: from.y, x2: to.x, y2: to.y, color: '#5ff3ff', life: 0.3 });
-            g.sound('explosion', { kind: 'smoke', x: f.x, y: f.y });
+            g.addEffect({ type: 'blink', x: from.x, y: from.y, x2: to.x, y2: to.y, color: '#5ff3ff', life: 0.35, hero: 'zephyr', angle: f.angle });
+            g.sound('blink', { x: f.x, y: f.y });
         }
 
         // Retour (E) : revient 3 s en arrière (position et vie)
@@ -487,13 +503,14 @@ const zephyr = {
             const h = f.history[0];
             f.recall = { t: 0.6, x: h.x, y: h.y, hp: Math.max(...f.history.map(s => s.hp)) };
             f.invuln = 0.6;
-            g.addEffect({ type: 'blink', x: f.x, y: f.y, x2: h.x, y2: h.y, color: '#5ff3ff', life: 0.6 });
-            g.sound('explosion', { kind: 'smoke', x: f.x, y: f.y });
+            g.addEffect({ type: 'recall', points: f.history.map(s => [s.x, s.y]), color: '#5ff3ff', life: 0.7 });
+            g.sound('recall', { x: f.x, y: f.y });
         }
 
         // Bombe à impulsion (Q) : se colle à la première cible ou au mur
         if (inp.q && useUlt(f, g)) {
             const m = front(f, 20);
+            g.sound('whoosh', { x: f.x, y: f.y });
             const fuse = (p) => {
                 p.fuse = 1;
                 p.update = (pp, gg, ddt) => {
@@ -510,9 +527,10 @@ const zephyr = {
                 onHit: (p, t) => {
                     if (t.isTarget) { p.stuck = true; fuse(p); return; }
                     p.stuckTo = t; p.stuckOx = p.x - t.x; p.stuckOy = p.y - t.y; fuse(p);
-                    g.sound('impact', { kind: 'shield', x: p.x, y: p.y });
+                    g.sound('stick', { x: p.x, y: p.y });
+                    g.emit('onStuck', t, f);
                 },
-                onWall: (p) => { p.stuck = true; fuse(p); },
+                onWall: (p) => { p.stuck = true; fuse(p); g.sound('stick', { x: p.x, y: p.y }); },
                 onBarrier: (p) => { p.stuck = true; fuse(p); },
                 onExpire: (p, gg) => {
                     const np = gg.spawnProjectile({ kind: 'pulse', owner: f, x: p.x, y: p.y, angle: 0, speed: 0, r: 9, eatable: false, stuck: true, color: '#5ff3ff' });
@@ -535,6 +553,7 @@ const zephyr = {
 
 const kraz = {
     hp: 250,
+    fxColor: '#ffb03a',
     ultCost: 2100,
     speed(f) { return f.tire ? 0 : 290; },
     init(f) {
@@ -552,7 +571,7 @@ const kraz = {
             // Coup direct : 80 sur la cible + éclats autour ; au sol : éclats seulement
             onHit: (p, t) => { g.damage(t, 40, f, { how: 'Lance-grenades' }); g.explode(p.x, p.y, 80, 45, f, { how: 'Lance-grenades' }); },
             onExpire: (p) => g.explode(p.x, p.y, 80, 55, f, { how: 'Lance-grenades' }),
-            onBounce: (p) => g.sound('grenadeBounce', { x: p.x, y: p.y })
+            onBounce: (p) => g.sound('bounce', { x: p.x, y: p.y })
         });
     },
     update(f, g, dt, inp) {
@@ -573,7 +592,8 @@ const kraz = {
             f.ammo--;
             const m = front(f, 30, 6);
             this.grenade(f, g, m.x, m.y, f.angle);
-            g.sound('shot', { weapon: 'crossbow', x: f.x, y: f.y });
+            g.addEffect({ type: 'muzzle', x: m.x, y: m.y, angle: f.angle, color: '#ffb03a', size: 1.8, smoke: true, life: 0.3 });
+            g.sound('grenadeLaunch', { x: f.x, y: f.y });
         }
 
         // Mine commotion (Clic D) : lancer, puis Clic D pour faire exploser
@@ -584,6 +604,7 @@ const kraz = {
             } else if (f.mineCharges > 0) {
                 f.mineCharges--;
                 const m = front(f, 24);
+                g.sound('mineThrow', { x: f.x, y: f.y });
                 g.objects.push({
                     kind: 'mine', team: f.team, owner: f, x: m.x, y: m.y, r: 10, alive: true, flight: 0.45,
                     vx: Math.cos(f.angle) * 620, vy: Math.sin(f.angle) * 620, age: 0,
@@ -607,6 +628,7 @@ const kraz = {
             f.cd.e = 2;
             const dist = Math.min(240, Math.hypot(inp.ax - f.x, inp.ay - f.y));
             const to = travel(g, f, f.angle, dist);
+            g.sound('trapSet', { x: to.x, y: to.y });
             g.objects.push({
                 kind: 'trap', team: f.team, owner: f, x: to.x, y: to.y, r: 18, alive: true, arm: 1, isTrap: true,
                 update: (o, gg, ddt) => {
@@ -617,7 +639,8 @@ const kraz = {
                         t.root = 1.5;
                         t.x = o.x; t.y = o.y;
                         gg.damage(t, 80, o.owner, { how: 'Piège d\'acier' });
-                        gg.sound('impact', { kind: 'health', x: o.x, y: o.y });
+                        gg.sound('trapSnap', { x: o.x, y: o.y });
+                        gg.addEffect({ type: 'snap', x: o.x, y: o.y, life: 0.4 });
                         o.alive = false;
                         o.owner.cd.e = 10;
                         break;
@@ -652,12 +675,13 @@ const kraz = {
             };
             f.tire = tire;
             g.objects.push(tire);
-            g.sound('explosion', { kind: 'propulsion', x: f.x, y: f.y });
+            g.sound('tireStart', { x: f.x, y: f.y });
         }
     },
     detonateMine(mine, g) {
         mine.alive = false;
-        g.explode(mine.x, mine.y, 125, 120, mine.owner, { how: 'Mine commotion', knock: 1100, selfKnock: true, color: '#f2c14e' });
+        g.explode(mine.x, mine.y, 125, 120, mine.owner, { how: 'Mine commotion', knock: 1100, selfKnock: true, color: '#f2c14e', sound: 'mineBoom' });
+        g.addEffect({ type: 'ring', x: mine.x, y: mine.y, r0: 20, r1: 170, color: '#f2c14e', life: 0.45 });
     },
     detonateTire(f, g) {
         const t = f.tire;
@@ -666,6 +690,8 @@ const kraz = {
         f.tire = null;
         f.anchored = false;
         g.explode(t.x, t.y, 230, 600, f, { how: 'Pneu infernal', big: true });
+        g.addEffect({ type: 'debris', x: t.x, y: t.y, color: '#2a2a2e', life: 1, seed: Math.random() * 1000 });
+        g.emit('onShake', t.x, t.y, 1.3);
     },
     // Cadeau d'adieu : des grenades tombent à sa mort
     onDeath(f, g) {
@@ -701,6 +727,8 @@ function beamCandidates(f, g, range) {
 
 const seraphine = {
     hp: 225,
+    fxColor: '#ffe27a',
+    healColor: '#ffe27a',
     ultCost: 1500,
     speed(f) { return f.casting ? 0 : f.ultActive ? 390 : 300; },
     init(f) { f.beam = null; },
@@ -776,7 +804,8 @@ const seraphine = {
                 const t = Math.max(0.05, (d - f.r - to.r - 10) / 900);
                 const a = Math.atan2(to.y - f.y, to.x - f.x);
                 f.dash = { t, vx: Math.cos(a) * 900, vy: Math.sin(a) * 900, unstoppable: false };
-                g.addEffect({ type: 'blink', x: f.x, y: f.y, x2: to.x, y2: to.y, color: '#ffe27a', life: 0.35 });
+                g.addEffect({ type: 'blink', x: f.x, y: f.y, x2: to.x, y2: to.y, color: '#ffe27a', life: 0.45, feathers: true });
+                g.sound('fly', { x: f.x, y: f.y });
             }
         }
 
@@ -790,6 +819,7 @@ const seraphine = {
                 f.anchored = true;
                 f.beam = null;
                 g.addEffect({ type: 'ring', x: soul.x, y: soul.y, r0: 90, r1: 20, color: '#ffe27a', life: 1 });
+                g.sound('resurrectCast', { x: f.x, y: f.y });
             } else if (f.isPlayer) {
                 g.emit('onHint', 'Aucun allié à ressusciter à proximité');
             }
@@ -800,8 +830,9 @@ const seraphine = {
             f.ultActive = true;
             f.ultT = 15;
             f.cd.shift = 0;
-            g.addEffect({ type: 'ring', x: f.x, y: f.y, r0: 20, r1: 160, color: '#ffe27a', life: 0.6, follow: f });
-            g.sound('healDone', { x: f.x, y: f.y });
+            g.addEffect({ type: 'ring', x: f.x, y: f.y, r0: 20, r1: 200, color: '#ffe27a', life: 0.8, follow: f });
+            g.addEffect({ type: 'revive', x: f.x, y: f.y, color: '#ffe27a', life: 1.2 });
+            g.sound('valkyrie', { x: f.x, y: f.y });
         }
     },
     heal(t, amount, f, g) { g.heal(t, amount, f); },
@@ -819,6 +850,8 @@ const seraphine = {
 
 const tempo = {
     hp: 225,
+    fxColor: '#7ee34f',
+    healColor: '#7ee34f',
     ultCost: 1800,
     speed() { return 345; },
     init(f) {
@@ -855,7 +888,7 @@ const tempo = {
                     color: '#7ee34f',
                     onHit: (p, t) => g.damage(t, 20, f, { how: 'Ampli sonique' })
                 });
-                g.sound('shot', { weapon: 'icecannon', x: f.x, y: f.y });
+                g.sound('sonic', { x: f.x, y: f.y, src: f.id });
             }
             if (f.burst.n <= 0) f.burst = null;
         }
@@ -873,15 +906,15 @@ const tempo = {
                 const l = Math.hypot(t.x - f.x, t.y - f.y) || 1;
                 g.knock(t, ((t.x - f.x) / l) * 1150, ((t.y - f.y) / l) * 1150);
             });
-            g.addEffect({ type: 'wave', x: f.x, y: f.y, angle: f.angle, range: 250, half: 0.75, color: '#7ee34f', life: 0.3 });
-            g.sound('explosion', { kind: 'propulsion', x: f.x, y: f.y });
+            g.addEffect({ type: 'wave', x: f.x, y: f.y, angle: f.angle, range: 250, half: 0.75, color: '#7ee34f', life: 0.4 });
+            g.sound('soundwave', { x: f.x, y: f.y });
         }
 
         // Changement de piste (Maj)
         if (inp.shift && ready(f, 'shift')) {
             f.cd.shift = 0.6;
             f.track = f.track === 'heal' ? 'speed' : 'heal';
-            g.sound('click');
+            g.sound(f.track === 'heal' ? 'trackHeal' : 'trackSpeed', { x: f.x, y: f.y });
         }
 
         // Volume à fond (E)
@@ -889,7 +922,7 @@ const tempo = {
             f.cd.e = 12;
             f.boostT = 3;
             g.addEffect({ type: 'ring', x: f.x, y: f.y, r0: 30, r1: 280, color: f.track === 'heal' ? '#7ee34f' : '#ffd21e', life: 0.5, follow: f });
-            g.sound('healStart', { item: 'healingSpray', x: f.x, y: f.y });
+            g.sound('ampItUp', { x: f.x, y: f.y });
         }
 
         // Mur du son (Q) : gros bouclier temporaire pour les alliés autour
@@ -900,7 +933,8 @@ const tempo = {
                 a.overDecay = 95;
             }
             g.addEffect({ type: 'ring', x: f.x, y: f.y, r0: 20, r1: 320, color: '#d8ff7a', life: 0.8 });
-            g.sound('explosion', { kind: 'flash', x: f.x, y: f.y });
+            g.addEffect({ type: 'barrierDrop', x: f.x, y: f.y, color: '#d8ff7a', life: 1.2 });
+            g.sound('soundBarrier', { x: f.x, y: f.y });
         }
     },
     slots(f) {

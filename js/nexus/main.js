@@ -9,10 +9,13 @@ import { HERO_BY_ID, ROLES } from './heroes.js?v=2';
 import { drawPortrait } from './sprites.js?v=2';
 import { KAIRO, buildMapLayers, placeAt } from './map.js?v=2';
 import { HeroSelect } from './select.js?v=2';
-import { Game, RULES } from './game.js?v=1';
+import { Game, RULES } from './game.js?v=2';
 import { BotBrain } from './bots.js?v=1';
-import { renderGame } from './render.js?v=1';
-import { SFX } from '../sfx.js?v=17';
+import { renderGame } from './render.js?v=2';
+import { NexusAudio } from './audio.js?v=1';
+
+// Sons d'interface (non spatialisés)
+const SFX = { play: (name, opts = {}) => NexusAudio.play(name, { ...opts, ui: true }) };
 
 const $ = (id) => document.getElementById(id);
 const TAU = Math.PI * 2;
@@ -135,6 +138,7 @@ class Match {
 
     stop() {
         this.running = false;
+        NexusAudio.stopAll();
         this.root.hidden = true;
         this.keys.clear();
         this.showBoard(false);
@@ -166,28 +170,60 @@ class Match {
             onRoundStart: (n) => {
                 this.banner(`MANCHE ${n}`, `Le point se déverrouille dans ${RULES.pointLock} s`, 'neutral');
                 this.toast('Point verrouillé : préparez-vous devant le point');
+                this.lastTick = null;
+                SFX.play('whoosh');
             },
-            onPointUnlocked: () => this.banner('POINT DÉVERROUILLÉ', 'Prenez le contrôle du point !', 'neutral'),
+            onPointUnlocked: () => {
+                this.banner('POINT DÉVERROUILLÉ', 'Prenez le contrôle du point !', 'neutral');
+                SFX.play('pointUnlock');
+            },
             onCapture: (team) => {
                 const ours = team === this.me.team;
                 this.banner(ours ? 'POINT CAPTURÉ' : 'POINT PERDU', ours ? 'Défendez le point !' : 'Reprenez le point !', ours ? 'good' : 'bad');
-                SFX.play(ours ? 'ready' : 'unready');
+                SFX.play(ours ? 'captureAlly' : 'captureEnemy');
             },
-            onOvertime: () => this.banner('PROLONGATION', 'Restez sur le point !', 'warn'),
+            onOvertime: () => {
+                this.banner('PROLONGATION', 'Restez sur le point !', 'warn');
+                SFX.play('overtime');
+            },
             onRoundEnd: (team, over) => {
                 const ours = team === this.me.team;
-                if (!over) this.banner(ours ? 'MANCHE GAGNÉE' : 'MANCHE PERDUE', `${this.game.roundsWon[this.me.team]} - ${this.game.roundsWon[this.me.team === 'blue' ? 'red' : 'blue']}`, ours ? 'good' : 'bad');
+                if (!over) {
+                    this.banner(ours ? 'MANCHE GAGNÉE' : 'MANCHE PERDUE', `${this.game.roundsWon[this.me.team]} - ${this.game.roundsWon[this.me.team === 'blue' ? 'red' : 'blue']}`, ours ? 'good' : 'bad');
+                    SFX.play(ours ? 'roundWin' : 'roundLose');
+                }
             },
             onMatchEnd: (team) => {
                 const ours = team === this.me.team;
                 this.banner(ours ? 'VICTOIRE' : 'DÉFAITE', '', ours ? 'good' : 'bad');
-                SFX.play(ours ? 'victory' : 'defeat');
+                SFX.play(ours ? 'roundWin' : 'roundLose');
                 setTimeout(() => this.showEnd(ours), 2600);
             },
             onKill: (killer, victim, how) => {
                 this.addFeed(killer, victim, how);
-                if (killer === this.me) { this.toast(`Élimination : ${victim.name}`); SFX.play('eliminate'); }
-                if (victim === this.me) this.deathBy = killer;
+                if (killer === this.me && victim !== this.me) { this.toast(`Élimination : ${victim.name}`); SFX.play('kill'); }
+                if (victim === this.me) { this.deathBy = killer; SFX.play('death'); this.addShake(0.6); }
+                else if (victim.team === this.me.team) SFX.play('allyDeath', { vol: 0.7 });
+            },
+            onRespawn: (f) => { if (f === this.me) SFX.play('respawn'); },
+            onUltReady: (f) => {
+                if (f !== this.me) return;
+                SFX.play('ultReady');
+                this.toast('Capacité ultime prête !');
+            },
+            onHeal: (target, src) => {
+                if (target === this.me || src === this.me) NexusAudio.play('healTick', { x: target.x, y: target.y, src: target.id });
+            },
+            onExplode: (x, y, r, big) => {
+                const d = Math.hypot(x - this.me.x, y - this.me.y);
+                if (d < 900) this.addShake((big ? 1 : r / 260) * (1 - d / 900));
+            },
+            onShake: (x, y, power) => {
+                const d = Math.hypot(x - this.me.x, y - this.me.y);
+                if (d < 1000) this.addShake(power * (1 - d / 1000));
+            },
+            onStuck: (target) => {
+                if (target === this.me) { this.toast('Une bombe est collée sur toi !'); this.addShake(0.4); }
             },
             onMechDown: (f) => { if (f === this.me) this.toast('Méca détruit ! Rappelle-le avec l\'ultime'); },
             onRevive: (target, src) => {
@@ -197,15 +233,20 @@ class Match {
             onDamage: (target, dmg, src) => {
                 if (src === this.me && target !== this.me) {
                     this.game.addEffect({ type: 'number', x: target.x + (Math.random() - 0.5) * 20, y: target.y, text: String(Math.round(dmg)), color: dmg >= 100 ? '#ff5a5a' : '#ffffff', big: dmg >= 100, life: 0.7 });
-                    if (!this.hitT || this.game.time - this.hitT > 0.06) { SFX.play('hitmarker', {}); this.hitT = this.game.time; }
+                    if (!this.hitT || this.game.time - this.hitT > 0.06) { SFX.play(dmg >= 100 ? 'critHit' : 'hitmarker'); this.hitT = this.game.time; }
                     this.hitmark = 0.15;
                 }
-                if (target === this.me) this.hurtFlash = Math.min(1, this.hurtFlash + dmg / 120);
+                if (target === this.me) {
+                    this.hurtFlash = Math.min(1, this.hurtFlash + dmg / 120);
+                    if (!this.hurtT || this.game.time - this.hurtT > 0.18) { SFX.play('hurt', { vol: Math.min(1, 0.4 + dmg / 80) }); this.hurtT = this.game.time; }
+                    if (dmg >= 60) this.addShake(Math.min(0.7, dmg / 300));
+                }
             },
             onUlt: (f) => {
                 const h = HERO_BY_ID[f.heroId];
                 const ult = h.abilities.find(a => a.ult)?.name || 'Ultime';
                 this.addFeed(f, null, ult, f.team === this.me.team);
+                if (f !== this.me) SFX.play(f.team === this.me.team ? 'ultAlly' : 'ultEnemy', { vol: 0.8 });
             },
             onHint: (text) => this.toast(text)
         };
@@ -225,9 +266,49 @@ class Match {
         this.hurtFlash = Math.max(0, this.hurtFlash - dt * 1.6);
         this.hitmark = Math.max(0, (this.hitmark || 0) - dt);
         this.updateCamera(dt);
-        renderGame(this.ctx, g, this.layers, this.cam, this.me.team, this.me, this.dpr);
+        this.updateAudio();
+        // Tremblement d'écran (décroît vite)
+        this.shake = Math.max(0, (this.shake || 0) - dt * 2.2);
+        const s = this.shake * this.shake * 26;
+        const shake = { x: (Math.random() - 0.5) * s, y: (Math.random() - 0.5) * s };
+        renderGame(this.ctx, g, this.layers, this.cam, this.me.team, this.me, this.dpr, shake);
         this.drawCrosshair();
         this.updateHud();
+    }
+
+    addShake(power) {
+        this.shake = Math.min(1.2, (this.shake || 0) + power);
+    }
+
+    // Position d'écoute + boucles sonores continues (rayons, matrice, capture…)
+    updateAudio() {
+        const g = this.game;
+        const me = this.me;
+        NexusAudio.setListener(this.cam.x, this.cam.y);
+        const loops = [];
+        for (const f of g.fighters) {
+            if (!f.alive) continue;
+            if (f.beam) loops.push({ id: `beam${f.id}`, kind: f.beam.mode === 'heal' ? 'healBeam' : 'ampBeam', x: f.x, y: f.y });
+            if (f.matrix?.on) loops.push({ id: `matrix${f.id}`, kind: 'matrix', x: f.x, y: f.y });
+            if (f.boosting) loops.push({ id: `boost${f.id}`, kind: 'boost', x: f.x, y: f.y });
+            if (f.charging) loops.push({ id: `charge${f.id}`, kind: 'charge', x: f.x, y: f.y });
+            if (f.heroId === 'tempo') loops.push({ id: `aura${f.id}`, kind: 'aura', x: f.x, y: f.y, vol: f === me ? 1 : 0.5, speed: f.track === 'speed', boost: f.boostT > 0 });
+        }
+        for (const o of g.objects) {
+            if (o.kind === 'tire') loops.push({ id: `tire${o.owner.id}`, kind: 'tire', x: o.x, y: o.y });
+            if (o.kind === 'mechBomb') loops.push({ id: `bomb${o.owner.id}`, kind: 'mechBomb', x: o.x, y: o.y, fuse: o.fuse });
+        }
+        const p = g.map.point;
+        if (g.phase === 'live') {
+            if (g.contested) loops.push({ id: 'contested', kind: 'contested', x: p.x, y: p.y, vol: g.onPoint(me) ? 1 : 0.5 });
+            else if (g.progress.value > 0 && g.progress.team) loops.push({ id: 'capture', kind: 'capture', x: p.x, y: p.y, progress: g.progress.value, vol: g.onPoint(me) ? 1.2 : 0.6 });
+        }
+        NexusAudio.updateLoops(this.running ? loops : []);
+        // Décompte des 3 dernières secondes avant le déverrouillage
+        if (g.phase === 'setup') {
+            const n = Math.ceil(g.lockLeft);
+            if (n <= 3 && n >= 1 && n !== this.lastTick) { this.lastTick = n; SFX.play('countdown', { final: false }); }
+        }
     }
 
     readInput() {
@@ -410,7 +491,8 @@ class Match {
             sub = `${g.count?.[mine] || 0} contre ${g.count?.[theirs] || 0}`;
         } else if (g.progress.team && g.progress.value > 0) {
             state = g.progress.team === mine ? `CAPTURE ${Math.floor(g.progress.value)}%` : `L'ENNEMI CAPTURE ${Math.floor(g.progress.value)}%`;
-            sub = g.progress.team === mine ? `${g.count?.[mine] || 0} sur le point` : 'Allez sur le point !';
+            const n = g.count?.[mine] || 0;
+            sub = g.progress.team === mine ? (n ? `${n} sur le point` : 'Retournez sur le point !') : 'Allez sur le point !';
         } else if (g.owner) {
             state = g.owner === mine ? 'POINT CONTRÔLÉ' : 'POINT ENNEMI';
             sub = g.owner === mine ? 'Défendez le point' : 'Reprenez le point !';
